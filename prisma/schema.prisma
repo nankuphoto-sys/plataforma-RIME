@@ -1,0 +1,533 @@
+// Esquema base de la plataforma de agendamiento.
+// Multi-tenant con permisos por sede desde el día 1 (punto débil de AgendaPro que resolvemos de entrada).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------
+// Núcleo multi-tenant
+// ------------------------------
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique // usado en la URL pública de reservas: /book/[slug]
+  plan      Plan     @default(INDIVIDUAL)
+  status    TenantStatus @default(TRIAL)
+  vertical  TenantVertical @default(GENERAL)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Suscripción del SaaS (cobro recurrente vía Stripe Billing) — no confundir
+  // con los pagos de citas de clientes finales (model Payment).
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+
+  // Suscripción del SaaS vía Wompi (alternativa a Stripe para Colombia) —
+  // un tenant usa Stripe O Wompi, nunca ambos a la vez. Tampoco confundir
+  // con los pagos de citas de clientes finales (model Payment).
+  wompiPaymentSourceId String?   @unique
+  wompiCardLastFour    String?
+  wompiNextChargeAt    DateTime?
+  wompiRetryCount      Int       @default(0)
+  wompiFirstFailedAt   DateTime?
+
+  locations      Location[]
+  users          User[]
+  professionals  Professional[]
+  services       Service[]
+  clients        Client[]
+  appointments   Appointment[]
+  notifications  NotificationQueue[]
+  inventoryItems InventoryItem[]
+  wompiCharges   TenantWompiCharge[]
+  clientFields   TenantClientField[]
+}
+
+enum Plan {
+  INDIVIDUAL
+  BASICO
+  PREMIUM
+  PRO
+}
+
+enum TenantVertical {
+  GENERAL
+  PSICOLOGIA
+  NUTRICION
+  FISIOTERAPIA
+  ESTETICA
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  address   String?
+  timezone  String   @default("America/Santiago")
+  createdAt DateTime @default(now())
+
+  staffRoles            StaffLocationRole[]
+  appointments          Appointment[]
+  professionalLocations ProfessionalLocation[]
+  inventoryStock        InventoryStock[]
+  inventoryMovements    InventoryMovement[]
+
+  @@index([tenantId])
+}
+
+// ------------------------------
+// Usuarios, roles y permisos por sede
+// ------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email         String    @unique
+  emailVerified DateTime? // requerido por el Prisma adapter de Auth.js
+  image         String? // idem — solo se usa si más adelante se agregan providers OAuth
+  name          String
+  passwordHash  String
+  createdAt     DateTime  @default(now())
+  // Se actualiza cada vez que cambia la contraseña (propio, admin-asistido o
+  // reset por email). El callback `jwt` de Auth.js compara este valor contra
+  // el momento en que se emitió el JWT — si la contraseña cambió después,
+  // invalida la sesión en el próximo request (ver src/lib/auth.ts). Cierra el
+  // hueco de "cambiar contraseña no cierra sesiones activas en otros
+  // dispositivos" (limitación conocida de session: { strategy: "jwt" }).
+  passwordChangedAt DateTime @default(now())
+
+  locationRoles       StaffLocationRole[]
+  professionalProfile Professional?
+  accounts            Account[]
+  sessions            Session[]
+  inventoryMovements  InventoryMovement[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@index([tenantId])
+}
+
+// Token de un solo uso para el flujo público "olvidé mi contraseña". Nunca
+// se guarda el token crudo — solo su hash SHA-256 (mismo principio que las
+// contraseñas), para que un acceso a la base de datos no permita reconstruir
+// links de reseteo válidos.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// Un registro por cada llamada a requestPasswordResetAction, sin importar el
+// resultado (email inválido, no existe, cooldown por usuario, etc.) — usado
+// solo para el rate-limit por IP en src/lib/rateLimit.ts. Deliberadamente
+// sin userId/email: no hace falta para el rate-limit y evita que esta tabla
+// termine siendo un log de qué emails probó cada IP.
+model PasswordResetAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+}
+
+// ------------------------------
+// Modelos requeridos por el Prisma adapter de Auth.js (@auth/prisma-adapter).
+// Con el provider de Credentials + sesión JWT no se usan en el login actual,
+// pero dejan el schema listo para agregar providers OAuth (Google, etc.) sin
+// otra migración.
+// ------------------------------
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Permisos granulares POR SEDE — esto es lo que a AgendaPro le falta en cadenas multi-sede.
+model StaffLocationRole {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  role       Role
+
+  @@unique([userId, locationId])
+  @@index([locationId])
+}
+
+enum Role {
+  OWNER // dueño del tenant, ve todas las sedes
+  ADMIN // administra una o varias sedes asignadas
+  STAFF // recepción / operativo de una sede
+  PROFESSIONAL // atiende citas, ve solo su agenda
+}
+
+// ------------------------------
+// Catálogo: profesionales y servicios
+// ------------------------------
+
+model Professional {
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId         String?  @unique
+  user           User?    @relation(fields: [userId], references: [id])
+  name           String
+  bio            String?
+  active         Boolean  @default(true)
+  commissionRate Decimal  @default(0) @db.Decimal(5, 2) // porcentaje, 0-100
+  createdAt      DateTime @default(now())
+
+  services              ProfessionalService[]
+  appointments          Appointment[]
+  professionalLocations ProfessionalLocation[]
+
+  @@index([tenantId])
+}
+
+model Service {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name            String
+  durationMinutes Int
+  price           Decimal  @db.Decimal(10, 2)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  professionals  ProfessionalService[]
+  appointments   Appointment[]
+  inventoryItems ServiceInventoryItem[]
+
+  @@index([tenantId])
+}
+
+model ProfessionalService {
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  serviceId      String
+  service        Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([professionalId, serviceId])
+}
+
+// Un profesional puede estar asignado a 0, 1 o varias sedes del mismo tenant
+// — no es exclusiva. La asignación siempre es manual vía la UI de sedes,
+// nunca automática al crear una sede.
+model ProfessionalLocation {
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  locationId     String
+  location       Location     @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([professionalId, locationId])
+}
+
+// ------------------------------
+// CRM: clientes con ficha configurable por vertical
+// ------------------------------
+
+model Client {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  email        String?
+  phone        String?
+  birthdate    DateTime?
+  // Ficha clínica / de cliente configurable por vertical (psicología, nutrición, estética, etc.)
+  // sin tener que migrar el esquema cada vez que cambian los campos.
+  customFields Json     @default("{}")
+  createdAt    DateTime @default(now())
+
+  appointments  Appointment[]
+  notifications NotificationQueue[]
+
+  @@index([tenantId])
+}
+
+// Campo personalizado que un tenant agrega a su ficha de cliente, ADEMÁS de
+// la plantilla fija de su vertical (CLIENT_FIELD_TEMPLATES en
+// src/lib/clientFieldTemplates.ts) — nunca la reemplaza. Ver
+// getEffectiveClientFieldTemplate.
+model TenantClientField {
+  id        String                @id @default(cuid())
+  tenantId  String
+  tenant    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  key       String // clave dentro de Client.customFields, autogenerada del label
+  label     String
+  type      CustomClientFieldType
+  options   Json? // array de strings, solo relevante si type = SELECT
+  order     Int                   @default(0)
+  active    Boolean               @default(true)
+  createdAt DateTime              @default(now())
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}
+
+enum CustomClientFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DATE
+  SELECT
+  BOOLEAN
+}
+
+// ------------------------------
+// Citas, pagos y notificaciones
+// ------------------------------
+
+model Appointment {
+  id             String            @id @default(cuid())
+  tenantId       String
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationId     String
+  location       Location          @relation(fields: [locationId], references: [id])
+  professionalId String
+  professional   Professional      @relation(fields: [professionalId], references: [id])
+  serviceId      String
+  service        Service           @relation(fields: [serviceId], references: [id])
+  clientId       String
+  client         Client            @relation(fields: [clientId], references: [id])
+  startsAt       DateTime
+  endsAt         DateTime
+  status         AppointmentStatus @default(PENDING)
+  source         AppointmentSource @default(MANUAL)
+  createdAt      DateTime          @default(now())
+
+  payment            Payment?
+  notifications      NotificationQueue[]
+  inventoryMovements InventoryMovement[]
+
+  @@index([tenantId, startsAt])
+  @@index([locationId, startsAt])
+  @@index([professionalId, startsAt])
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentSource {
+  MARKETPLACE
+  WEBSITE
+  MANUAL
+}
+
+// Pago 1:1 con la cita, con confirmación por webhook en tiempo real
+// (a diferencia de AgendaPro, donde usuarios reportan ~2 días de demora).
+model Payment {
+  id            String        @id @default(cuid())
+  appointmentId String        @unique
+  appointment   Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  amount        Decimal       @db.Decimal(10, 2)
+  currency      String        @default("USD")
+  provider      PaymentProvider
+  providerRef   String? // id de la transacción en Stripe / Mercado Pago
+  status        PaymentStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  confirmedAt   DateTime?
+}
+
+enum PaymentProvider {
+  STRIPE
+  WOMPI
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+// Cobro de la suscripción del SaaS vía Wompi — separado de Payment/Appointment
+// a propósito, no es un pago de cita de cliente final.
+model TenantWompiCharge {
+  id                 String            @id @default(cuid())
+  tenantId           String
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  amountInCents      Int
+  currency           String            @default("COP")
+  status             WompiChargeStatus @default(PENDING)
+  reference          String            @unique // referencia única que le mandamos a Wompi
+  wompiTransactionId String? // id de la transacción según Wompi, para poder consultarla
+  attemptNumber      Int               @default(1) // 1 = cobro original del mes, 2-4 = reintentos
+  createdAt          DateTime          @default(now())
+  confirmedAt        DateTime?
+
+  @@index([tenantId])
+}
+
+enum WompiChargeStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  ERROR
+}
+
+// Un recordatorio de cita (Fase 1) siempre tiene appointmentId seteado y
+// clientId null; un aviso de recompra (Fase 5) siempre tiene clientId
+// seteado y appointmentId null. Nunca ambos a la vez ni ninguno de los dos
+// — así cada cron (send-reminders / send-followup-reminders) filtra sin
+// ambigüedad cuál fila le corresponde.
+model NotificationQueue {
+  id            String               @id @default(cuid())
+  tenantId      String
+  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointmentId String?
+  appointment   Appointment?         @relation(fields: [appointmentId], references: [id])
+  clientId      String?
+  client        Client?              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  channel       NotificationChannel
+  status        NotificationStatus   @default(SCHEDULED)
+  scheduledFor  DateTime
+  sentAt        DateTime?
+  payload       Json                 @default("{}")
+
+  @@index([tenantId, status, scheduledFor])
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  EMAIL
+  SMS
+}
+
+enum NotificationStatus {
+  SCHEDULED
+  SENT
+  FAILED
+}
+
+// ------------------------------
+// Inventario: insumos y productos, stock por sede (Fase 5)
+// ------------------------------
+
+model InventoryItem {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name              String
+  unit              String // texto libre: "unidad", "ml", "g", "caja", etc. — sin catálogo fijo
+  lowStockThreshold Int      @default(0)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  stockLevels InventoryStock[]
+  movements   InventoryMovement[]
+  serviceLinks ServiceInventoryItem[]
+
+  @@index([tenantId])
+}
+
+// Insumos que consume UNA cita completada de un servicio — tenant-wide,
+// igual que Service (no por sede). El descuento real de stock ocurre en la
+// sede de la cita puntual, ver deductInventoryForCompletedAppointment en
+// src/lib/inventory.ts.
+model ServiceInventoryItem {
+  serviceId      String
+  service        Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  itemId         String
+  item           InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantityPerUse Int // siempre positivo — cuánto consume UNA cita completada de este servicio
+
+  @@id([serviceId, itemId])
+  @@index([itemId])
+}
+
+model InventoryStock {
+  id         String        @id @default(cuid())
+  itemId     String
+  item       InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  locationId String
+  location   Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  quantity   Int           @default(0)
+
+  @@unique([itemId, locationId])
+  @@index([locationId])
+}
+
+// Un movimiento manual (recordInventoryMovementAction) siempre tiene
+// appointmentId null; un movimiento automático por cita completada (ver
+// src/lib/inventory.ts) siempre lo trae seteado — así se distinguen sin
+// ambigüedad, mismo criterio que appointmentId/clientId en NotificationQueue.
+model InventoryMovement {
+  id              String                @id @default(cuid())
+  itemId          String
+  item            InventoryItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  locationId      String
+  location        Location              @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  type            InventoryMovementType
+  quantity        Int // siempre positivo; el signo lo da `type`
+  note            String?
+  createdByUserId String?
+  createdByUser   User?                 @relation(fields: [createdByUserId], references: [id])
+  appointmentId   String?
+  appointment     Appointment?          @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  createdAt       DateTime              @default(now())
+
+  @@index([itemId, locationId])
+}
+
+enum InventoryMovementType {
+  IN
+  OUT
+}
