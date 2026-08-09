@@ -2140,3 +2140,72 @@ efectivamente reserva ese horario (hoy nada lo asigna, queda en `NOTIFIED`
 para siempre salvo que alguien lo cancele a mano), y los otros 3 módulos de
 nicho del roadmap (receta digital, auto-agendar seguimiento, línea de
 tiempo de fotos — este último el más grande de los 8, sigue sin empezar).
+
+## Receta digital (salud)
+
+✅ hecho y verificado en vivo (mismo entorno sin navegador). 7mo módulo de
+nicho de los 8 del roadmap.
+
+Modelo nuevo `Prescription` (tenantId, clientId, professionalId,
+`appointmentId` opcional y **no único** — a diferencia de
+`PackageRedemption`, de una misma cita pueden salir varias notas/recetas —,
+`title` opcional, `content` texto libre `@db.Text`, issuedAt). Deliberadamente
+sin campos estructurados de medicamento/dosis: el contenido varía demasiado
+entre psicología (plan de tratamiento), nutrición (plan alimentario) y
+fisioterapia (indicaciones) como para forzar un esquema rígido único —
+mismo criterio ya usado en `Client.customFields`. Nunca se edita ni se
+borra una vez creada (registro clínico) — solo se puede agregar una nota
+nueva, ninguna acción de editar/cancelar como sí tienen Paquetes/Lista de
+espera.
+
+**Decisión de gating distinta al resto de módulos de esta sesión**: el
+módulo `"prescriptions"` quedó en `true` para los 4 planes
+(`INDIVIDUAL`/`BASICO`/`PREMIUM`/`PRO`), no reservado a PREMIUM/PRO como
+Paquetes/Lista de espera/Inventario. Motivo documentado en el propio código
+(`planLimits.ts`): la ficha clínica con receta digital es el diferenciador
+central del nicho de salud que ya define este proyecto desde su
+`CLAUDE.md` original ("sin CIE-10, sin plantillas por especialidad" es
+exactamente el hueco que deja AgendaPro) — no es un upsell operativo como
+Inventario, es la razón de ser del segmento inicial de mercado. Se modeló
+igual como un `PlanModule` más (no un `if` hardcodeado en el código que lo
+usa) por si el negocio decide gatearlo distinto más adelante.
+
+PDF: nuevo endpoint en Pages Router
+(`src/pages/api/prescriptions/[tenantSlug]/[clientId]/[prescriptionId]/pdf.tsx`),
+calcado casi línea por línea del ya existente
+`src/pages/api/reports/[tenantSlug]/pdf.tsx` — mismo motivo documentado ahí
+(conflicto de `@react-pdf/renderer` con el grafo de módulos "react-server"
+de App Router en Next 15), mismo patrón de reimplicar a mano la cadena de
+guards con `getToken`/respuestas HTTP planas en vez de
+`redirect()`/`notFound()`. Verificado por revisión de código + `tsc`, mismo
+criterio que ya usa este proyecto para plantillas de `@react-pdf/renderer`
+(el riesgo real — el conflicto de RSC — ya se probó una vez a nivel de
+proyecto con una reproducción mínima aislada; no hace falta re-probarlo por
+cada plantilla nueva que seguí la misma estructura).
+
+UI: sección "Recetas y notas clínicas" embebida en
+`clients/[clientId]/page.tsx` (mismo placement client-scoped que Paquetes/
+Lista de espera), usando `tenant.professionals` (ya cargado por
+`requireDashboardAccess`) para el selector de profesional en vez de una
+query nueva. Cada receta lista un link "PDF" que apunta al endpoint nuevo.
+
+**Verificado en vivo (script real contra la base de Neon, sin sesión HTTP)**:
+`prisma/qa-prescriptions.ts` sembró un tenant **INDIVIDUAL** (a propósito,
+no PREMIUM — para confirmar que el módulo funciona igual en el plan más
+chico) con una receta real (tildes, ñ, contenido multilínea).
+`prisma/qa-prescriptions-verify.ts` confirmó: `planIncludesModule(INDIVIDUAL,
+"prescriptions")` da `true`; la misma query con scoping tenantId+clientId
+que usa el route handler de PDF encuentra la receta con el profesional
+"Dra. María José Peña" y el contenido con acentos intactos; forzar un
+tenantId o clientId incorrecto en esa misma query devuelve `null` (nunca
+filtra datos de otro tenant/cliente). Tenant QA borrado al terminar
+(`prisma/qa-prescriptions-cleanup.ts`, cascade confirmado).
+
+**Deliberadamente NO verificado en esta sesión**: el endpoint de PDF nunca
+se invocó por HTTP real (requiere una sesión de Auth.js que este entorno no
+puede simular sin navegador) — ni el `renderToBuffer` real del componente
+de PDF en sí, cubierto en cambio por revisión de código + `tsc` (ver
+motivo arriba). Fuera de esta fase: editar/eliminar una receta ya creada,
+firma digital del profesional, y el último módulo de nicho del roadmap
+(línea de tiempo de fotos — el más grande de los 8, depende de un servicio
+de almacenamiento de archivos que el proyecto no tiene todavía).

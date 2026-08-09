@@ -132,6 +132,23 @@ export async function requireWaitlistAccess(tenantSlug: string) {
   return { session, tenant };
 }
 
+// Guard de acceso a recetas digitales (ver/crear desde la ficha de un
+// cliente, descargar el PDF): exige que el plan del tenant incluya
+// "prescriptions" — hoy `true` en los 4 planes (ver el comentario en
+// planLimits.ts), así que este chequeo nunca redirige en la práctica todavía,
+// pero se implementa igual por consistencia con el resto de módulos. Sin
+// split de manage-access: cualquier usuario con acceso al dashboard puede
+// escribir una receta, es exactamente su trabajo clínico del día a día.
+export async function requirePrescriptionsAccess(tenantSlug: string) {
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  if (!planIncludesModule(tenant.plan, "prescriptions")) {
+    redirect(`/dashboard/${tenantSlug}/plan-required?feature=recetas&requiredPlan=INDIVIDUAL`);
+  }
+
+  return { session, tenant };
+}
+
 // Guard de acceso para gestionar paquetes (crear uno nuevo, cancelarlo):
 // además del chequeo de plan de requirePackagesAccess, exige OWNER o ADMIN,
 // mismo criterio que requireInventoryManageAccess. Ver los paquetes de un

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Clock, Download, Package, Save } from "lucide-react";
+import { ArrowLeft, Clock, Download, FileText, Package, Save } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import type { SessionPackageStatus, WaitlistEntryStatus } from "@prisma/client";
 import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
@@ -17,6 +17,7 @@ import {
   cancelPackageAction,
   cancelWaitlistEntryAction,
   createPackageAction,
+  createPrescriptionAction,
   createWaitlistEntryAction,
   redeemPackageSessionAction,
   updateClientAction,
@@ -149,6 +150,21 @@ export default async function ClientDetailPage({
         prisma.professional.findMany({ where: { tenantId: tenant.id, active: true }, orderBy: { name: "asc" } }),
       ])
     : [[], [], []];
+
+  // Recetas digitales: a diferencia de Paquetes/Lista de espera, este módulo
+  // está en `true` para los 4 planes (ver el comentario en planLimits.ts —
+  // es el diferenciador central del nicho de salud, no un upsell), pero se
+  // sigue chequeando `planIncludesModule` por consistencia con el resto de
+  // secciones y por si se gatea más adelante. Usa tenant.professionals (ya
+  // cargado por requireDashboardAccess) en vez de una query nueva.
+  const prescriptionsEnabled = planIncludesModule(tenant.plan, "prescriptions");
+  const prescriptions = prescriptionsEnabled
+    ? await prisma.prescription.findMany({
+        where: { clientId: client.id, tenantId: tenant.id },
+        include: { professional: true },
+        orderBy: { issuedAt: "desc" },
+      })
+    : [];
 
   // Citas COMPLETED de este cliente que todavía no se usaron para redimir
   // ninguna sesión de ningún paquete — candidatas al selector opcional de
@@ -432,6 +448,88 @@ export default async function ClientDetailPage({
             </div>
             <SubmitButton icon={<Clock className="h-4 w-4" />} pendingLabel="Guardando…">
               Unirse a la lista
+            </SubmitButton>
+          </form>
+        </section>
+      )}
+
+      {prescriptionsEnabled && (
+        <section className="mt-6 border-t border-sage-dark/30 pt-6">
+          <h2 className="section-title">Recetas y notas clínicas</h2>
+          {prescriptions.length === 0 ? (
+            <p className="mt-3 text-sm text-ink/40">Este cliente todavía no tiene ninguna receta.</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {prescriptions.map((prescription) => (
+                <li key={prescription.id} className="rounded-xl border border-sage-dark/25 p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-ink">{prescription.title ?? "Receta"}</p>
+                    <a
+                      href={`/api/prescriptions/${tenantSlug}/${clientId}/${prescription.id}/pdf`}
+                      className="inline-flex items-center gap-1 shell-link text-xs"
+                    >
+                      <Download className="h-3 w-3" />
+                      PDF
+                    </a>
+                  </div>
+                  <p className="data-mono mt-1 text-ink/50">
+                    {prescription.professional.name} —{" "}
+                    {prescription.issuedAt.toLocaleDateString("es-CL", { dateStyle: "medium" })}
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-ink/80">{prescription.content}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form
+            action={createPrescriptionAction.bind(null, tenantSlug, clientId)}
+            className="mt-4 space-y-3 border-t border-sage-dark/20 pt-4"
+          >
+            <div className="flex flex-wrap gap-3">
+              <div>
+                <label className="field-label" htmlFor="prescription-professionalId">
+                  Profesional
+                </label>
+                <select id="prescription-professionalId" name="professionalId" required className="field-input">
+                  {tenant.professionals.map((professional) => (
+                    <option key={professional.id} value={professional.id}>
+                      {professional.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="field-label" htmlFor="prescription-title">
+                  Título (opcional)
+                </label>
+                <input id="prescription-title" name="title" type="text" className="field-input" />
+              </div>
+              {appointments.length > 0 && (
+                <div>
+                  <label className="field-label" htmlFor="prescription-appointmentId">
+                    Cita relacionada (opcional)
+                  </label>
+                  <select id="prescription-appointmentId" name="appointmentId" defaultValue="" className="field-input">
+                    <option value="">Sin vincular</option>
+                    {appointments.map((appointment) => (
+                      <option key={appointment.id} value={appointment.id}>
+                        {appointment.service.name} —{" "}
+                        {appointment.startsAt.toLocaleDateString("es-CL", { dateStyle: "medium" })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="field-label" htmlFor="prescription-content">
+                Contenido
+              </label>
+              <textarea id="prescription-content" name="content" required rows={4} className="field-input" />
+            </div>
+            <SubmitButton icon={<FileText className="h-4 w-4" />} pendingLabel="Guardando…">
+              Guardar receta
             </SubmitButton>
           </form>
         </section>

@@ -7,6 +7,7 @@ import {
   requireDashboardAccess,
   requirePackagesAccess,
   requirePackagesManageAccess,
+  requirePrescriptionsAccess,
   requireWaitlistAccess,
 } from "@/lib/auth-guards";
 import { isProfessionalOnlyInTenant } from "@/lib/authorization";
@@ -399,6 +400,74 @@ export async function cancelWaitlistEntryAction(
   }
 
   await prisma.waitlistEntry.update({ where: { id: entry.id }, data: { status: "CANCELLED" } });
+
+  revalidatePath(`/dashboard/${tenantSlug}/clients/${clientId}`);
+  redirect(`/dashboard/${tenantSlug}/clients/${clientId}?saved=1`);
+}
+
+// Escribir una receta/nota clínica para un cliente: cualquiera con acceso al
+// dashboard (no exige OWNER/ADMIN) — es exactamente el trabajo clínico de un
+// profesional. appointmentId es opcional, solo para trazabilidad de qué
+// visita la originó. Nunca se edita ni se borra una vez creada (registro
+// clínico) — solo se puede agregar una nota nueva.
+export async function createPrescriptionAction(
+  tenantSlug: string,
+  clientId: string,
+  formData: FormData
+): Promise<void> {
+  const { session, tenant } = await requirePrescriptionsAccess(tenantSlug);
+
+  const client = await prisma.client.findFirst({ where: { id: clientId, tenantId: tenant.id } });
+  if (!client) notFound();
+
+  const redirectWithError = (error: string) => {
+    redirect(`/dashboard/${tenantSlug}/clients/${clientId}?error=${encodeURIComponent(error)}`);
+  };
+
+  const professionalId = formData.get("professionalId")?.toString() ?? "";
+  const title = formData.get("title")?.toString().trim() || null;
+  const content = formData.get("content")?.toString().trim() ?? "";
+  const appointmentIdRaw = formData.get("appointmentId")?.toString().trim() ?? "";
+
+  if (!content) {
+    redirectWithError("El contenido de la receta no puede estar vacío.");
+    return;
+  }
+
+  // Nunca confiar en los ids que llegan del formulario: el profesional debe
+  // pertenecer a este tenant, y la cita (si se eligió una) a este tenant Y
+  // este cliente puntual.
+  const professional = await prisma.professional.findFirst({
+    where: { id: professionalId, tenantId: tenant.id },
+  });
+  if (!professional) {
+    redirectWithError("Profesional no válido.");
+    return;
+  }
+
+  let appointmentId: string | null = null;
+  if (appointmentIdRaw) {
+    const appointment = await prisma.appointment.findFirst({
+      where: { id: appointmentIdRaw, tenantId: tenant.id, clientId },
+    });
+    if (!appointment) {
+      redirectWithError("La cita seleccionada no es válida.");
+      return;
+    }
+    appointmentId = appointment.id;
+  }
+
+  await prisma.prescription.create({
+    data: {
+      tenantId: tenant.id,
+      clientId: client.id,
+      professionalId: professional.id,
+      appointmentId,
+      title,
+      content,
+      createdByUserId: session.user.id,
+    },
+  });
 
   revalidatePath(`/dashboard/${tenantSlug}/clients/${clientId}`);
   redirect(`/dashboard/${tenantSlug}/clients/${clientId}?saved=1`);

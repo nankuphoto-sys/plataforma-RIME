@@ -56,6 +56,7 @@ model Tenant {
   clientFields    TenantClientField[]
   sessionPackages SessionPackage[]
   waitlistEntries WaitlistEntry[]
+  prescriptions   Prescription[]
 }
 
 enum Plan {
@@ -243,6 +244,7 @@ model Professional {
   appointments          Appointment[]
   professionalLocations ProfessionalLocation[]
   waitlistEntries       WaitlistEntry[]
+  prescriptions         Prescription[]
 
   @@index([tenantId])
 }
@@ -314,6 +316,7 @@ model Client {
   notifications   NotificationQueue[]
   sessionPackages SessionPackage[]
   waitlistEntries WaitlistEntry[]
+  prescriptions   Prescription[]
 
   @@index([tenantId])
 }
@@ -380,6 +383,7 @@ model Appointment {
   notifications      NotificationQueue[]
   inventoryMovements InventoryMovement[]
   packageRedemption  PackageRedemption?
+  prescriptions      Prescription[]
 
   @@index([tenantId, startsAt])
   @@index([locationId, startsAt])
@@ -605,6 +609,36 @@ enum WaitlistEntryStatus {
   NOTIFIED
   BOOKED
   CANCELLED
+}
+
+// ------------------------------
+// Receta digital
+// ------------------------------
+
+// Nota/receta que un profesional deja para un cliente (medicación, plan de
+// tratamiento, indicaciones) — texto libre a propósito, sin campos
+// estructurados de medicamento/dosis: el contenido varía demasiado entre
+// psicología, nutrición, fisioterapia, etc. como para forzar un esquema
+// rígido único (mismo criterio que Client.customFields). appointmentId es
+// opcional y NO único (a diferencia de PackageRedemption) — de una misma
+// cita pueden salir más de una nota/receta.
+model Prescription {
+  id              String       @id @default(cuid())
+  tenantId        String
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId        String
+  client          Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  professionalId  String
+  professional    Professional @relation(fields: [professionalId], references: [id])
+  appointmentId   String?
+  appointment     Appointment? @relation(fields: [appointmentId], references: [id])
+  title           String?
+  content         String       @db.Text
+  issuedAt        DateTime     @default(now())
+  createdByUserId String?
+  createdAt       DateTime     @default(now())
+
+  @@index([tenantId, clientId])
 }
 
 // ------------------------------

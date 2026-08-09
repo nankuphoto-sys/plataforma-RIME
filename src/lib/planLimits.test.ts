@@ -16,20 +16,22 @@ describe("getPlanLimits", () => {
 });
 
 describe("planIncludesModule", () => {
-  it("INDIVIDUAL no incluye ningún módulo", () => {
+  it("INDIVIDUAL no incluye ningún módulo excepto prescriptions", () => {
     expect(planIncludesModule("INDIVIDUAL", "inventory")).toBe(false);
     expect(planIncludesModule("INDIVIDUAL", "reengagement")).toBe(false);
     expect(planIncludesModule("INDIVIDUAL", "reports")).toBe(false);
     expect(planIncludesModule("INDIVIDUAL", "packages")).toBe(false);
     expect(planIncludesModule("INDIVIDUAL", "waitlist")).toBe(false);
+    expect(planIncludesModule("INDIVIDUAL", "prescriptions")).toBe(true);
   });
 
-  it("BASICO solo incluye reports", () => {
+  it("BASICO solo incluye reports (y prescriptions, disponible en todos los planes)", () => {
     expect(planIncludesModule("BASICO", "inventory")).toBe(false);
     expect(planIncludesModule("BASICO", "reengagement")).toBe(false);
     expect(planIncludesModule("BASICO", "reports")).toBe(true);
     expect(planIncludesModule("BASICO", "packages")).toBe(false);
     expect(planIncludesModule("BASICO", "waitlist")).toBe(false);
+    expect(planIncludesModule("BASICO", "prescriptions")).toBe(true);
   });
 
   it("PREMIUM y PRO incluyen todos los módulos", () => {
@@ -39,6 +41,13 @@ describe("planIncludesModule", () => {
       expect(planIncludesModule(plan, "reports")).toBe(true);
       expect(planIncludesModule(plan, "packages")).toBe(true);
       expect(planIncludesModule(plan, "waitlist")).toBe(true);
+      expect(planIncludesModule(plan, "prescriptions")).toBe(true);
+    }
+  });
+
+  it("prescriptions está disponible en los 4 planes (diferenciador de nicho, no upsell)", () => {
+    for (const plan of ["INDIVIDUAL", "BASICO", "PREMIUM", "PRO"] as const) {
+      expect(planIncludesModule(plan, "prescriptions")).toBe(true);
     }
   });
 });
