@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Check, Clock, Loader2, TriangleAlert } from "lucide-react";
 
-export type TicketVariant = "confirmed" | "pending" | "processing" | "failed" | "cancelled";
+export type TicketVariant = "confirmed" | "pending" | "awaiting-confirmation" | "processing" | "failed" | "cancelled";
 
 interface AppointmentTicketProps {
   variant: TicketVariant;
@@ -26,6 +26,12 @@ const VARIANT_CONFIG: Record<
   pending: {
     eyebrow: "Cita reservada",
     headline: "Falta un paso: el pago",
+    seal: "gold",
+    icon: <Clock className="h-6 w-6" strokeWidth={2.5} />,
+  },
+  "awaiting-confirmation": {
+    eyebrow: "Cita reservada",
+    headline: "Te confirmaremos pronto",
     seal: "gold",
     icon: <Clock className="h-6 w-6" strokeWidth={2.5} />,
   },

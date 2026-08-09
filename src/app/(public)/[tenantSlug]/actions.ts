@@ -7,6 +7,7 @@ import { stripe } from "@/lib/stripe";
 import { generateWompiIntegritySignature } from "@/lib/wompi";
 import { normalizePhoneForWhatsapp } from "@/lib/whatsapp";
 import { computeReminderScheduledFor, formatAppointmentDateTimeLabel } from "@/lib/reminderScheduling";
+import { computeChargeAmount } from "@/lib/depositPolicy";
 import {
   generateAvailableSlots,
   getDayBoundsUtc,
@@ -268,6 +269,11 @@ export async function createCheckoutSessionAction(
     return { ok: false, error: "Esta cita ya fue pagada." };
   }
 
+  const charge = computeChargeAmount(tenant, appointment.service.price);
+  if (!charge) {
+    return { ok: false, error: "Este negocio no requiere pago anticipado para reservar." };
+  }
+
   const payment =
     appointment.payment ??
     (await prisma.payment.create({
@@ -275,7 +281,8 @@ export async function createCheckoutSessionAction(
         appointmentId: appointment.id,
         provider: "STRIPE",
         status: "PENDING",
-        amount: appointment.service.price,
+        amount: charge.amount,
+        kind: charge.kind,
         // Fijo en USD por ahora: Mercado Pago se encargará de moneda local
         // (CLP, etc.) en una fase posterior.
         currency: "usd",
@@ -283,7 +290,9 @@ export async function createCheckoutSessionAction(
     }));
 
   const baseUrl = await getBaseUrl();
-  const amountInCents = Math.round(Number(appointment.service.price) * 100);
+  const amountInCents = Math.round(Number(charge.amount) * 100);
+  const productName =
+    charge.kind === "DEPOSIT" ? `Seña — ${appointment.service.name}` : appointment.service.name;
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -291,7 +300,7 @@ export async function createCheckoutSessionAction(
       {
         price_data: {
           currency: "usd",
-          product_data: { name: appointment.service.name },
+          product_data: { name: productName },
           unit_amount: amountInCents,
         },
         quantity: 1,
@@ -337,12 +346,15 @@ export async function createWompiCheckoutAction(
     return { ok: false, error: "Esta cita ya fue pagada." };
   }
 
+  const charge = computeChargeAmount(tenant, appointment.service.price);
+  if (!charge) {
+    return { ok: false, error: "Este negocio no requiere pago anticipado para reservar." };
+  }
+
   // Wompi no permite reutilizar una referencia ya usada: generamos una nueva
   // en cada intento de pago.
   const reference = `${appointment.id}-${Date.now()}`;
-  const amountInCents = Math.round(
-    Number(appointment.service.price) * MOCK_USD_TO_COP_RATE * 100
-  );
+  const amountInCents = Math.round(Number(charge.amount) * MOCK_USD_TO_COP_RATE * 100);
 
   if (appointment.payment) {
     await prisma.payment.update({
@@ -350,7 +362,8 @@ export async function createWompiCheckoutAction(
       data: {
         provider: "WOMPI",
         status: "PENDING",
-        amount: appointment.service.price,
+        amount: charge.amount,
+        kind: charge.kind,
         currency: "COP",
         providerRef: reference,
       },
@@ -361,7 +374,8 @@ export async function createWompiCheckoutAction(
         appointmentId: appointment.id,
         provider: "WOMPI",
         status: "PENDING",
-        amount: appointment.service.price,
+        amount: charge.amount,
+        kind: charge.kind,
         currency: "COP",
         providerRef: reference,
       },

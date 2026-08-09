@@ -6,6 +6,7 @@ import {
   getUpcomingBookableDates,
   type CalendarDate,
 } from "@/lib/availability";
+import { computeChargeAmount } from "@/lib/depositPolicy";
 import { Chip } from "@/components/ui/Chip";
 import { OptionCard } from "@/components/ui/OptionCard";
 import { ServiceCard } from "@/components/ui/ServiceCard";
@@ -59,11 +60,18 @@ export interface BookingProfessional {
   locationIds: string[];
 }
 
+export interface BookingDepositPolicy {
+  policy: "NONE" | "DEPOSIT" | "FULL_PAYMENT";
+  type: "PERCENTAGE" | "FIXED" | null;
+  value: string | null;
+}
+
 interface BookingWizardProps {
   tenantSlug: string;
   locations: BookingLocation[];
   services: BookingService[];
   professionals: BookingProfessional[];
+  depositPolicy: BookingDepositPolicy;
 }
 
 type Step = "location" | "service" | "professional" | "datetime" | "client" | "confirmation";
@@ -125,6 +133,7 @@ export function BookingWizard({
   locations,
   services,
   professionals,
+  depositPolicy,
 }: BookingWizardProps) {
   const hasLocationStep = locations.length > 1;
   const defaultLocationId = locations.length === 1 ? locations[0].id : null;
@@ -313,30 +322,57 @@ export function BookingWizard({
   ];
 
   if (step === "confirmation" && confirmation) {
+    const charge = selectedService
+      ? computeChargeAmount(
+          {
+            depositPolicy: depositPolicy.policy,
+            depositType: depositPolicy.type,
+            depositValue: depositPolicy.value,
+          },
+          selectedService.price
+        )
+      : null;
+
     return (
       <div className="mt-8">
         <AppointmentTicket
-          variant="pending"
+          variant={charge ? "pending" : "awaiting-confirmation"}
           serviceName={confirmation.serviceName}
           professionalName={confirmation.professionalName}
           locationName={confirmation.locationName}
           dateTimeLabel={formatFullDateTime(confirmation.startsAtIso, confirmation.locationTimezone)}
-          message="Tu cita quedó registrada como pendiente de confirmación. Elige cómo pagar para confirmarla."
+          message={
+            charge
+              ? "Tu cita quedó registrada como pendiente de confirmación. Elige cómo pagar para confirmarla."
+              : "Tu cita quedó reservada. El negocio te confirmará por WhatsApp o email a la brevedad."
+          }
         >
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink/40">Elige cómo pagar</p>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-            <button type="button" onClick={() => handlePay("stripe")} disabled={isPending} className="btn-primary">
-              {isPending ? "Redirigiendo…" : "Tarjeta internacional (Stripe)"}
-            </button>
-            <button type="button" onClick={() => handlePay("wompi")} disabled={isPending} className="btn-secondary">
-              {isPending ? "Redirigiendo…" : "Wompi (Colombia)"}
-            </button>
-          </div>
-          {checkoutError && (
-            <p className="msg-error mt-3">
-              No pudimos iniciar el pago: {checkoutError}. Tu cita sigue reservada; puedes
-              reservar otra o volver a intentar el pago más tarde.
-            </p>
+          {charge && (
+            <>
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink/40">
+                {charge.kind === "DEPOSIT" ? "Paga tu seña para confirmar" : "Elige cómo pagar"}
+              </p>
+              {charge.kind === "DEPOSIT" && (
+                <p className="mt-1 data-mono text-lg font-semibold text-ink">
+                  ${Number(charge.amount).toLocaleString("es-CO")}{" "}
+                  <span className="text-sm font-normal text-ink/50">ahora · el resto se paga en el local</span>
+                </p>
+              )}
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                <button type="button" onClick={() => handlePay("stripe")} disabled={isPending} className="btn-primary">
+                  {isPending ? "Redirigiendo…" : "Tarjeta internacional (Stripe)"}
+                </button>
+                <button type="button" onClick={() => handlePay("wompi")} disabled={isPending} className="btn-secondary">
+                  {isPending ? "Redirigiendo…" : "Wompi (Colombia)"}
+                </button>
+              </div>
+              {checkoutError && (
+                <p className="msg-error mt-3">
+                  No pudimos iniciar el pago: {checkoutError}. Tu cita sigue reservada; puedes
+                  reservar otra o volver a intentar el pago más tarde.
+                </p>
+              )}
+            </>
           )}
         </AppointmentTicket>
 

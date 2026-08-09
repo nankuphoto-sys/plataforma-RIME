@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { AppointmentStatus } from "@prisma/client";
+import type { AppointmentStatus, PaymentKind, PaymentStatus } from "@prisma/client";
 import { CheckCheck, CheckCircle2, Clock, Loader2, UserX, X, XCircle } from "lucide-react";
 import { getTodayInTimezone, type CalendarDate } from "@/lib/availability";
 import { getAppointmentBlockPosition, getHourMarks } from "@/lib/appointmentGrid";
@@ -26,6 +26,7 @@ export interface AgendaAppointmentBlock {
   serviceName: string;
   durationMinutes: number;
   client: { name: string; email: string | null; phone: string | null };
+  payment: { status: PaymentStatus; kind: PaymentKind } | null;
 }
 
 interface WeeklyAgendaProps {
@@ -429,10 +430,15 @@ export function WeeklyAgenda({
               </div>
               <div>
                 <dt className="font-medium text-ink/45">Estado actual</dt>
-                <dd>
+                <dd className="flex flex-wrap items-center gap-2">
                   <span className={`badge ${STATUS_BADGE_STYLES[getEffectiveStatus(selectedBlock)]}`}>
                     {APPOINTMENT_STATUS_LABELS[getEffectiveStatus(selectedBlock)]}
                   </span>
+                  {getEffectiveStatus(selectedBlock) === "NO_SHOW" && selectedBlock.payment?.status === "PAID" && (
+                    <span className="badge badge-gold" title="No se reembolsa automáticamente">
+                      {selectedBlock.payment.kind === "DEPOSIT" ? "Seña retenida" : "Pago retenido"}
+                    </span>
+                  )}
                 </dd>
               </div>
             </dl>

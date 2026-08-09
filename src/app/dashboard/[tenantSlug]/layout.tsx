@@ -7,6 +7,7 @@ import {
   LogOut,
   MapPin,
   Package,
+  ShieldCheck,
   User,
   UserCog,
   Users,
@@ -86,6 +87,7 @@ export default async function DashboardShellLayout({
     { href: `${dashboardRoot}/team`, label: "Equipo", show: hasReportsAccess, icon: Users2 },
     { href: `${dashboardRoot}/locations`, label: "Sedes", show: hasOwnerAccess, icon: MapPin },
     { href: `${dashboardRoot}/billing`, label: "Facturación", show: hasOwnerAccess, icon: CreditCard },
+    { href: `${dashboardRoot}/settings`, label: "Configuración", show: hasOwnerAccess, icon: ShieldCheck },
     { href: `${dashboardRoot}/account`, label: "Mi cuenta", show: true, icon: User },
   ].filter((item) => item.show);
 

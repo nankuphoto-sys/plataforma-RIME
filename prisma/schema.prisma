@@ -44,6 +44,15 @@ model Tenant {
   // deliberadamente simple, no por sede/usuario — null = alertas desactivadas.
   lowStockAlertPhone String?
 
+  // Política de pago al reservar (protección por no-show). FULL_PAYMENT es
+  // el default porque preserva el comportamiento actual (cobro 100% del
+  // servicio) para todos los tenants existentes sin migrar datos. Un solo
+  // valor por tenant, no por servicio. depositType/depositValue solo
+  // aplican cuando depositPolicy = DEPOSIT.
+  depositPolicy DepositPolicy @default(FULL_PAYMENT)
+  depositType   DepositType?
+  depositValue  Decimal?      @db.Decimal(10, 2)
+
   locations       Location[]
   users           User[]
   professionals   Professional[]
@@ -81,6 +90,17 @@ enum TenantStatus {
   ACTIVE
   PAST_DUE
   CANCELLED
+}
+
+enum DepositPolicy {
+  NONE // reserva sin pago online, el negocio confirma manualmente
+  DEPOSIT // cobra una seña parcial al reservar
+  FULL_PAYMENT // cobra el 100% del servicio al reservar (comportamiento histórico)
+}
+
+enum DepositType {
+  PERCENTAGE
+  FIXED
 }
 
 model Location {
@@ -418,6 +438,10 @@ model Payment {
   provider      PaymentProvider
   providerRef   String? // id de la transacción en Stripe / Mercado Pago
   status        PaymentStatus   @default(PENDING)
+  // FULL = cobro histórico (100% del servicio). DEPOSIT = seña parcial según
+  // Tenant.depositPolicy — distingue el monto en pantalla y qué "retener" en
+  // caso de no-show.
+  kind          PaymentKind     @default(FULL)
   createdAt     DateTime        @default(now())
   confirmedAt   DateTime?
 }
@@ -425,6 +449,11 @@ model Payment {
 enum PaymentProvider {
   STRIPE
   WOMPI
+}
+
+enum PaymentKind {
+  DEPOSIT
+  FULL
 }
 
 enum PaymentStatus {

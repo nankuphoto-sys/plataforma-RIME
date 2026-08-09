@@ -283,6 +283,23 @@ export async function requireTeamManageAccess(tenantSlug: string) {
   return { session, tenant, isOwner };
 }
 
+// Guard de acceso a configuración del negocio (política de seña/no-show):
+// solo OWNER, mismo criterio que requireOwnerAccess — define cuánta plata se
+// le cobra a los clientes al reservar, una decisión de negocio tan sensible
+// como crear/editar sedes. 404 en vez de 403.
+export async function requireSettingsAccess(tenantSlug: string) {
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  const hasSettingsAccess = hasAnyOfRolesInTenantLocations(
+    session.user.locationRoles,
+    tenant.locations.map((location) => location.id),
+    ["OWNER"]
+  );
+  if (!hasSettingsAccess) notFound();
+
+  return { session, tenant };
+}
+
 // Guard de acceso a facturación (configurar/gestionar la suscripción del
 // SaaS). A diferencia de todos los guards de arriba, NO pasa por
 // requireDashboardAccess ni por su bloqueo de PAST_DUE/CANCELLED: un tenant

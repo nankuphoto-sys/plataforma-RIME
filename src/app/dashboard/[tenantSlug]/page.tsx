@@ -108,7 +108,7 @@ export default async function DashboardAgendaPage({
         startsAt: { gte: rangeStart, lt: rangeEnd },
         ...(isProfessionalOnly ? { professionalId: viewerProfessionalId! } : {}),
       },
-      include: { client: true, service: true },
+      include: { client: true, service: true, payment: true },
       orderBy: { startsAt: "asc" },
     }),
     prisma.professional.findMany({
@@ -152,6 +152,7 @@ export default async function DashboardAgendaPage({
           email: appt.client.email,
           phone: appt.client.phone,
         },
+        payment: appt.payment ? { status: appt.payment.status, kind: appt.payment.kind } : null,
       },
     ];
   });

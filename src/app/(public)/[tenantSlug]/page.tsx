@@ -106,6 +106,11 @@ export default async function PublicBookingPage({
                   serviceIds: professional.services.map((s) => s.serviceId),
                   locationIds: professional.professionalLocations.map((pl) => pl.locationId),
                 }))}
+                depositPolicy={{
+                  policy: tenant.depositPolicy,
+                  type: tenant.depositType,
+                  value: tenant.depositValue?.toString() ?? null,
+                }}
               />
             ) : (
               <p className="mt-8 text-sm text-ink/40">
