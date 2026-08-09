@@ -91,38 +91,57 @@ export default async function DashboardShellLayout({
 
   return (
     <div className="min-h-screen md:flex">
-      <aside className="flex flex-col justify-between bg-pine text-paper md:w-60 md:shrink-0">
+      {/* `md:relative md:z-20`: necesario para que los tooltips del riel
+          (.nav-label, position:absolute) pinten por ENCIMA del contenido
+          de <main> — sin esto, al no tener <main> su propio z-index, el
+          orden de pintado quedaría ambiguo y el tooltip terminaría tapado
+          detrás de las tarjetas/tablas de cada página. El modal de detalle
+          de cita (fixed, z-50) sigue por delante de todo igual, porque
+          position:fixed no queda contenido por este z-index. */}
+      <aside className="flex flex-col justify-between bg-case-deep text-paper md:relative md:z-20 md:w-20 md:shrink-0">
         <div>
-          <div className="px-5 pb-2 pt-6">
-            <p className="font-display text-lg font-semibold leading-tight">{tenant.name}</p>
-            <p className="mt-1 text-[11px] uppercase tracking-wider text-paper/45">RIME</p>
+          {/* Mobile: nombre completo del negocio + "RIME", como siempre.
+              Desde md: colapsa a una sola marca circular (el riel es angosto
+              a propósito, no hay lugar para texto ahí). */}
+          <div className="px-5 pb-2 pt-6 md:flex md:flex-col md:items-center md:px-0 md:pb-3 md:pt-5">
+            <p className="font-display text-lg font-semibold leading-tight md:hidden">{tenant.name}</p>
+            <p className="mt-1 text-[11px] uppercase tracking-wider text-paper/45 md:hidden">RIME</p>
+            <div
+              className="hidden md:flex md:h-8 md:w-8 md:items-center md:justify-center md:rounded-full md:bg-gradient-to-br md:from-pine-light md:to-pine-dark md:font-display md:text-xs md:font-bold md:text-case-deep"
+              title={`${tenant.name} · RIME`}
+            >
+              R
+            </div>
           </div>
           {!isLocked && (
-            <nav className="flex gap-1 overflow-x-auto px-3 py-4 md:flex-col md:overflow-visible">
+            <nav className="flex gap-1 overflow-x-auto px-3 py-4 md:flex-col md:items-center md:gap-1 md:overflow-visible md:px-2 md:py-1">
               {navItems.map((item) => (
                 <NavLink
                   key={item.href}
                   href={item.href}
                   exact={item.href === dashboardRoot}
-                  className="nav-link"
+                  className="nav-link group"
                   activeClassName="nav-link-active"
                 >
-                  <item.icon className="h-4 w-4" strokeWidth={2} />
-                  {item.label}
+                  <span className="nav-icon-badge">
+                    <item.icon className="h-4 w-4" strokeWidth={2} />
+                  </span>
+                  <span className="nav-label">{item.label}</span>
                 </NavLink>
               ))}
             </nav>
           )}
         </div>
-        <div className="border-t border-white/10 px-5 py-4">
-          <p className="truncate text-xs text-paper/55">{session.user.email}</p>
-          <form action={logoutAction} className="mt-2">
+        <div className="border-t border-white/10 px-5 py-4 md:flex md:justify-center md:px-0 md:py-4">
+          <p className="truncate text-xs text-paper/55 md:hidden">{session.user.email}</p>
+          <form action={logoutAction} className="mt-2 md:mt-0">
             <SubmitButton
               icon={<LogOut className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:scale-110" />}
               pendingLabel="Cerrando sesión…"
-              className="group flex items-center gap-1.5 text-xs text-paper/70 underline-offset-2 transition-colors hover:text-paper hover:underline active:scale-[0.98]"
+              className="group relative flex items-center gap-1.5 text-xs text-paper/70 underline-offset-2 transition-colors hover:text-paper hover:underline active:scale-[0.98] md:h-9 md:w-9 md:justify-center md:rounded-full md:border md:border-white/10 md:bg-black/20 md:no-underline md:hover:border-berry/50 md:hover:bg-berry/20"
             >
-              Cerrar sesión
+              <span className="md:hidden">Cerrar sesión</span>
+              <span className="nav-label hidden md:block">{session.user.email} · Cerrar sesión</span>
             </SubmitButton>
           </form>
         </div>

@@ -10,15 +10,23 @@ export default async function ResetPasswordPage({
 
   if (!token) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-        <h1 className="text-2xl font-bold">Link inválido</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          Este link de recuperación no es válido. Pedí uno nuevo desde{" "}
-          <Link href="/forgot-password" className="underline">
-            ¿Olvidaste tu contraseña?
-          </Link>
-          .
-        </p>
+      <main className="auth-shell">
+        <div className="w-full max-w-sm">
+          <div className="auth-brand">
+            <span className="auth-brand-mark">R</span>
+            <span className="font-display text-lg font-semibold text-ink">RIME</span>
+          </div>
+          <div className="auth-card">
+            <h1 className="page-title text-2xl">Link inválido</h1>
+            <p className="page-subtitle">
+              Este link de recuperación no es válido. Pedí uno nuevo desde{" "}
+              <Link href="/forgot-password" className="text-pine underline-offset-2 hover:underline">
+                ¿Olvidaste tu contraseña?
+              </Link>
+              .
+            </p>
+          </div>
+        </div>
       </main>
     );
   }
@@ -29,56 +37,62 @@ export default async function ResetPasswordPage({
       : error;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <h1 className="text-2xl font-bold">Elegí una nueva contraseña</h1>
-      <p className="mt-2 text-sm text-gray-500">
-        Este link expira 1 hora después de haberlo pedido.
-      </p>
-
-      <form action={resetPasswordAction.bind(null, token)} className="mt-6 space-y-4">
-        {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
-
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-            Nueva contraseña
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            minLength={8}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
+    <main className="auth-shell">
+      <div className="w-full max-w-sm">
+        <div className="auth-brand">
+          <span className="auth-brand-mark">R</span>
+          <span className="font-display text-lg font-semibold text-ink">RIME</span>
         </div>
 
-        <div>
-          <label htmlFor="passwordConfirmation" className="block text-sm font-medium text-gray-700">
-            Confirmar contraseña
-          </label>
-          <input
-            id="passwordConfirmation"
-            name="passwordConfirmation"
-            type="password"
-            required
-            minLength={8}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
+        <div className="auth-card">
+          <h1 className="page-title text-2xl">Elegí una nueva contraseña</h1>
+          <p className="page-subtitle">Este link expira 1 hora después de haberlo pedido.</p>
+
+          <form action={resetPasswordAction.bind(null, token)} className="mt-6 space-y-4">
+            {errorMessage && <p className="msg-error">{errorMessage}</p>}
+
+            <div>
+              <label htmlFor="password" className="field-label">
+                Nueva contraseña
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                className="field-input"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="passwordConfirmation" className="field-label">
+                Confirmar contraseña
+              </label>
+              <input
+                id="passwordConfirmation"
+                name="passwordConfirmation"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                className="field-input"
+              />
+            </div>
+
+            <button type="submit" className="btn-primary w-full">
+              Restablecer contraseña
+            </button>
+          </form>
+
+          <p className="mt-5 text-center text-sm text-ink/50">
+            <Link href="/login" className="text-pine underline-offset-2 hover:underline">
+              Volver a iniciar sesión
+            </Link>
+          </p>
         </div>
-
-        <button
-          type="submit"
-          className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
-        >
-          Restablecer contraseña
-        </button>
-      </form>
-
-      <p className="mt-6 text-sm text-gray-500">
-        <Link href="/login" className="underline">
-          Volver a iniciar sesión
-        </Link>
-      </p>
+      </div>
     </main>
   );
 }

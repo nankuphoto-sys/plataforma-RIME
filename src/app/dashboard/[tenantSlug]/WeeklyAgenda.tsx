@@ -215,7 +215,7 @@ export function WeeklyAgenda({
           scroll horizontal Y vertical a la vez, así que abajo de `md` se
           reemplaza por esta lista, no se intenta encoger la misma grilla. */}
       <div className="md:hidden">
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <div className="rise-row flex gap-1.5 overflow-x-auto pb-1">
           {weekDates.map((date, dayIndex) => {
             const isSelected = dayIndex === selectedDayIndex;
             const isToday = currentTimeMarker?.dayIndex === dayIndex;
@@ -250,7 +250,7 @@ export function WeeklyAgenda({
           })}
         </div>
 
-        <div className="mt-3 space-y-2">
+        <div className="rise-row mt-3 space-y-2">
           {selectedDayBlocks.length === 0 ? (
             <p className="panel border-dashed py-8 text-center text-sm text-ink/40">
               No hay citas este día.
@@ -302,15 +302,16 @@ export function WeeklyAgenda({
           </div>
         </div>
 
-        <div className="flex flex-1 gap-2 overflow-x-auto">
+        <div className="rise-row flex flex-1 gap-2 overflow-x-auto">
           {weekDates.map((date, dayIndex) => {
             const dayBlocks = blocks.filter((b) => b.dayIndex === dayIndex);
             const isToday = currentTimeMarker?.dayIndex === dayIndex;
             return (
               <div key={formatDayLabel(date)} className="min-w-[160px] flex-1">
                 <div
-                  className={`h-7 text-center text-sm font-semibold ${isToday ? "text-pine" : "text-ink/70"}`}
+                  className={`flex h-7 items-center justify-center gap-1.5 text-center text-sm font-semibold ${isToday ? "text-pine" : "text-ink/70"}`}
                 >
+                  {isToday && <span className="live-dot live-dot-pine" />}
                   {formatDayLabel(date)}
                 </div>
                 <div className="flex h-9">
@@ -341,7 +342,7 @@ export function WeeklyAgenda({
                       className="pointer-events-none absolute left-0 right-0 z-10 flex items-center"
                       style={{ top: `${currentTimeMarker.topPercent}%` }}
                     >
-                      <span className="-ml-[3px] h-[7px] w-[7px] shrink-0 rounded-full bg-berry" />
+                      <span className="live-dot -ml-[3px]" />
                       <span className="h-px flex-1 bg-berry/70" />
                     </div>
                   )}

@@ -1,19 +1,16 @@
 import type { Metadata } from "next";
-import { Fraunces, Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-display",
-  // 700 se suma para el headline del hero de la home pública (necesita más
-  // peso que el resto de los títulos del producto, que se quedan en 600).
-  weight: ["500", "600", "700"],
-  style: ["normal"],
-});
-
+// Dirección "cronógrafo": se retira Fraunces (serif cálida) — los títulos
+// ahora usan Plus Jakarta Sans en peso alto (--font-display apunta a la
+// misma variable que --font-sans, ver tailwind.config.ts `fontFamily.display`)
+// para el look técnico/instrumento en vez de editorial. El mono (IBM Plex)
+// se mantiene igual, sigue siendo el protagonista de horarios/montos/datos.
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["500", "600", "700", "800"],
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -35,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${fraunces.variable} ${plusJakartaSans.variable} ${ibmPlexMono.variable}`}
+      className={`${plusJakartaSans.variable} ${ibmPlexMono.variable}`}
       // Algunas extensiones del navegador (temas, lectores, gestores de
       // contraseñas) le agregan atributos al <html> antes de que React
       // hidrate (ej. data-theme, variables CSS de otra fuente/paleta que no

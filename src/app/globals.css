@@ -40,16 +40,42 @@
     @apply text-sm text-ink/50 transition-colors hover:text-pine;
   }
 
-  /* Nav del dashboard: item con ícono, animación leve de ícono en hover */
+  /* Nav del dashboard: item con ícono, animación leve de ícono en hover.
+     Abajo de md sigue siendo la fila horizontal de siempre (ícono + label
+     visible). A partir de md se convierte en el riel angosto "cronógrafo":
+     ver .nav-icon-badge/.nav-label más abajo — necesita `relative` acá para
+     que el tooltip absoluto de .nav-label se ancle a ESTE elemento. */
   .nav-link {
-    @apply flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm text-paper/75 transition-colors duration-150 hover:bg-white/10 hover:text-paper [&_svg]:shrink-0 [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-out hover:[&_svg]:scale-110;
+    @apply relative flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm text-paper/75 transition-colors duration-150 hover:bg-white/10 hover:text-paper [&_svg]:shrink-0 [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-out hover:[&_svg]:scale-110 md:h-11 md:w-11 md:justify-center md:gap-0 md:rounded-2xl md:px-0 md:py-0 md:hover:bg-transparent;
   }
 
   /* Ruta actual del sidebar: fondo sólido + texto e ícono a full opacidad
      (a diferencia del hover, que es más sutil) para que se note de un
-     vistazo en qué sección está parado el usuario. */
+     vistazo en qué sección está parado el usuario. A partir de md el fondo
+     sólido se apaga acá (ver .nav-icon-badge de abajo, que es quien se
+     "enciende" en latón cuando está activo). */
   .nav-link-active {
-    @apply bg-white/15 font-medium text-paper;
+    @apply bg-white/15 font-medium text-paper md:bg-transparent;
+  }
+
+  /* Círculo del ícono — visible desde siempre para que el ícono tenga algo
+     donde animar, pero solo gana forma/color a partir de md (abajo de md
+     el nav ya es compacto de por sí, un círculo extra sería ruido). */
+  .nav-icon-badge {
+    @apply flex items-center justify-center rounded-full md:h-[30px] md:w-[30px] md:border md:border-white/10 md:bg-black/20 md:transition-colors md:duration-150 md:group-hover:border-pine/50 md:group-hover:bg-pine/20;
+  }
+
+  .nav-link-active .nav-icon-badge {
+    @apply md:border-pine md:bg-pine md:text-ink md:shadow-[0_0_0_3px_rgba(176,141,87,0.25)];
+  }
+
+  /* Nombre de la sección — texto normal abajo de md (como siempre fue).
+     A partir de md se convierte en un tooltip que sale flotando a la
+     derecha del riel al pasar el mouse O al enfocar con teclado (el
+     `md:group-focus-visible:` es lo que mantiene esto accesible para quien
+     navega sin mouse, no solo estético). */
+  .nav-label {
+    @apply md:pointer-events-none md:absolute md:left-full md:top-1/2 md:z-30 md:ml-3 md:-translate-y-1/2 md:translate-x-[-6px] md:whitespace-nowrap md:rounded-lg md:border md:border-pine/30 md:bg-case-deep md:px-2.5 md:py-1.5 md:text-xs md:font-semibold md:text-paper md:opacity-0 md:shadow-lg md:transition-all md:duration-150 md:group-hover:translate-x-0 md:group-hover:opacity-100 md:group-focus-visible:translate-x-0 md:group-focus-visible:opacity-100;
   }
 
   .page-title {
@@ -312,5 +338,125 @@
      según variant, aplicado por quien usa el componente (pine/gold/berry). */
   .ticket-seal {
     @apply flex h-14 w-14 flex-none items-center justify-center rounded-full ring-4;
+  }
+
+  /* -----------------------------------------------------------------------
+     Dashboard interno — toques "en vivo": el dashboard lo mira el mismo
+     dueño/staff muchas veces al día, así que la barra la fijamos deliberada
+     y sutil (nada de rebote/overshoot como en la landing) — solo lo
+     necesario para que el panel se sienta "vivo" (línea de hora actual,
+     indicador de hoy) y para que hover/click respondan un poco más rápido
+     que el `ease` por default de Tailwind. */
+
+  /* Punto + anillo pulsante: significa "esto es en tiempo real ahora
+     mismo" (línea de hora actual en la grilla, chip de "hoy") — nunca
+     decorativo, así que no se usa en nada que no sea efectivamente en vivo.
+     `fill-mode: backwards` a propósito (no `both`/`forwards`): si se
+     dejara "forwards" el frame final de la animación seguiría ganándole al
+     cascade normal para siempre y bloquearía cualquier :hover/:active
+     posterior sobre la misma propiedad en el mismo elemento — acá no hay
+     otro estado que pisar, pero se mantiene la misma convención en todo el
+     proyecto por las dudas de que este componente se reutilice en algo
+     interactivo más adelante. */
+  .live-dot {
+    @apply relative inline-flex h-[7px] w-[7px] flex-none rounded-full bg-berry;
+  }
+
+  .live-dot::after {
+    content: "";
+    @apply absolute -inset-[5px] rounded-full border-[1.5px] border-berry;
+    animation: live-pulse-ring 1.8s ease-out infinite;
+  }
+
+  /* Variante pine, para "hoy" en la agenda (no es una alerta, es solo
+     ubicación temporal) — mismo mecanismo, otro color semántico. */
+  .live-dot-pine {
+    @apply bg-pine;
+  }
+
+  .live-dot-pine::after {
+    @apply border-pine;
+  }
+
+  @keyframes live-pulse-ring {
+    0% {
+      opacity: 0.55;
+      transform: scale(0.7);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.6);
+    }
+  }
+
+  /* Entrada escalonada para columnas/filas que se pintan desde datos del
+     servidor (día por día, cita por cita) — `backwards` por la misma razón
+     de arriba: se aplica el primer frame ANTES de arrancar (sin flash de
+     contenido sin animar) pero no se queda pisando el cascade después de
+     terminar. */
+  .rise-row > * {
+    animation: rise-in 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  }
+
+  .rise-row > *:nth-child(1) {
+    animation-delay: 0.02s;
+  }
+  .rise-row > *:nth-child(2) {
+    animation-delay: 0.05s;
+  }
+  .rise-row > *:nth-child(3) {
+    animation-delay: 0.08s;
+  }
+  .rise-row > *:nth-child(4) {
+    animation-delay: 0.11s;
+  }
+  .rise-row > *:nth-child(5) {
+    animation-delay: 0.14s;
+  }
+  .rise-row > *:nth-child(6) {
+    animation-delay: 0.17s;
+  }
+  .rise-row > *:nth-child(7) {
+    animation-delay: 0.2s;
+  }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* -----------------------------------------------------------------------
+     Pantallas de autenticación (login, signup, forgot/reset-password) — el
+     primer contacto de alguien con el producto, antes de que exista sidebar
+     ni ningún otro chrome de marca. Por eso llevan su propia tarjeta
+     centrada en vez de heredar `.panel` (pensado para vivir DENTRO del
+     dashboard) o los `.booking-*`/`.btn-hero-*` (pensados para un
+     desconocido en su celular sin contexto previo — acá en cambio ya sabe
+     que está entrando a RIME). Reutilizan `.field-label`/`.field-input`/
+     `.btn-primary` tal cual para no crear un segundo lenguaje de formulario. */
+  .auth-shell {
+    @apply flex min-h-screen items-center justify-center bg-paper px-6 py-12;
+  }
+
+  .auth-brand {
+    @apply mb-6 flex items-center justify-center gap-2;
+  }
+
+  .auth-brand-mark {
+    @apply flex h-8 w-8 items-center justify-center rounded-lg bg-pine font-display text-sm font-semibold text-paper;
+  }
+
+  /* `backwards` (no `both`) por la misma razón que `.rise-row` más arriba:
+     que el frame final no se quede pisando el cascade para siempre y
+     bloqueando algo interactivo dentro de la tarjeta después. */
+  .auth-card {
+    @apply w-full max-w-sm rounded-2xl border border-sage-dark/40 bg-white p-8 shadow-lg shadow-ink/5;
+    animation: rise-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   }
 }
