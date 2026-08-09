@@ -8,7 +8,8 @@ export type PlanModule =
   | "reports"
   | "packages"
   | "waitlist"
-  | "prescriptions";
+  | "prescriptions"
+  | "photos";
 
 export interface PlanLimits {
   maxLocations: number | null; // null = sin límite (PRO)
@@ -35,6 +36,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       packages: false,
       waitlist: false,
       prescriptions: true,
+      photos: false,
     },
   },
   BASICO: {
@@ -47,6 +49,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       packages: false,
       waitlist: false,
       prescriptions: true,
+      photos: false,
     },
   },
   PREMIUM: {
@@ -59,6 +62,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       packages: true,
       waitlist: true,
       prescriptions: true,
+      photos: true,
     },
   },
   PRO: {
@@ -71,6 +75,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       packages: true,
       waitlist: true,
       prescriptions: true,
+      photos: true,
     },
   },
 };

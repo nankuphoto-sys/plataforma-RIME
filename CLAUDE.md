@@ -2283,3 +2283,86 @@ pendiente es línea de tiempo de fotos (estética), que depende de agregar un
 servicio de almacenamiento de archivos real al proyecto (hoy no tiene
 ninguno — ver el stopgap de base64 en `profileImage.ts`, marcado en su
 propio comentario como no apto para este caso).
+
+## Línea de tiempo de fotos (estética)
+
+✅ hecho, con una limitación real documentada abajo. Octavo y último módulo
+de nicho de los 8 del roadmap.
+
+**Decisión de infraestructura confirmada explícitamente antes de
+implementar**: Vercel Blob, elegido por Jonta entre las opciones ofrecidas
+(encaja natural con el resto del proyecto — ya usa Vercel Cron y el deploy
+está previsto ahí). Dependencia nueva `@vercel/blob` (`^2.7.0`).
+
+Modelo nuevo `ClientPhoto` (tenantId, clientId, `url`, `caption` opcional,
+`takenAt`, createdByUserId). Solo guarda la URL — el archivo en sí vive en
+Vercel Blob, NO en esta base de datos, a diferencia del stopgap base64 que
+usa `User.image` para la foto de perfil. `src/lib/profileImage.ts` ya
+advertía en su propio comentario que ese stopgap "vale para una foto de
+perfil chica" y que un caso con más fotos necesitaría "un servicio de blobs
+real" — este módulo es exactamente ese caso (un cliente puede tener muchas
+fotos a lo largo del tiempo), así que no lo reutiliza. `src/lib/clientPhotos.ts`
+replica el mismo patrón de constantes de validación
+(`MAX_CLIENT_PHOTO_BYTES`/`ALLOWED_CLIENT_PHOTO_TYPES`, 5MB, JPG/PNG/WEBP)
+que ya usa `profileImage.ts`.
+
+`uploadClientPhotoAction` (`clients/actions.ts`) valida el archivo (mismo
+doble chequeo cliente+servidor que ya usa la foto de perfil —
+`ClientPhotoUploadForm.tsx` nuevo, calcado de
+`account/ProfilePhotoUploadForm.tsx`) y llama a `put()` de `@vercel/blob`
+con `access: "public"` y `addRandomSuffix: true`. Si `BLOB_READ_WRITE_TOKEN`
+no está configurado, `put()` tira — se atrapa con un mensaje claro ("el
+almacenamiento de archivos no está configurado todavía") en vez de un error
+500 genérico, mismo criterio que el resto de integraciones externas de este
+proyecto (WhatsApp, Resend) ante credenciales faltantes. Variable nueva
+documentada en `.env.example` (junto con las plantillas de WhatsApp de las
+fases anteriores de esta sesión, que tampoco estaban documentadas ahí
+todavía — se agregaron de paso).
+
+Gating: nuevo módulo `"photos"` en `PlanModule`, mismo tier que Paquetes/
+Lista de espera (PREMIUM y PRO) — a diferencia de Recetas, subir fotos tiene
+un costo real de almacenamiento, así que sí es un upsell operativo, no el
+diferenciador central de un nicho. `requirePhotosAccess` sin split de
+manage-access, mismo criterio que Lista de espera.
+
+UI: sección "Línea de tiempo de fotos" embebida en
+`clients/[clientId]/page.tsx` (mismo placement client-scoped que Paquetes/
+Lista de espera/Recetas), grilla de miniaturas con `<img>` plano (no
+`next/image`, que exigiría agregar el dominio de Vercel Blob a
+`next.config.mjs` — evitado a propósito para no acoplar la config global a
+un dominio que todavía no existe hasta que se cree el Blob store real).
+
+**Verificado — capa de datos únicamente, en vivo contra la base real de
+Neon**: `prisma/qa-client-photos.ts` sembró un tenant PREMIUM con una foto
+(URL de ejemplo, sin subir nada real a Vercel Blob) y
+confirmó: `planIncludesModule` da `true` en PREMIUM y `false` en
+INDIVIDUAL/BASICO; la query de la página encuentra la foto scoped por
+tenant+cliente; forzar un `tenantId` incorrecto en esa misma query no la
+encuentra. Tenant QA borrado al terminar
+(`prisma/qa-client-photos-cleanup.ts`, cascade confirmado). `tsc --noEmit`
+limpio con la dependencia real `@vercel/blob` instalada y usada (no un
+mock) — confirma que la llamada a `put()` está tipada correctamente contra
+el SDK real.
+
+**Lo que NO se pudo verificar en esta sesión, honestamente, y por qué**:
+este proyecto no tiene una cuenta de Vercel Blob creada — `BLOB_READ_WRITE_TOKEN`
+no existe en `.env`. A diferencia de TODOS los demás módulos de esta sesión
+(donde siempre hubo una base de datos real contra la cual probar, aunque
+fuera sin sesión HTTP), acá no hay ningún servicio real disponible para
+ejercitar — ni siquiera parcialmente. `uploadClientPhotoAction` nunca se
+llamó ni una vez, real o simulado; no hay confirmación de que `put()` con
+estos parámetros exactos funcione contra la API real de Vercel Blob (el
+tipado y la forma de la llamada están verificados contra el paquete
+instalado, no su comportamiento en runtime). **Antes de dar este módulo por
+terminado de verdad hace falta**: crear un Blob store en el dashboard de
+Vercel, cargar `BLOB_READ_WRITE_TOKEN` en `.env`, y subir una foto real por
+la UI para confirmar que `blob.url` queda guardada y la imagen carga en la
+grilla. Fuera de esta fase además: borrar una foto ya subida (ni de la base
+ni de Blob — nunca se implementó ningún delete), reordenar/destacar una
+foto como "antes/después" par, y comprimir/redimensionar la imagen antes de
+subir (hoy se sube tal cual la eligió el usuario, hasta 5MB).
+
+Con esto, los 8 módulos de nicho del roadmap de producto quedan resueltos
+en el código — 7 verificados en vivo contra datos reales, 1 (este) sin
+verificar contra el servicio externo real por no tener la cuenta creada
+todavía.

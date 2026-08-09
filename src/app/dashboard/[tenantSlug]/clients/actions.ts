@@ -2,11 +2,13 @@
 
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import {
   requireDashboardAccess,
   requirePackagesAccess,
   requirePackagesManageAccess,
+  requirePhotosAccess,
   requirePrescriptionsAccess,
   requireWaitlistAccess,
 } from "@/lib/auth-guards";
@@ -14,6 +16,7 @@ import { isProfessionalOnlyInTenant } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { getEffectiveClientFieldTemplate, type ClientFieldDefinition } from "@/lib/clientFieldTemplates";
 import { canRedeemSession } from "@/lib/packages";
+import { ALLOWED_CLIENT_PHOTO_TYPES, MAX_CLIENT_PHOTO_BYTES, MAX_CLIENT_PHOTO_LABEL } from "@/lib/clientPhotos";
 
 // Arma customFields solo a partir de las keys de la plantilla del tenant —
 // cualquier otra cosa que llegue en el FormData se ignora, para no permitir
@@ -467,6 +470,69 @@ export async function createPrescriptionAction(
       content,
       createdByUserId: session.user.id,
     },
+  });
+
+  revalidatePath(`/dashboard/${tenantSlug}/clients/${clientId}`);
+  redirect(`/dashboard/${tenantSlug}/clients/${clientId}?saved=1`);
+}
+
+// Subir una foto de seguimiento para la línea de tiempo de un cliente:
+// cualquiera con acceso al dashboard (no exige OWNER/ADMIN, mismo criterio
+// que redimir una sesión de paquete). A diferencia de la foto de perfil
+// (User.image, base64 en Postgres — válido para una sola foto chica), acá
+// puede haber muchas fotos por cliente, así que el archivo va a un servicio
+// de almacenamiento real (Vercel Blob) y solo se guarda la URL resultante.
+export async function uploadClientPhotoAction(
+  tenantSlug: string,
+  clientId: string,
+  formData: FormData
+): Promise<void> {
+  const { session, tenant } = await requirePhotosAccess(tenantSlug);
+
+  const client = await prisma.client.findFirst({ where: { id: clientId, tenantId: tenant.id } });
+  if (!client) notFound();
+
+  const redirectWithError = (error: string) => {
+    redirect(`/dashboard/${tenantSlug}/clients/${clientId}?error=${encodeURIComponent(error)}`);
+  };
+
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) {
+    redirectWithError("Elegí una foto para subir.");
+    return;
+  }
+  if (!ALLOWED_CLIENT_PHOTO_TYPES.has(file.type)) {
+    redirectWithError("La foto debe ser JPG, PNG o WEBP.");
+    return;
+  }
+  if (file.size > MAX_CLIENT_PHOTO_BYTES) {
+    redirectWithError(`La foto no puede pesar más de ${MAX_CLIENT_PHOTO_LABEL}.`);
+    return;
+  }
+
+  const caption = formData.get("caption")?.toString().trim() || null;
+
+  // Sin BLOB_READ_WRITE_TOKEN configurado, put() tira — se atrapa acá para
+  // dar un mensaje claro en vez de un error 500 genérico, mismo criterio que
+  // sendWhatsAppMessage/sendPasswordResetEmail ante un servicio externo sin
+  // configurar. A diferencia de esos, acá SÍ hace falta interrumpir el flujo
+  // (no hay nada útil que guardar sin una URL real del archivo).
+  let url: string;
+  try {
+    const blob = await put(`client-photos/${tenant.id}/${clientId}/${file.name}`, file, {
+      access: "public",
+      addRandomSuffix: true,
+    });
+    url = blob.url;
+  } catch {
+    redirectWithError(
+      "No se pudo subir la foto — el almacenamiento de archivos no está configurado todavía. Contactá a soporte."
+    );
+    return;
+  }
+
+  await prisma.clientPhoto.create({
+    data: { tenantId: tenant.id, clientId: client.id, url, caption, createdByUserId: session.user.id },
   });
 
   revalidatePath(`/dashboard/${tenantSlug}/clients/${clientId}`);

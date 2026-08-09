@@ -22,6 +22,7 @@ describe("planIncludesModule", () => {
     expect(planIncludesModule("INDIVIDUAL", "reports")).toBe(false);
     expect(planIncludesModule("INDIVIDUAL", "packages")).toBe(false);
     expect(planIncludesModule("INDIVIDUAL", "waitlist")).toBe(false);
+    expect(planIncludesModule("INDIVIDUAL", "photos")).toBe(false);
     expect(planIncludesModule("INDIVIDUAL", "prescriptions")).toBe(true);
   });
 
@@ -31,6 +32,7 @@ describe("planIncludesModule", () => {
     expect(planIncludesModule("BASICO", "reports")).toBe(true);
     expect(planIncludesModule("BASICO", "packages")).toBe(false);
     expect(planIncludesModule("BASICO", "waitlist")).toBe(false);
+    expect(planIncludesModule("BASICO", "photos")).toBe(false);
     expect(planIncludesModule("BASICO", "prescriptions")).toBe(true);
   });
 
@@ -41,6 +43,7 @@ describe("planIncludesModule", () => {
       expect(planIncludesModule(plan, "reports")).toBe(true);
       expect(planIncludesModule(plan, "packages")).toBe(true);
       expect(planIncludesModule(plan, "waitlist")).toBe(true);
+      expect(planIncludesModule(plan, "photos")).toBe(true);
       expect(planIncludesModule(plan, "prescriptions")).toBe(true);
     }
   });

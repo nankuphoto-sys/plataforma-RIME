@@ -23,6 +23,7 @@ import {
   updateClientAction,
 } from "../actions";
 import { ClientForm } from "../ClientForm";
+import { ClientPhotoUploadForm } from "../ClientPhotoUploadForm";
 
 function toDateInputValue(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -163,6 +164,17 @@ export default async function ClientDetailPage({
         where: { clientId: client.id, tenantId: tenant.id },
         include: { professional: true },
         orderBy: { issuedAt: "desc" },
+      })
+    : [];
+
+  // Línea de tiempo de fotos: mismo tier de plan que Paquetes/Lista de
+  // espera (PREMIUM/PRO) — a diferencia de Recetas, subir fotos tiene un
+  // costo real de almacenamiento (Vercel Blob).
+  const photosEnabled = planIncludesModule(tenant.plan, "photos");
+  const clientPhotos = photosEnabled
+    ? await prisma.clientPhoto.findMany({
+        where: { clientId: client.id, tenantId: tenant.id },
+        orderBy: { takenAt: "desc" },
       })
     : [];
 
@@ -532,6 +544,32 @@ export default async function ClientDetailPage({
               Guardar receta
             </SubmitButton>
           </form>
+        </section>
+      )}
+
+      {photosEnabled && (
+        <section className="mt-6 border-t border-sage-dark/30 pt-6">
+          <h2 className="section-title">Línea de tiempo de fotos</h2>
+          {clientPhotos.length === 0 ? (
+            <p className="mt-3 text-sm text-ink/40">Este cliente todavía no tiene fotos de seguimiento.</p>
+          ) : (
+            <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {clientPhotos.map((photo) => (
+                // eslint-disable-next-line @next/next/no-img-element -- URL externa (Vercel Blob), sin domain configurado para next/image
+                <li key={photo.id} className="overflow-hidden rounded-xl border border-sage-dark/25">
+                  <img src={photo.url} alt={photo.caption ?? "Foto de seguimiento"} className="aspect-square w-full object-cover" />
+                  <div className="p-2 text-xs text-ink/60">
+                    <p className="data-mono">{photo.takenAt.toLocaleDateString("es-CL", { dateStyle: "medium" })}</p>
+                    {photo.caption && <p className="mt-1 text-ink/80">{photo.caption}</p>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-4 border-t border-sage-dark/20 pt-4">
+            <ClientPhotoUploadForm tenantSlug={tenantSlug} clientId={clientId} />
+          </div>
         </section>
       )}
     </div>

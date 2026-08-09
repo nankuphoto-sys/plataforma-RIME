@@ -149,6 +149,23 @@ export async function requirePrescriptionsAccess(tenantSlug: string) {
   return { session, tenant };
 }
 
+// Guard de acceso a la línea de tiempo de fotos (ver/subir desde la ficha de
+// un cliente): exige que el plan del tenant incluya "photos" — mismo tier
+// que Paquetes/Lista de espera (PREMIUM/PRO), a diferencia de Recetas: subir
+// fotos tiene un costo real de almacenamiento (Vercel Blob), así que sí es
+// un upsell operativo, no el diferenciador central de un nicho. Sin split
+// de manage-access: cualquiera con acceso al dashboard puede subir una foto
+// de seguimiento, es tarea del día a día.
+export async function requirePhotosAccess(tenantSlug: string) {
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  if (!planIncludesModule(tenant.plan, "photos")) {
+    redirect(`/dashboard/${tenantSlug}/plan-required?feature=fotos&requiredPlan=PREMIUM`);
+  }
+
+  return { session, tenant };
+}
+
 // Guard de acceso para gestionar paquetes (crear uno nuevo, cancelarlo):
 // además del chequeo de plan de requirePackagesAccess, exige OWNER o ADMIN,
 // mismo criterio que requireInventoryManageAccess. Ver los paquetes de un
