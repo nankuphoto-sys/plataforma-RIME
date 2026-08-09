@@ -11,6 +11,7 @@ import { deductInventoryForCompletedAppointment, maybeSendLowStockAlerts } from 
 import { planIncludesModule } from "@/lib/planLimits";
 import { findBestWaitlistMatch } from "@/lib/waitlist";
 import { normalizePhoneForWhatsapp, sendWaitlistSlotOpenedWhatsAppMessage } from "@/lib/whatsapp";
+import { computeFollowUpSlot, isAutoFollowUpVertical, isFollowUpSlotFree } from "@/lib/followUpScheduling";
 
 export interface UpdateAppointmentStatusResult {
   ok: boolean;
@@ -82,6 +83,42 @@ export async function updateAppointmentStatusAction(
         appointmentId: appointment.id,
         performedByUserId: session.user.id,
       });
+    }
+
+    // Auto-agendar control de seguimiento: solo para verticales de salud
+    // (ver isAutoFollowUpVertical) y solo si el horario exacto candidato
+    // (mismo profesional/servicio, FOLLOW_UP_INTERVAL_DAYS después, mismo
+    // horario del día) está libre — nunca elige otro horario ni fuerza un
+    // doble-booking. Si no está libre, no se crea nada: el staff agenda a
+    // mano, igual que siempre.
+    if (nextStatus === "COMPLETED" && isAutoFollowUpVertical(tenant.vertical)) {
+      const candidate = computeFollowUpSlot(appointment.startsAt, appointment.service.durationMinutes);
+
+      const overlapping = await tx.appointment.findMany({
+        where: {
+          professionalId: appointment.professionalId,
+          status: { not: "CANCELLED" },
+          startsAt: { lt: candidate.endsAt },
+          endsAt: { gt: candidate.startsAt },
+        },
+        select: { startsAt: true, endsAt: true },
+      });
+
+      if (isFollowUpSlotFree(candidate, overlapping)) {
+        await tx.appointment.create({
+          data: {
+            tenantId: tenant.id,
+            locationId: appointment.locationId,
+            professionalId: appointment.professionalId,
+            serviceId: appointment.serviceId,
+            clientId: appointment.clientId,
+            startsAt: candidate.startsAt,
+            endsAt: candidate.endsAt,
+            status: "PENDING",
+            source: "AUTO_FOLLOWUP",
+          },
+        });
+      }
     }
 
     // Lista de espera inteligente: al cancelar, se libera un cupo — se le

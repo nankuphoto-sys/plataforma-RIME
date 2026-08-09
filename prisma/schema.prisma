@@ -402,6 +402,7 @@ enum AppointmentSource {
   MARKETPLACE
   WEBSITE
   MANUAL
+  AUTO_FOLLOWUP // creada sola al completar una cita de una vertical de salud, ver src/lib/followUpScheduling.ts
 }
 
 // Pago 1:1 con la cita, con confirmación por webhook en tiempo real

@@ -2209,3 +2209,77 @@ motivo arriba). Fuera de esta fase: editar/eliminar una receta ya creada,
 firma digital del profesional, y el último módulo de nicho del roadmap
 (línea de tiempo de fotos — el más grande de los 8, depende de un servicio
 de almacenamiento de archivos que el proyecto no tiene todavía).
+
+## Auto-agendar control de seguimiento (salud)
+
+✅ hecho y verificado en vivo (mismo entorno sin navegador). 8vo y último
+módulo de nicho del roadmap con lógica propia — línea de tiempo de fotos
+queda aparte por depender de una decisión de infraestructura externa (ver
+sección siguiente).
+
+**Primer módulo de esta sesión con gating por VERTICAL, no por plan.**
+Todos los módulos anteriores (racha, portabilidad) se hicieron deliberadamente
+disponibles para cualquier vertical; este es distinto por naturaleza: crear
+una cita sola, sin que nadie la pida, tiene sentido para un seguimiento
+clínico (psicología/nutrición/fisioterapia) pero sería una sorpresa no
+deseada para una barbería o un spa. `isAutoFollowUpVertical` en
+`src/lib/followUpScheduling.ts` (pura, con tests) restringe a
+`PSICOLOGIA`/`NUTRICION`/`FISIOTERAPIA` — sin módulo de plan de por medio
+(disponible en los 4 planes, mismo criterio que Recetas: es parte del
+diferenciador de nicho, no un upsell).
+
+**Decisión de diseño confirmada explícitamente antes de implementar**: el
+seguimiento se auto-crea **solo si el horario exacto candidato está libre**
+— mismo profesional y servicio que la cita original,
+`FOLLOW_UP_INTERVAL_DAYS` (14, fijo por ahora) después, mismo horario del
+día. Si ese horario puntual ya está ocupado por cualquier otra cita del
+mismo profesional (`status` distinto de `CANCELLED`), **no se crea nada** —
+nunca elige otro horario por su cuenta ni fuerza un doble-booking; el staff
+agenda a mano como siempre. `computeFollowUpSlot`/`isFollowUpSlotFree`
+(`src/lib/followUpScheduling.ts`, puras, con tests) separan el cálculo del
+candidato de la decisión de si está libre.
+
+Enganchado en `updateAppointmentStatusAction`
+(`dashboard/[tenantSlug]/actions.ts`), dentro de la misma transacción que ya
+tiene el descuento de inventario y el match de lista de espera: cuando
+`nextStatus === "COMPLETED"` y la vertical del tenant es de salud, calcula
+el candidato, consulta las citas del mismo profesional que se solapan con
+ese horario (`status: { not: "CANCELLED" }`), y si no hay ninguna crea la
+cita nueva con `status: PENDING` (necesita confirmación, no se auto-confirma
+sola) y el valor nuevo `AppointmentSource.AUTO_FOLLOWUP` — enum nuevo,
+migración puramente aditiva, pensado para poder distinguir en reportes/
+soporte qué citas se generaron solas vs. las que agendó un humano.
+
+**Deliberadamente fuera de esta fase**: no se encola ningún recordatorio de
+WhatsApp para la cita auto-creada (esa lógica vive en la agenda pública de
+reservas, `src/app/(public)/[tenantSlug]/actions.ts`, y no se tocó — el
+cliente/staff la ve en la agenda interna igual que cualquier otra cita
+`PENDING`, pero no dispara el flujo de recordatorio de 24h automáticamente);
+sin verificación de horario de atención (`DEFAULT_BUSINESS_HOURS` en
+`availability.ts`) — si la cita original fue a una hora fuera del horario
+"normal" (ej. una excepción puntual), el seguimiento se ofrece igual a esa
+misma hora 14 días después, sin chequearlo contra el horario configurado;
+sin verificación de que la sede siga abierta/activa esos días.
+
+**Verificado en vivo (script real contra la base de Neon, sin sesión HTTP)**:
+`prisma/qa-auto-followup.ts` sembró dos tenants — uno PSICOLOGIA con dos
+citas CONFIRMED (una con el horario candidato libre, otra con el profesional
+ya ocupado exactamente en ese horario) y uno ESTETICA con una cita idéntica
+a la "libre" para probar el corte por vertical — y
+`prisma/qa-auto-followup-verify.ts` replicó la lógica exacta de la
+transacción (no pudo invocarse `updateAppointmentStatusAction` directamente
+por depender de `auth()`) sobre las 3 citas. Confirmado exactamente como se
+esperaba: la cita con horario libre creó su seguimiento (`PENDING`,
+`AUTO_FOLLOWUP`, 14 días después, misma hora); la cita con el profesional ya
+ocupado no creó nada; la cita en vertical ESTETICA no creó nada pese a tener
+el horario libre. Al final, exactamente 1 cita con `source: AUTO_FOLLOWUP`
+existía en toda la base. Ambos tenants QA borrados al terminar
+(`prisma/qa-auto-followup-cleanup.ts`, cascade confirmado).
+
+**Deliberadamente NO verificado en esta sesión**: `updateAppointmentStatusAction`
+en sí nunca se invocó por HTTP real (requiere sesión de Auth.js). Con esto
+quedan 7 de los 8 módulos de nicho del roadmap resueltos — el único
+pendiente es línea de tiempo de fotos (estética), que depende de agregar un
+servicio de almacenamiento de archivos real al proyecto (hoy no tiene
+ninguno — ver el stopgap de base64 en `profileImage.ts`, marcado en su
+propio comentario como no apto para este caso).
