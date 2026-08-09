@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { ArrowLeft } from "lucide-react";
 import {
   getUpcomingBookableDates,
   type CalendarDate,
 } from "@/lib/availability";
+import { AppointmentTicket } from "./AppointmentTicket";
 import {
   createAppointmentAction,
   createCheckoutSessionAction,
@@ -76,6 +78,22 @@ function formatFullDateTime(iso: string, timezone: string): string {
   });
   const time = formatSlotTime(iso, timezone);
   return `${label.charAt(0).toUpperCase() + label.slice(1)} a las ${time}`;
+}
+
+// Fila de "volver" — mismo lenguaje que .shell-link del dashboard (flecha
+// que se desliza levemente en hover), para que la agenda pública no se
+// sienta como una pantalla aparte del resto del producto.
+function BackLink({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group inline-flex items-center gap-1 text-sm text-ink/50 transition-colors hover:text-pine"
+    >
+      <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:-translate-x-0.5" />
+      {children}
+    </button>
+  );
 }
 
 export function BookingWizard({
@@ -250,65 +268,47 @@ export function BookingWizard({
     });
   }
 
+  // Breadcrumb: un chip por paso ya resuelto, en el orden en que el flujo
+  // real los pidió (la sede solo aparece si el negocio tiene más de una).
+  const crumbs: { label: string; done: boolean }[] = [
+    ...(hasLocationStep ? [{ label: selectedLocation?.name ?? "Sede", done: !!selectedLocationId }] : []),
+    { label: selectedService?.name ?? "Servicio", done: !!selectedService },
+    { label: selectedProfessional?.name ?? "Profesional", done: !!selectedProfessional },
+    {
+      label: selectedSlotIso ? formatSlotTime(selectedSlotIso, locationTimezone) : "Horario",
+      done: !!selectedSlotIso,
+    },
+  ];
+
   if (step === "confirmation" && confirmation) {
     return (
-      <div className="mt-6 rounded-lg border border-green-200 bg-green-50 p-6">
-        <h2 className="text-lg font-semibold text-green-800">¡Cita reservada!</h2>
-        <dl className="mt-4 space-y-2 text-sm text-gray-700">
-          <div>
-            <dt className="font-medium">Servicio</dt>
-            <dd>{confirmation.serviceName}</dd>
-          </div>
-          <div>
-            <dt className="font-medium">Profesional</dt>
-            <dd>{confirmation.professionalName}</dd>
-          </div>
-          <div>
-            <dt className="font-medium">Sede</dt>
-            <dd>{confirmation.locationName}</dd>
-          </div>
-          <div>
-            <dt className="font-medium">Fecha y hora</dt>
-            <dd>{formatFullDateTime(confirmation.startsAtIso, confirmation.locationTimezone)}</dd>
-          </div>
-        </dl>
-        <p className="mt-4 text-sm text-gray-500">
-          Tu cita quedó registrada como pendiente de confirmación.
-        </p>
-
-        <div className="mt-6">
-          <p className="text-sm font-medium text-gray-700">Elige cómo pagar</p>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => handlePay("stripe")}
-              disabled={isPending}
-              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              {isPending ? "Redirigiendo..." : "Pagar con tarjeta internacional (Stripe)"}
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePay("wompi")}
-              disabled={isPending}
-              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              {isPending ? "Redirigiendo..." : "Pagar con Wompi (Colombia)"}
-            </button>
-          </div>
-        </div>
-
-        {checkoutError && (
-          <p className="mt-3 text-sm text-red-600">
-            No pudimos iniciar el pago: {checkoutError}. Tu cita sigue reservada; puedes
-            reservar otra o volver a intentar el pago más tarde.
-          </p>
-        )}
-        <button
-          type="button"
-          onClick={resetAll}
-          className="mt-6 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-white"
+      <div className="mt-8">
+        <AppointmentTicket
+          variant="pending"
+          serviceName={confirmation.serviceName}
+          professionalName={confirmation.professionalName}
+          locationName={confirmation.locationName}
+          dateTimeLabel={formatFullDateTime(confirmation.startsAtIso, confirmation.locationTimezone)}
+          message="Tu cita quedó registrada como pendiente de confirmación. Elige cómo pagar para confirmarla."
         >
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink/40">Elige cómo pagar</p>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+            <button type="button" onClick={() => handlePay("stripe")} disabled={isPending} className="btn-primary">
+              {isPending ? "Redirigiendo…" : "Tarjeta internacional (Stripe)"}
+            </button>
+            <button type="button" onClick={() => handlePay("wompi")} disabled={isPending} className="btn-secondary">
+              {isPending ? "Redirigiendo…" : "Wompi (Colombia)"}
+            </button>
+          </div>
+          {checkoutError && (
+            <p className="msg-error mt-3">
+              No pudimos iniciar el pago: {checkoutError}. Tu cita sigue reservada; puedes
+              reservar otra o volver a intentar el pago más tarde.
+            </p>
+          )}
+        </AppointmentTicket>
+
+        <button type="button" onClick={resetAll} className="mt-6 text-sm text-ink/50 underline-offset-2 hover:text-pine hover:underline">
           Reservar otra cita
         </button>
       </div>
@@ -316,17 +316,23 @@ export function BookingWizard({
   }
 
   return (
-    <div className="mt-6">
+    <div className="mt-8">
+      {step !== "location" && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {crumbs.map((crumb) => (
+            <span key={crumb.label} className={`booking-crumb ${crumb.done ? "booking-crumb-done" : "booking-crumb-pending"}`}>
+              {crumb.label}
+            </span>
+          ))}
+        </div>
+      )}
+
       {step === "location" && (
         <ul className="space-y-3">
           {locations.map((loc) => (
             <li key={loc.id}>
-              <button
-                type="button"
-                onClick={() => handleSelectLocation(loc.id)}
-                className="w-full rounded-lg border border-gray-200 p-4 text-left hover:border-gray-400"
-              >
-                <span className="font-medium">{loc.name}</span>
+              <button type="button" onClick={() => handleSelectLocation(loc.id)} className="booking-option">
+                <span className="font-medium text-ink">{loc.name}</span>
               </button>
             </li>
           ))}
@@ -335,51 +341,38 @@ export function BookingWizard({
 
       {step === "service" && (
         <div>
-          {hasLocationStep && (
-            <button
-              type="button"
-              onClick={() => setStep("location")}
-              className="text-sm text-gray-500 hover:underline"
-            >
-              ← Volver a sedes
-            </button>
-          )}
-          <ul className="mt-3 space-y-3">
-          {services.map((service) => (
-            <li key={service.id}>
-              <button
-                type="button"
-                onClick={() => handleSelectService(service.id)}
-                className="w-full rounded-lg border border-gray-200 p-4 text-left hover:border-gray-400"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{service.name}</span>
-                  <span className="text-gray-500">{service.durationMinutes} min</span>
-                </div>
-              </button>
-              {noProfessionalsServiceId === service.id && (
-                <p className="mt-2 text-sm text-red-600">
-                  Este servicio no tiene profesionales disponibles por el momento.
-                </p>
-              )}
-            </li>
-          ))}
-          {services.length === 0 && (
-            <p className="text-sm text-gray-400">
-              Este negocio todavía no tiene servicios publicados.
-            </p>
-          )}
+          {hasLocationStep && <BackLink onClick={() => setStep("location")}>Volver a sedes</BackLink>}
+          <ul className={hasLocationStep ? "mt-4 space-y-3" : "space-y-3"}>
+            {services.map((service) => (
+              <li key={service.id}>
+                <button type="button" onClick={() => handleSelectService(service.id)} className="booking-option">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-ink">{service.name}</span>
+                    <span className="data-mono flex-none text-sm text-ink/50">{service.durationMinutes} min</span>
+                  </div>
+                  <span className="data-mono mt-1 block text-sm font-medium text-pine-dark">
+                    ${Number(service.price).toLocaleString("es-CO")}
+                  </span>
+                </button>
+                {noProfessionalsServiceId === service.id && (
+                  <p className="msg-error mt-2">Este servicio no tiene profesionales disponibles por el momento.</p>
+                )}
+              </li>
+            ))}
+            {services.length === 0 && (
+              <p className="text-sm text-ink/40">Este negocio todavía no tiene servicios publicados.</p>
+            )}
           </ul>
         </div>
       )}
 
       {step === "professional" && selectedService && (
         <div>
-          <button type="button" onClick={() => setStep("service")} className="text-sm text-gray-500 hover:underline">
-            ← Volver a servicios
-          </button>
-          <h2 className="mt-3 font-medium">Elige un profesional para «{selectedService.name}»</h2>
-          <ul className="mt-3 space-y-3">
+          <BackLink onClick={() => setStep("service")}>Volver a servicios</BackLink>
+          <h2 className="mt-4 font-display text-lg font-semibold text-ink">
+            Elige un profesional para «{selectedService.name}»
+          </h2>
+          <ul className="mt-4 space-y-3">
             {professionals
               .filter(
                 (p) =>
@@ -388,12 +381,8 @@ export function BookingWizard({
               )
               .map((professional) => (
                 <li key={professional.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectProfessional(professional.id)}
-                    className="w-full rounded-lg border border-gray-200 p-4 text-left hover:border-gray-400"
-                  >
-                    {professional.name}
+                  <button type="button" onClick={() => handleSelectProfessional(professional.id)} className="booking-option">
+                    <span className="font-medium text-ink">{professional.name}</span>
                   </button>
                 </li>
               ))}
@@ -403,18 +392,12 @@ export function BookingWizard({
 
       {step === "datetime" && selectedService && selectedProfessional && (
         <div>
-          <button
-            type="button"
-            onClick={() => setStep(cameFromProfessionalStep ? "professional" : "service")}
-            className="text-sm text-gray-500 hover:underline"
-          >
-            ← Volver
-          </button>
-          <h2 className="mt-3 font-medium">
+          <BackLink onClick={() => setStep(cameFromProfessionalStep ? "professional" : "service")}>Volver</BackLink>
+          <h2 className="mt-4 font-display text-lg font-semibold text-ink">
             {selectedService.name} con {selectedProfessional.name}
           </h2>
 
-          <p className="mt-4 text-sm font-medium text-gray-600">Elige una fecha</p>
+          <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-ink/40">Elige una fecha</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {bookableDates.map((date) => {
               const key = calendarDateKey(date);
@@ -424,11 +407,7 @@ export function BookingWizard({
                   key={key}
                   type="button"
                   onClick={() => handleSelectDate(date)}
-                  className={`rounded-md border px-3 py-2 text-sm ${
-                    isSelected
-                      ? "border-gray-900 bg-gray-900 text-white"
-                      : "border-gray-200 hover:border-gray-400"
-                  }`}
+                  className={`booking-option-compact ${isSelected ? "booking-option-selected" : ""}`}
                 >
                   {formatDateLabel(date)}
                 </button>
@@ -438,11 +417,9 @@ export function BookingWizard({
 
           {selectedDate && (
             <div className="mt-6">
-              <p className="text-sm font-medium text-gray-600">Elige un horario</p>
-              {isPending && <p className="mt-2 text-sm text-gray-400">Cargando horarios...</p>}
-              {!isPending && slotsError && (
-                <p className="mt-2 text-sm text-red-600">{slotsError}</p>
-              )}
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink/40">Elige un horario</p>
+              {isPending && <p className="mt-2 text-sm text-ink/40">Cargando horarios…</p>}
+              {!isPending && slotsError && <p className="msg-error mt-2">{slotsError}</p>}
               {!isPending && slots.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {slots.map((iso) => (
@@ -450,7 +427,7 @@ export function BookingWizard({
                       key={iso}
                       type="button"
                       onClick={() => handleSelectSlot(iso)}
-                      className="rounded-md border border-gray-200 px-3 py-2 text-sm hover:border-gray-400"
+                      className="booking-option-compact data-mono"
                     >
                       {formatSlotTime(iso, locationTimezone)}
                     </button>
@@ -464,21 +441,15 @@ export function BookingWizard({
 
       {step === "client" && selectedService && selectedProfessional && selectedSlotIso && (
         <form onSubmit={handleSubmitClient}>
-          <button
-            type="button"
-            onClick={() => setStep("datetime")}
-            className="text-sm text-gray-500 hover:underline"
-          >
-            ← Volver
-          </button>
-          <h2 className="mt-3 font-medium">Tus datos</h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <BackLink onClick={() => setStep("datetime")}>Volver</BackLink>
+          <h2 className="mt-4 font-display text-lg font-semibold text-ink">Tus datos</h2>
+          <p className="mt-1 text-sm text-ink/50">
             {selectedService.name} · {formatFullDateTime(selectedSlotIso, locationTimezone)}
           </p>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-5 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700" htmlFor="name">
+              <label className="field-label" htmlFor="name">
                 Nombre
               </label>
               <input
@@ -487,11 +458,11 @@ export function BookingWizard({
                 required
                 value={clientForm.name}
                 onChange={(e) => setClientForm((f) => ({ ...f, name: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="field-input"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700" htmlFor="email">
+              <label className="field-label" htmlFor="email">
                 Email
               </label>
               <input
@@ -500,11 +471,11 @@ export function BookingWizard({
                 required
                 value={clientForm.email}
                 onChange={(e) => setClientForm((f) => ({ ...f, email: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="field-input"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700" htmlFor="phone">
+              <label className="field-label" htmlFor="phone">
                 Teléfono
               </label>
               <input
@@ -513,19 +484,15 @@ export function BookingWizard({
                 required
                 value={clientForm.phone}
                 onChange={(e) => setClientForm((f) => ({ ...f, phone: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="field-input"
               />
             </div>
           </div>
 
-          {formError && <p className="mt-3 text-sm text-red-600">{formError}</p>}
+          {formError && <p className="msg-error mt-3">{formError}</p>}
 
-          <button
-            type="submit"
-            disabled={isPending}
-            className="mt-6 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-          >
-            {isPending ? "Reservando..." : "Confirmar reserva"}
+          <button type="submit" disabled={isPending} className="btn-primary mt-6">
+            {isPending ? "Reservando…" : "Confirmar reserva"}
           </button>
         </form>
       )}

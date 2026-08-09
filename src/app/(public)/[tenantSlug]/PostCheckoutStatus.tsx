@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
+import { AppointmentTicket } from "./AppointmentTicket";
 import { createCheckoutSessionAction, createWompiCheckoutAction } from "./actions";
 
 export interface PostCheckoutAppointment {
@@ -58,52 +59,34 @@ export function PostCheckoutStatus({
     });
   }
 
-  const details = (
-    <dl className="mt-4 space-y-2 text-sm text-gray-700">
-      <div>
-        <dt className="font-medium">Servicio</dt>
-        <dd>{appointment.serviceName}</dd>
-      </div>
-      <div>
-        <dt className="font-medium">Profesional</dt>
-        <dd>{appointment.professionalName}</dd>
-      </div>
-      <div>
-        <dt className="font-medium">Sede</dt>
-        <dd>{appointment.locationName}</dd>
-      </div>
-      <div>
-        <dt className="font-medium">Fecha y hora</dt>
-        <dd>{formatFullDateTime(appointment.startsAtIso, appointment.locationTimezone)}</dd>
-      </div>
-    </dl>
+  const ticketProps = {
+    serviceName: appointment.serviceName,
+    professionalName: appointment.professionalName,
+    locationName: appointment.locationName,
+    dateTimeLabel: formatFullDateTime(appointment.startsAtIso, appointment.locationTimezone),
+  };
+
+  const backLink = (
+    <Link href={`/${tenantSlug}`} className="shell-link inline-block">
+      Volver a reservas
+    </Link>
   );
 
   if (outcome === "cancelled") {
     return (
-      <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-6">
-        <h2 className="text-lg font-semibold text-amber-800">Pago no completado</h2>
-        <p className="mt-2 text-sm text-gray-700">
-          Tu cita sigue reservada como pendiente de pago. Puedes intentar pagar de nuevo
-          cuando quieras.
-        </p>
-        {details}
-        <div className="mt-6 flex gap-3">
-          <button
-            type="button"
-            onClick={() => handleRetryPayment("STRIPE")}
-            disabled={isPending}
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-          >
-            {isPending ? "Redirigiendo..." : "Reintentar pago"}
-          </button>
-          <Link
-            href={`/${tenantSlug}`}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-white"
-          >
-            Volver a reservas
-          </Link>
-        </div>
+      <div className="mt-8">
+        <AppointmentTicket
+          {...ticketProps}
+          variant="cancelled"
+          message="Tu cita sigue reservada como pendiente de pago. Puedes intentar pagar de nuevo cuando quieras."
+        >
+          <div className="flex flex-wrap items-center gap-4">
+            <button type="button" onClick={() => handleRetryPayment("STRIPE")} disabled={isPending} className="btn-primary">
+              {isPending ? "Redirigiendo…" : "Reintentar pago"}
+            </button>
+            {backLink}
+          </div>
+        </AppointmentTicket>
       </div>
     );
   }
@@ -115,63 +98,47 @@ export function PostCheckoutStatus({
   // solo por haber llegado a esta URL.
   if (appointment.paymentStatus === "PAID") {
     return (
-      <div className="mt-6 rounded-lg border border-green-200 bg-green-50 p-6">
-        <h2 className="text-lg font-semibold text-green-800">¡Pago confirmado!</h2>
-        <p className="mt-2 text-sm text-gray-700">Tu cita quedó confirmada.</p>
-        {details}
-        <Link
-          href={`/${tenantSlug}`}
-          className="mt-6 inline-block rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-white"
-        >
-          Volver a reservas
-        </Link>
+      <div className="mt-8">
+        <AppointmentTicket {...ticketProps} variant="confirmed">
+          {backLink}
+        </AppointmentTicket>
       </div>
     );
   }
 
   if (appointment.paymentStatus === "FAILED") {
     return (
-      <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-6">
-        <h2 className="text-lg font-semibold text-amber-800">El pago no pudo procesarse</h2>
-        <p className="mt-2 text-sm text-gray-700">
-          Tu cita sigue reservada como pendiente de pago. Puedes intentar pagar de nuevo
-          cuando quieras.
-        </p>
-        {details}
-        <div className="mt-6 flex gap-3">
-          <button
-            type="button"
-            onClick={() => handleRetryPayment(appointment.paymentProvider ?? "STRIPE")}
-            disabled={isPending}
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-          >
-            {isPending ? "Redirigiendo..." : "Reintentar pago"}
-          </button>
-          <Link
-            href={`/${tenantSlug}`}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-white"
-          >
-            Volver a reservas
-          </Link>
-        </div>
+      <div className="mt-8">
+        <AppointmentTicket
+          {...ticketProps}
+          variant="failed"
+          message="Tu cita sigue reservada como pendiente de pago. Puedes intentar pagar de nuevo cuando quieras."
+        >
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={() => handleRetryPayment(appointment.paymentProvider ?? "STRIPE")}
+              disabled={isPending}
+              className="btn-primary"
+            >
+              {isPending ? "Redirigiendo…" : "Reintentar pago"}
+            </button>
+            {backLink}
+          </div>
+        </AppointmentTicket>
       </div>
     );
   }
 
   return (
-    <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-6">
-      <h2 className="text-lg font-semibold text-blue-800">Estamos confirmando tu pago</h2>
-      <p className="mt-2 text-sm text-gray-700">
-        Tu pago se está procesando y estamos esperando la confirmación final. Esto suele
-        tardar solo unos segundos — puedes actualizar esta página en un momento.
-      </p>
-      {details}
-      <Link
-        href={`/${tenantSlug}`}
-        className="mt-6 inline-block rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-white"
+    <div className="mt-8">
+      <AppointmentTicket
+        {...ticketProps}
+        variant="processing"
+        message="Tu pago se está procesando y estamos esperando la confirmación final. Esto suele tardar solo unos segundos — puedes actualizar esta página en un momento."
       >
-        Volver a reservas
-      </Link>
+        {backLink}
+      </AppointmentTicket>
     </div>
   );
 }

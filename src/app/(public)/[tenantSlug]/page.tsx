@@ -73,43 +73,48 @@ export default async function PublicBookingPage({
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
-      <h1 className="text-2xl font-bold">{tenant.name}</h1>
+    <main className="min-h-screen bg-paper">
+      <div className="mx-auto max-w-xl px-6 py-14 sm:py-20">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-pine">Reserva tu cita</p>
+        <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+          {tenant.name}
+        </h1>
 
-      {postCheckout && outcome ? (
-        <PostCheckoutStatus tenantSlug={tenantSlug} appointment={postCheckout} outcome={outcome} />
-      ) : (
-        <>
-          <p className="mt-2 text-gray-600">Elige un servicio para agendar tu cita:</p>
+        {postCheckout && outcome ? (
+          <PostCheckoutStatus tenantSlug={tenantSlug} appointment={postCheckout} outcome={outcome} />
+        ) : (
+          <>
+            <p className="mt-3 text-sm text-ink/55">Elige un servicio para agendar tu cita.</p>
 
-          {location ? (
-            <BookingWizard
-              tenantSlug={tenantSlug}
-              locations={tenant.locations.map((loc) => ({
-                id: loc.id,
-                name: loc.name,
-                timezone: loc.timezone,
-              }))}
-              services={tenant.services.map((service) => ({
-                id: service.id,
-                name: service.name,
-                durationMinutes: service.durationMinutes,
-                price: service.price.toString(),
-              }))}
-              professionals={tenant.professionals.map((professional) => ({
-                id: professional.id,
-                name: professional.name,
-                serviceIds: professional.services.map((s) => s.serviceId),
-                locationIds: professional.professionalLocations.map((pl) => pl.locationId),
-              }))}
-            />
-          ) : (
-            <p className="mt-6 text-sm text-gray-400">
-              Este negocio todavía no tiene una sede configurada.
-            </p>
-          )}
-        </>
-      )}
+            {location ? (
+              <BookingWizard
+                tenantSlug={tenantSlug}
+                locations={tenant.locations.map((loc) => ({
+                  id: loc.id,
+                  name: loc.name,
+                  timezone: loc.timezone,
+                }))}
+                services={tenant.services.map((service) => ({
+                  id: service.id,
+                  name: service.name,
+                  durationMinutes: service.durationMinutes,
+                  price: service.price.toString(),
+                }))}
+                professionals={tenant.professionals.map((professional) => ({
+                  id: professional.id,
+                  name: professional.name,
+                  serviceIds: professional.services.map((s) => s.serviceId),
+                  locationIds: professional.professionalLocations.map((pl) => pl.locationId),
+                }))}
+              />
+            ) : (
+              <p className="mt-8 text-sm text-ink/40">
+                Este negocio todavía no tiene una sede configurada.
+              </p>
+            )}
+          </>
+        )}
+      </div>
     </main>
   );
 }

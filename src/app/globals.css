@@ -226,4 +226,91 @@
   .specialty-arrow {
     @apply flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink shadow-md transition duration-200 ease-out group-hover:translate-x-0.5 group-hover:bg-pine group-hover:text-paper;
   }
+
+  /* -----------------------------------------------------------------------
+     Agenda pública de reservas (src/app/(public)/[tenantSlug]/*) — clases
+     propias, ni las del dashboard interno ni las de la landing: esta
+     pantalla la ve un desconocido en el celular, sin contexto de marca
+     previo salvo el nombre del negocio, así que necesita su propio nivel de
+     cuidado en vez de heredar botones/paneles pensados para otra audiencia. */
+
+  /* Breadcrumb de progreso: la elección de cada paso queda "guardada" como
+     chip a medida que se avanza — no decorativo, es el estado real de la
+     reserva. Pendiente (aún no llegado) vs. elegido (chip lleno). */
+  .booking-crumb {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-150;
+  }
+
+  .booking-crumb-done {
+    @apply border-pine/30 bg-pine/10 text-pine-dark;
+  }
+
+  .booking-crumb-pending {
+    @apply border-sage-dark/40 text-ink/35;
+  }
+
+  /* Tarjeta de opción seleccionable (sede/servicio/profesional/fecha/hora):
+     mismo lenguaje de .panel del dashboard (borde suave, blanco sobre
+     paper) pero con más aire y una reacción de hover más marcada — acá cada
+     tarjeta ES la acción principal de la pantalla, no un elemento de apoyo
+     dentro de una tabla. */
+  .booking-option {
+    @apply w-full rounded-xl border border-sage-dark/40 bg-white p-4 text-left transition duration-150 ease-out hover:-translate-y-0.5 hover:border-pine/40 hover:shadow-md active:translate-y-0 active:scale-[0.99];
+  }
+
+  .booking-option-compact {
+    @apply rounded-lg border border-sage-dark/40 bg-white px-3.5 py-2.5 text-sm font-medium text-ink transition duration-150 ease-out hover:-translate-y-0.5 hover:border-pine/40 hover:shadow-md active:translate-y-0 active:scale-[0.97];
+  }
+
+  .booking-option-selected {
+    @apply border-pine bg-pine text-paper shadow-md hover:-translate-y-0 hover:border-pine;
+  }
+
+  /* Boleto de la cita: el momento de mayor peso emocional del flujo (la
+     reserva ya existe) merece más que una alerta verde genérica — una
+     reserva ES un boleto, la metáfora no es forzada. La perforación se logra
+     con dos círculos del color del fondo de PÁGINA (paper) "mordiendo" el
+     borde de la tarjeta (blanca) sobre una línea punteada — por eso esta
+     técnica exige que el boleto viva sobre bg-paper, nunca sobre otro fondo,
+     o los círculos dejan de camuflarse. */
+  .ticket {
+    @apply relative overflow-hidden rounded-2xl border border-sage-dark/30 bg-white shadow-lg shadow-ink/5;
+  }
+
+  .ticket-stub {
+    @apply p-6;
+  }
+
+  .ticket-perforation {
+    @apply relative border-t-2 border-dashed border-sage-dark/50;
+  }
+
+  .ticket-perforation::before,
+  .ticket-perforation::after {
+    content: "";
+    position: absolute;
+    top: -10px;
+    width: 20px;
+    height: 20px;
+    border-radius: 9999px;
+    background: theme("colors.paper");
+  }
+
+  .ticket-perforation::before {
+    left: -10px;
+  }
+
+  .ticket-perforation::after {
+    right: -10px;
+  }
+
+  .ticket-details {
+    @apply p-6;
+  }
+
+  /* Sello circular de estado — reemplaza el ✓ de alerta genérico. Color
+     según variant, aplicado por quien usa el componente (pine/gold/berry). */
+  .ticket-seal {
+    @apply flex h-14 w-14 flex-none items-center justify-center rounded-full ring-4;
+  }
 }
