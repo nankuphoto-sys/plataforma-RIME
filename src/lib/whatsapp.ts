@@ -219,3 +219,56 @@ export async function sendPackageExpirationWhatsAppMessage(params: {
 }): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
   return sendWhatsAppMessage(buildPackageExpirationTemplatePayload(params));
 }
+
+// Aviso de cupo liberado (Lista de espera inteligente): avisa a un cliente
+// en espera que se liberó un cupo del servicio que quería. A diferencia de
+// recordatorio/recompra/vencimiento de paquete, NO pasa por NotificationQueue
+// — se manda inmediato, fire-and-forget, justo después de que la cita se
+// marca CANCELLED (ver updateAppointmentStatusAction), porque un cupo recién
+// liberado es urgente: esperar hasta la próxima corrida horaria de un cron
+// (como si pasara por la cola) le daría tiempo a que otro cliente reserve
+// ese mismo horario por la agenda pública antes de avisarle al candidato de
+// la lista de espera. Mismo mecanismo de disparo que la alerta de stock
+// bajo (bypass de la cola), pero por un motivo distinto: esa no tiene
+// clientId para encolar, esta sí lo tiene y aun así se manda directo por
+// la urgencia. `NotificationKind.WAITLIST_SLOT_OPENED` queda en el enum sin
+// uso por ahora, reservado por si en el futuro conviene encolar esto también
+// (ej. para reintentos automáticos si falla el primer intento).
+export function buildWaitlistSlotOpenedTemplatePayload(params: {
+  to: string; // ya normalizado
+  clientName: string;
+  serviceName: string;
+  startsAtLabel: string;
+}): Record<string, unknown> {
+  const templateName = process.env.WHATSAPP_WAITLIST_TEMPLATE_NAME ?? "cupo_lista_espera";
+  const templateLang = process.env.WHATSAPP_WAITLIST_TEMPLATE_LANG ?? "es_MX";
+
+  return {
+    messaging_product: "whatsapp",
+    to: params.to,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: templateLang },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.clientName },
+            { type: "text", text: params.serviceName },
+            { type: "text", text: params.startsAtLabel },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+export async function sendWaitlistSlotOpenedWhatsAppMessage(params: {
+  to: string;
+  clientName: string;
+  serviceName: string;
+  startsAtLabel: string;
+}): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
+  return sendWhatsAppMessage(buildWaitlistSlotOpenedTemplatePayload(params));
+}

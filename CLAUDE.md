@@ -2050,3 +2050,93 @@ sí se verificó, replicada en el script de verificación, pero no el guard
 navegador. Fuera de esta fase: los otros 4 módulos de nicho del roadmap
 (lista de espera inteligente, receta digital, auto-agendar seguimiento,
 línea de tiempo de fotos).
+
+## Lista de espera inteligente (bienestar)
+
+✅ hecho y verificado en vivo (mismo entorno sin navegador). 6to módulo de
+nicho de los 8 del roadmap.
+
+Modelo nuevo `WaitlistEntry` (tenantId, locationId, clientId, serviceId,
+`professionalId` opcional — null = cualquier profesional que atienda ese
+servicio —, `preferredFrom`/`preferredTo` opcionales para acotar la ventana
+de fechas aceptable, status `WaitlistEntryStatus` default WAITING). Nunca se
+borra — status pasa a CANCELLED manual, mismo criterio que el resto del
+proyecto; BOOKED queda reservado para cuando exista un flujo que lo marque
+solo (hoy nada lo asigna, igual que `SessionPackageStatus.EXPIRED`, ya
+documentado como hueco aceptado).
+
+**"Inteligente" = nunca bombardear a todos los que esperan un servicio,
+solo ofrecerle el cupo al que matchea Y espera hace más tiempo.**
+`findBestWaitlistMatch` (`src/lib/waitlist.ts`, pura, con 7 tests) filtra
+candidatos `WAITING` por sede+servicio+profesional (o sin preferencia) y
+ventana de fechas, y entre los que matchean elige el de `createdAt` más
+antiguo. Se engancha en `updateAppointmentStatusAction`
+(`dashboard/[tenantSlug]/actions.ts`): cuando una cita pasa a `CANCELLED` y
+el plan del tenant incluye `"waitlist"`, dentro de la misma transacción que
+ya actualiza el estado de la cita se buscan los `WaitlistEntry` `WAITING` de
+esa sede+servicio, se descartan los que no tienen un teléfono normalizable
+(no tiene sentido "gastar" el match con alguien a quien no se le puede
+avisar — se sigue probando con el siguiente candidato más antiguo, no se
+para en el primero sin importar si tiene teléfono), se llama a
+`findBestWaitlistMatch`, y si hay ganador se marca `NOTIFIED`
+(`notifiedAt: now`) ahí mismo.
+
+**Decisión de diseño que rompe el patrón de las 3 notificaciones anteriores**:
+el aviso de WhatsApp (`sendWaitlistSlotOpenedWhatsAppMessage`, 5to triplete
+en `src/lib/whatsapp.ts`) se manda **inmediato, fuera de la transacción,
+fire-and-forget** — NO pasa por `NotificationQueue` como recordatorio/
+recompra/vencimiento de paquete. Motivo explícito, documentado en el propio
+código: un cupo recién liberado es urgente — esperar a la próxima corrida
+horaria de un cron (como el resto de los avisos ligados a cliente) le daría
+tiempo a que otro cliente reserve ese mismo horario por la agenda pública
+antes de que el candidato de la lista de espera se entere. `NotificationKind.WAITLIST_SLOT_OPENED`
+quedó agregado al enum (mismo tipo de columna que ya obligó a todos los
+`notificationQueue.create` del proyecto a especificar `kind`) pero sin uso
+real por ahora — reservado por si en el futuro conviene encolar esto
+también (ej. para reintentos automáticos si el primer intento falla).
+
+Gating: nuevo módulo `"waitlist"` en `PlanModule`, mismo tier que
+`inventory`/`reengagement`/`packages` (PREMIUM y PRO). `requireWaitlistAccess`
+sin split de manage-access — a diferencia de Paquetes, anotar o sacar a
+alguien de la lista de espera no mueve plata, así que cualquier usuario con
+acceso al dashboard puede hacerlo (mismo criterio que registrar un
+movimiento de inventario).
+
+UI: sección "Lista de espera" embebida en `clients/[clientId]/page.tsx`
+(mismo criterio de placement que Paquetes — es client-scoped, no un catálogo
+tenant-wide), oculta sin redirect si el plan no incluye el módulo. Formulario
+para unirse (servicio, sede, profesional opcional, ventana de fechas
+opcional) y botón "Sacar de la lista" por cada entrada `WAITING`/`NOTIFIED`.
+Deliberadamente **sin una página tenant-wide de "ver toda la lista de
+espera del negocio"** en esta fase — mismo alcance acotado que Paquetes al
+no tener tampoco una vista agregada propia; queda como mejora futura si
+hace falta.
+
+**Verificado en vivo (script real contra la base de Neon, sin sesión HTTP)**:
+`prisma/qa-waitlist.ts` sembró un tenant PREMIUM con una cita CONFIRMED del
+"Profesional A" y 3 clientes en lista de espera del mismo servicio/sede,
+creados en orden a propósito para poder confirmar la regla de "más antiguo
+que matchea gana": (1) el más antiguo de los tres, sin preferencia de
+profesional, pero **sin teléfono válido** — debía ser descartado sin
+importar que sea el más antiguo; (2) pide específicamente al "Profesional B"
+— no debía matchear porque la cita cancelada es de A; (3) el más nuevo de
+los tres, sin preferencia de profesional, con teléfono válido — debía ganar
+por ser el único matcheable con teléfono. `prisma/qa-waitlist-verify.ts`
+replicó la lógica exacta de la transacción (no pudo invocarse
+`updateAppointmentStatusAction` directamente por depender de `auth()`) y
+confirmó los tres resultados exactamente como se esperaba: el candidato (3)
+quedó `NOTIFIED`, los otros dos siguieron `WAITING`. Tenant QA borrado al
+terminar (`prisma/qa-waitlist-cleanup.ts`, cascade confirmado).
+
+**Deliberadamente NO verificado en esta sesión**: el envío real de WhatsApp
+(`sendWaitlistSlotOpenedWhatsAppMessage`) nunca se disparó — mismo criterio
+que el resto de plantillas nuevas de esta sesión (`alerta_paquete_vencimiento`,
+"cupo_lista_espera" tampoco existe/está aprobada en Meta, y
+`WHATSAPP_CLOUD_API_TOKEN` es una credencial real). Tampoco se probó
+`updateAppointmentStatusAction` en sí por HTTP real (requiere sesión de
+Auth.js). Fuera de esta fase: página tenant-wide de lista de espera, marcar
+`WaitlistEntryStatus.BOOKED` automáticamente si el candidato notificado
+efectivamente reserva ese horario (hoy nada lo asigna, queda en `NOTIFIED`
+para siempre salvo que alguien lo cancele a mano), y los otros 3 módulos de
+nicho del roadmap (receta digital, auto-agendar seguimiento, línea de
+tiempo de fotos — este último el más grande de los 8, sigue sin empezar).

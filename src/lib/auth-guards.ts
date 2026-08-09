@@ -116,6 +116,22 @@ export async function requirePackagesAccess(tenantSlug: string) {
   return { session, tenant };
 }
 
+// Guard de acceso a la lista de espera (unirse, ver la propia, cancelar):
+// exige que el plan del tenant incluya "waitlist", mismo patrón que
+// requirePackagesAccess. Sin split de manage-access — a diferencia de
+// paquetes, anotar o sacar a alguien de la lista de espera no mueve plata,
+// así que cualquier usuario con acceso al dashboard puede hacerlo (mismo
+// criterio que registrar un movimiento de inventario).
+export async function requireWaitlistAccess(tenantSlug: string) {
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  if (!planIncludesModule(tenant.plan, "waitlist")) {
+    redirect(`/dashboard/${tenantSlug}/plan-required?feature=lista-de-espera&requiredPlan=PREMIUM`);
+  }
+
+  return { session, tenant };
+}
+
 // Guard de acceso para gestionar paquetes (crear uno nuevo, cancelarlo):
 // además del chequeo de plan de requirePackagesAccess, exige OWNER o ADMIN,
 // mismo criterio que requireInventoryManageAccess. Ver los paquetes de un

@@ -21,6 +21,7 @@ describe("planIncludesModule", () => {
     expect(planIncludesModule("INDIVIDUAL", "reengagement")).toBe(false);
     expect(planIncludesModule("INDIVIDUAL", "reports")).toBe(false);
     expect(planIncludesModule("INDIVIDUAL", "packages")).toBe(false);
+    expect(planIncludesModule("INDIVIDUAL", "waitlist")).toBe(false);
   });
 
   it("BASICO solo incluye reports", () => {
@@ -28,6 +29,7 @@ describe("planIncludesModule", () => {
     expect(planIncludesModule("BASICO", "reengagement")).toBe(false);
     expect(planIncludesModule("BASICO", "reports")).toBe(true);
     expect(planIncludesModule("BASICO", "packages")).toBe(false);
+    expect(planIncludesModule("BASICO", "waitlist")).toBe(false);
   });
 
   it("PREMIUM y PRO incluyen todos los módulos", () => {
@@ -36,6 +38,7 @@ describe("planIncludesModule", () => {
       expect(planIncludesModule(plan, "reengagement")).toBe(true);
       expect(planIncludesModule(plan, "reports")).toBe(true);
       expect(planIncludesModule(plan, "packages")).toBe(true);
+      expect(planIncludesModule(plan, "waitlist")).toBe(true);
     }
   });
 });

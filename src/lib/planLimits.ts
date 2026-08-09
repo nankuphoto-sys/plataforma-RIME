@@ -2,7 +2,7 @@ import type { Plan } from "@prisma/client";
 
 // Límites y acceso a módulos por plan (Fase 6, parte 1/N + gestión de
 // profesionales).
-export type PlanModule = "inventory" | "reengagement" | "reports" | "packages";
+export type PlanModule = "inventory" | "reengagement" | "reports" | "packages" | "waitlist";
 
 export interface PlanLimits {
   maxLocations: number | null; // null = sin límite (PRO)
@@ -14,22 +14,22 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   INDIVIDUAL: {
     maxLocations: 1,
     maxProfessionals: 1,
-    modules: { inventory: false, reengagement: false, reports: false, packages: false },
+    modules: { inventory: false, reengagement: false, reports: false, packages: false, waitlist: false },
   },
   BASICO: {
     maxLocations: 1,
     maxProfessionals: 3,
-    modules: { inventory: false, reengagement: false, reports: true, packages: false },
+    modules: { inventory: false, reengagement: false, reports: true, packages: false, waitlist: false },
   },
   PREMIUM: {
     maxLocations: 3,
     maxProfessionals: 8,
-    modules: { inventory: true, reengagement: true, reports: true, packages: true },
+    modules: { inventory: true, reengagement: true, reports: true, packages: true, waitlist: true },
   },
   PRO: {
     maxLocations: null,
     maxProfessionals: null,
-    modules: { inventory: true, reengagement: true, reports: true, packages: true },
+    modules: { inventory: true, reengagement: true, reports: true, packages: true, waitlist: true },
   },
 };
 

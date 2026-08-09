@@ -3,7 +3,12 @@
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireDashboardAccess, requirePackagesAccess, requirePackagesManageAccess } from "@/lib/auth-guards";
+import {
+  requireDashboardAccess,
+  requirePackagesAccess,
+  requirePackagesManageAccess,
+  requireWaitlistAccess,
+} from "@/lib/auth-guards";
 import { isProfessionalOnlyInTenant } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { getEffectiveClientFieldTemplate, type ClientFieldDefinition } from "@/lib/clientFieldTemplates";
@@ -293,6 +298,107 @@ export async function cancelPackageAction(
   }
 
   await prisma.sessionPackage.update({ where: { id: pkg.id }, data: { status: "CANCELLED" } });
+
+  revalidatePath(`/dashboard/${tenantSlug}/clients/${clientId}`);
+  redirect(`/dashboard/${tenantSlug}/clients/${clientId}?saved=1`);
+}
+
+// Anotar a un cliente en la lista de espera de un servicio: cualquiera con
+// acceso al dashboard (no exige OWNER/ADMIN, mismo criterio que redimir una
+// sesión de paquete) — es una tarea del día a día de recepción.
+export async function createWaitlistEntryAction(
+  tenantSlug: string,
+  clientId: string,
+  formData: FormData
+): Promise<void> {
+  const { session, tenant } = await requireWaitlistAccess(tenantSlug);
+
+  const client = await prisma.client.findFirst({ where: { id: clientId, tenantId: tenant.id } });
+  if (!client) notFound();
+
+  const redirectWithError = (error: string) => {
+    redirect(`/dashboard/${tenantSlug}/clients/${clientId}?error=${encodeURIComponent(error)}`);
+  };
+
+  const locationId = formData.get("locationId")?.toString() ?? "";
+  const serviceId = formData.get("serviceId")?.toString() ?? "";
+  const professionalIdRaw = formData.get("professionalId")?.toString().trim() ?? "";
+  const preferredFromRaw = formData.get("preferredFrom")?.toString().trim() ?? "";
+  const preferredToRaw = formData.get("preferredTo")?.toString().trim() ?? "";
+
+  // Nunca confiar en los ids que llegan del formulario: sede y servicio
+  // deben pertenecer a este tenant, y el profesional (si se eligió uno
+  // puntual) también.
+  const location = await prisma.location.findFirst({ where: { id: locationId, tenantId: tenant.id } });
+  if (!location) {
+    redirectWithError("Sede no válida.");
+    return;
+  }
+  const service = await prisma.service.findFirst({ where: { id: serviceId, tenantId: tenant.id } });
+  if (!service) {
+    redirectWithError("Servicio no válido.");
+    return;
+  }
+  let professionalId: string | null = null;
+  if (professionalIdRaw) {
+    const professional = await prisma.professional.findFirst({
+      where: { id: professionalIdRaw, tenantId: tenant.id },
+    });
+    if (!professional) {
+      redirectWithError("Profesional no válido.");
+      return;
+    }
+    professionalId = professional.id;
+  }
+
+  const preferredFrom = preferredFromRaw ? new Date(preferredFromRaw) : null;
+  const preferredTo = preferredToRaw ? new Date(preferredToRaw) : null;
+  if ((preferredFrom && Number.isNaN(preferredFrom.getTime())) || (preferredTo && Number.isNaN(preferredTo.getTime()))) {
+    redirectWithError("La ventana de fechas preferida no es válida.");
+    return;
+  }
+
+  await prisma.waitlistEntry.create({
+    data: {
+      tenantId: tenant.id,
+      locationId: location.id,
+      clientId: client.id,
+      serviceId: service.id,
+      professionalId,
+      preferredFrom,
+      preferredTo,
+      createdByUserId: session.user.id,
+    },
+  });
+
+  revalidatePath(`/dashboard/${tenantSlug}/clients/${clientId}`);
+  redirect(`/dashboard/${tenantSlug}/clients/${clientId}?saved=1`);
+}
+
+// Sacar a un cliente de la lista de espera (se arrepintió, ya reservó por
+// otro lado, etc.). Nunca se borra — status pasa a CANCELLED, mismo criterio
+// que el resto del proyecto. Se puede cancelar desde WAITING o NOTIFIED (ya
+// se le avisó de un cupo pero no lo tomó) — no desde BOOKED (ya se resolvió
+// solo) ni desde otra CANCELLED (no-op sin sentido).
+export async function cancelWaitlistEntryAction(
+  tenantSlug: string,
+  clientId: string,
+  entryId: string
+): Promise<void> {
+  const { tenant } = await requireWaitlistAccess(tenantSlug);
+
+  const entry = await prisma.waitlistEntry.findFirst({
+    where: { id: entryId, tenantId: tenant.id, clientId },
+  });
+  if (!entry) notFound();
+
+  if (entry.status !== "WAITING" && entry.status !== "NOTIFIED") {
+    redirect(
+      `/dashboard/${tenantSlug}/clients/${clientId}?error=${encodeURIComponent("Ese registro de lista de espera ya no se puede cancelar.")}`
+    );
+  }
+
+  await prisma.waitlistEntry.update({ where: { id: entry.id }, data: { status: "CANCELLED" } });
 
   revalidatePath(`/dashboard/${tenantSlug}/clients/${clientId}`);
   redirect(`/dashboard/${tenantSlug}/clients/${clientId}?saved=1`);

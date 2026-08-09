@@ -55,6 +55,7 @@ model Tenant {
   wompiCharges    TenantWompiCharge[]
   clientFields    TenantClientField[]
   sessionPackages SessionPackage[]
+  waitlistEntries WaitlistEntry[]
 }
 
 enum Plan {
@@ -94,6 +95,7 @@ model Location {
   professionalLocations ProfessionalLocation[]
   inventoryStock        InventoryStock[]
   inventoryMovements    InventoryMovement[]
+  waitlistEntries       WaitlistEntry[]
 
   @@index([tenantId])
 }
@@ -240,6 +242,7 @@ model Professional {
   services              ProfessionalService[]
   appointments          Appointment[]
   professionalLocations ProfessionalLocation[]
+  waitlistEntries       WaitlistEntry[]
 
   @@index([tenantId])
 }
@@ -264,6 +267,7 @@ model Service {
   appointments    Appointment[]
   inventoryItems  ServiceInventoryItem[]
   sessionPackages SessionPackage[]
+  waitlistEntries WaitlistEntry[]
 
   @@index([tenantId])
 }
@@ -309,6 +313,7 @@ model Client {
   appointments    Appointment[]
   notifications   NotificationQueue[]
   sessionPackages SessionPackage[]
+  waitlistEntries WaitlistEntry[]
 
   @@index([tenantId])
 }
@@ -489,6 +494,7 @@ enum NotificationKind {
   APPOINTMENT_REMINDER
   REENGAGEMENT_FOLLOWUP
   PACKAGE_EXPIRATION
+  WAITLIST_SLOT_OPENED
 }
 
 enum NotificationStatus {
@@ -558,6 +564,47 @@ model PackageRedemption {
   createdByUserId String?
 
   @@index([packageId])
+}
+
+// ------------------------------
+// Lista de espera inteligente por sede/servicio
+// ------------------------------
+
+// Un cliente quiere un servicio (opcionalmente con un profesional puntual)
+// y no hay cupo ahora — se anota en la lista de espera. Cuando una cita de
+// ese mismo servicio/sede (y ese profesional, si lo pidió) se CANCELLED, se
+// le ofrece el cupo liberado al que espera hace más tiempo que matchea (ver
+// findBestWaitlistMatch en src/lib/waitlist.ts) — nunca a todos a la vez.
+model WaitlistEntry {
+  id              String              @id @default(cuid())
+  tenantId        String
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationId      String
+  location        Location            @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  clientId        String
+  client          Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceId       String
+  service         Service             @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  professionalId  String? // null = cualquier profesional que atienda ese servicio
+  professional    Professional?       @relation(fields: [professionalId], references: [id])
+  // Ventana de fechas en la que el cliente puede aceptar el cupo liberado —
+  // ambos opcionales; sin ninguno de los dos, el cliente acepta cualquier
+  // fecha ("lo antes posible").
+  preferredFrom   DateTime?
+  preferredTo     DateTime?
+  status          WaitlistEntryStatus @default(WAITING)
+  notifiedAt      DateTime?
+  createdByUserId String?
+  createdAt       DateTime            @default(now())
+
+  @@index([tenantId, locationId, serviceId, status])
+}
+
+enum WaitlistEntryStatus {
+  WAITING
+  NOTIFIED
+  BOOKED
+  CANCELLED
 }
 
 // ------------------------------

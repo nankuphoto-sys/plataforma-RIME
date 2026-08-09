@@ -3,6 +3,7 @@ import {
   buildLowStockAlertTemplatePayload,
   buildPackageExpirationTemplatePayload,
   buildReminderTemplatePayload,
+  buildWaitlistSlotOpenedTemplatePayload,
   normalizePhoneForWhatsapp,
 } from "./whatsapp";
 
@@ -199,6 +200,65 @@ describe("buildPackageExpirationTemplatePayload", () => {
     });
 
     expect((payload.template as { name: string }).name).toBe("alerta_paquete_vencimiento");
+    expect((payload.template as { language: { code: string } }).language.code).toBe("es_MX");
+  });
+});
+
+describe("buildWaitlistSlotOpenedTemplatePayload", () => {
+  const originalName = process.env.WHATSAPP_WAITLIST_TEMPLATE_NAME;
+  const originalLang = process.env.WHATSAPP_WAITLIST_TEMPLATE_LANG;
+
+  afterEach(() => {
+    if (originalName === undefined) delete process.env.WHATSAPP_WAITLIST_TEMPLATE_NAME;
+    else process.env.WHATSAPP_WAITLIST_TEMPLATE_NAME = originalName;
+    if (originalLang === undefined) delete process.env.WHATSAPP_WAITLIST_TEMPLATE_LANG;
+    else process.env.WHATSAPP_WAITLIST_TEMPLATE_LANG = originalLang;
+  });
+
+  it("arma el body exacto esperado por la API de Meta", () => {
+    process.env.WHATSAPP_WAITLIST_TEMPLATE_NAME = "cupo_lista_espera";
+    process.env.WHATSAPP_WAITLIST_TEMPLATE_LANG = "es_MX";
+
+    const payload = buildWaitlistSlotOpenedTemplatePayload({
+      to: "573001234567",
+      clientName: "María Pérez",
+      serviceName: "Masaje descontracturante",
+      startsAtLabel: "jueves 13 de agosto a las 15:00",
+    });
+
+    expect(payload).toEqual({
+      messaging_product: "whatsapp",
+      to: "573001234567",
+      type: "template",
+      template: {
+        name: "cupo_lista_espera",
+        language: { code: "es_MX" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: "María Pérez" },
+              { type: "text", text: "Masaje descontracturante" },
+              { type: "text", text: "jueves 13 de agosto a las 15:00" },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it("usa los defaults si no hay variables de entorno configuradas", () => {
+    delete process.env.WHATSAPP_WAITLIST_TEMPLATE_NAME;
+    delete process.env.WHATSAPP_WAITLIST_TEMPLATE_LANG;
+
+    const payload = buildWaitlistSlotOpenedTemplatePayload({
+      to: "573001234567",
+      clientName: "María Pérez",
+      serviceName: "Masaje descontracturante",
+      startsAtLabel: "jueves 13 de agosto a las 15:00",
+    });
+
+    expect((payload.template as { name: string }).name).toBe("cupo_lista_espera");
     expect((payload.template as { language: { code: string } }).language.code).toBe("es_MX");
   });
 });

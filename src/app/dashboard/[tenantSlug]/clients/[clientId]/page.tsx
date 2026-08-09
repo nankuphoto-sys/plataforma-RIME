@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Download, Package, Save } from "lucide-react";
+import { ArrowLeft, Clock, Download, Package, Save } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import type { SessionPackageStatus } from "@prisma/client";
+import type { SessionPackageStatus, WaitlistEntryStatus } from "@prisma/client";
 import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { requireDashboardAccess } from "@/lib/auth-guards";
-import { hasAnyOfRolesInTenantLocations, isProfessionalOnlyInTenant } from "@/lib/authorization";
+import { hasAnyOfRolesInTenantLocations, hasLocationAccess, isProfessionalOnlyInTenant } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { getEffectiveClientFieldTemplate } from "@/lib/clientFieldTemplates";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
 import { planIncludesModule } from "@/lib/planLimits";
 import { canRedeemSession, remainingSessions } from "@/lib/packages";
 import { computeWeeklySessionStreak } from "@/lib/streak";
-import { cancelPackageAction, createPackageAction, redeemPackageSessionAction, updateClientAction } from "../actions";
+import {
+  cancelPackageAction,
+  cancelWaitlistEntryAction,
+  createPackageAction,
+  createWaitlistEntryAction,
+  redeemPackageSessionAction,
+  updateClientAction,
+} from "../actions";
 import { ClientForm } from "../ClientForm";
 
 function toDateInputValue(date: Date): string {
@@ -24,6 +31,13 @@ const PACKAGE_STATUS_LABELS: Record<SessionPackageStatus, string> = {
   ACTIVE: "Activo",
   COMPLETED: "Completado",
   EXPIRED: "Vencido",
+  CANCELLED: "Cancelado",
+};
+
+const WAITLIST_STATUS_LABELS: Record<WaitlistEntryStatus, string> = {
+  WAITING: "Esperando",
+  NOTIFIED: "Avisado — cupo ofrecido",
+  BOOKED: "Reservó",
   CANCELLED: "Cancelado",
 };
 
@@ -111,6 +125,30 @@ export default async function ClientDetailPage({
         }),
       ])
     : [[], []];
+
+  // Lista de espera: misma lógica de sección oculta (no redirect) por plan
+  // que Paquetes. El formulario necesita elegir sede/servicio/profesional —
+  // reutiliza activeServices ya cargado arriba si Paquetes también está
+  // habilitado, si no lo consulta aparte (ambos módulos son independientes
+  // entre sí, cada uno gateado por su propio flag de plan).
+  const waitlistEnabled = planIncludesModule(tenant.plan, "waitlist");
+  const accessibleLocations = tenant.locations.filter((location) =>
+    hasLocationAccess(session.user.locationRoles, location.id)
+  );
+
+  const [waitlistEntries, waitlistServices, activeProfessionals] = waitlistEnabled
+    ? await Promise.all([
+        prisma.waitlistEntry.findMany({
+          where: { clientId: client.id, tenantId: tenant.id },
+          include: { service: true, location: true, professional: true },
+          orderBy: { createdAt: "desc" },
+        }),
+        packagesEnabled
+          ? Promise.resolve(activeServices)
+          : prisma.service.findMany({ where: { tenantId: tenant.id, active: true }, orderBy: { name: "asc" } }),
+        prisma.professional.findMany({ where: { tenantId: tenant.id, active: true }, orderBy: { name: "asc" } }),
+      ])
+    : [[], [], []];
 
   // Citas COMPLETED de este cliente que todavía no se usaron para redimir
   // ninguna sesión de ningún paquete — candidatas al selector opcional de
@@ -299,6 +337,103 @@ export default async function ClientDetailPage({
               </SubmitButton>
             </form>
           )}
+        </section>
+      )}
+
+      {waitlistEnabled && (
+        <section className="mt-6 border-t border-sage-dark/30 pt-6">
+          <h2 className="section-title">Lista de espera</h2>
+          {waitlistEntries.length === 0 ? (
+            <p className="mt-3 text-sm text-ink/40">Este cliente no está en ninguna lista de espera.</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {waitlistEntries.map((entry) => (
+                <li key={entry.id} className="rounded-xl border border-sage-dark/25 p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-ink">
+                      {entry.service.name} — {entry.location.name}
+                      {entry.professional && ` (con ${entry.professional.name})`}
+                    </p>
+                    <span className="text-ink/60">{WAITLIST_STATUS_LABELS[entry.status]}</span>
+                  </div>
+                  {(entry.preferredFrom || entry.preferredTo) && (
+                    <p className="data-mono mt-1 text-ink/50">
+                      Ventana:{" "}
+                      {entry.preferredFrom?.toLocaleDateString("es-CL", { dateStyle: "medium" }) ?? "sin inicio"} –{" "}
+                      {entry.preferredTo?.toLocaleDateString("es-CL", { dateStyle: "medium" }) ?? "sin fin"}
+                    </p>
+                  )}
+                  {(entry.status === "WAITING" || entry.status === "NOTIFIED") && (
+                    <form action={cancelWaitlistEntryAction.bind(null, tenantSlug, clientId, entry.id)} className="mt-2">
+                      <button type="submit" className="text-xs text-berry-dark hover:underline">
+                        Sacar de la lista
+                      </button>
+                    </form>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form
+            action={createWaitlistEntryAction.bind(null, tenantSlug, clientId)}
+            className="mt-4 flex flex-wrap items-end gap-3 border-t border-sage-dark/20 pt-4"
+          >
+            <div>
+              <label className="field-label" htmlFor="waitlist-serviceId">
+                Servicio
+              </label>
+              <select id="waitlist-serviceId" name="serviceId" required className="field-input">
+                {waitlistServices.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {accessibleLocations.length > 0 && (
+              <div>
+                <label className="field-label" htmlFor="waitlist-locationId">
+                  Sede
+                </label>
+                <select id="waitlist-locationId" name="locationId" required className="field-input">
+                  {accessibleLocations.map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="field-label" htmlFor="waitlist-professionalId">
+                Profesional (opcional)
+              </label>
+              <select id="waitlist-professionalId" name="professionalId" defaultValue="" className="field-input">
+                <option value="">Cualquiera</option>
+                {activeProfessionals.map((professional) => (
+                  <option key={professional.id} value={professional.id}>
+                    {professional.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label" htmlFor="waitlist-preferredFrom">
+                Desde (opcional)
+              </label>
+              <input id="waitlist-preferredFrom" name="preferredFrom" type="date" className="field-input" />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="waitlist-preferredTo">
+                Hasta (opcional)
+              </label>
+              <input id="waitlist-preferredTo" name="preferredTo" type="date" className="field-input" />
+            </div>
+            <SubmitButton icon={<Clock className="h-4 w-4" />} pendingLabel="Guardando…">
+              Unirse a la lista
+            </SubmitButton>
+          </form>
         </section>
       )}
     </div>

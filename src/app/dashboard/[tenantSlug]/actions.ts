@@ -9,6 +9,8 @@ import { getRoleAtLocation, hasLocationAccess } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { deductInventoryForCompletedAppointment, maybeSendLowStockAlerts } from "@/lib/inventory";
 import { planIncludesModule } from "@/lib/planLimits";
+import { findBestWaitlistMatch } from "@/lib/waitlist";
+import { normalizePhoneForWhatsapp, sendWaitlistSlotOpenedWhatsAppMessage } from "@/lib/whatsapp";
 
 export interface UpdateAppointmentStatusResult {
   ok: boolean;
@@ -31,6 +33,7 @@ export async function updateAppointmentStatusAction(
 
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId: tenant.id },
+    include: { service: true },
   });
   if (!appointment) return { ok: false, error: "Cita no encontrada." };
 
@@ -60,26 +63,79 @@ export async function updateAppointmentStatusAction(
   }
 
   // Una sola transacción por atomicidad (no por bloqueo): el descuento de
-  // inventario en sí nunca condiciona si la cita se completa o no — eso ya
-  // se decidió arriba, con las validaciones de permisos y transición. Si el
-  // plan del tenant no incluye "inventory", el descuento ni se intenta (ni
-  // genera movimientos, ni falla) — mismo criterio que detect-inactive-clients
-  // con el módulo "reengagement".
-  const lowStockCandidates = await prisma.$transaction(async (tx) => {
+  // inventario y el match de lista de espera en sí nunca condicionan si la
+  // cita cambia de estado o no — eso ya se decidió arriba, con las
+  // validaciones de permisos y transición. Si el plan del tenant no incluye
+  // el módulo correspondiente, ni se intenta (ni genera movimientos/avisos,
+  // ni falla) — mismo criterio que detect-inactive-clients con "reengagement".
+  const { lowStockCandidates, waitlistNotification } = await prisma.$transaction(async (tx) => {
     await tx.appointment.update({
       where: { id: appointment.id },
       data: { status: nextStatus },
     });
 
+    let lowStockCandidates: Awaited<ReturnType<typeof deductInventoryForCompletedAppointment>> = [];
     if (nextStatus === "COMPLETED" && planIncludesModule(tenant.plan, "inventory")) {
-      return deductInventoryForCompletedAppointment(tx, {
+      lowStockCandidates = await deductInventoryForCompletedAppointment(tx, {
         serviceId: appointment.serviceId,
         locationId: appointment.locationId,
         appointmentId: appointment.id,
         performedByUserId: session.user.id,
       });
     }
-    return [];
+
+    // Lista de espera inteligente: al cancelar, se libera un cupo — se le
+    // ofrece al candidato que matchea y espera hace más tiempo (nunca a
+    // todos a la vez). Solo se consideran candidatos con teléfono válido —
+    // si no se les puede avisar, no tiene sentido "gastar" el match con
+    // ellos ni marcarlos NOTIFIED sin haberlos notificado de verdad.
+    let waitlistNotification: {
+      to: string;
+      clientName: string;
+      serviceName: string;
+      startsAt: Date;
+    } | null = null;
+    if (nextStatus === "CANCELLED" && planIncludesModule(tenant.plan, "waitlist")) {
+      const waitingEntries = await tx.waitlistEntry.findMany({
+        where: {
+          tenantId: tenant.id,
+          locationId: appointment.locationId,
+          serviceId: appointment.serviceId,
+          status: "WAITING",
+        },
+        include: { client: true },
+      });
+
+      const candidatesWithPhone = waitingEntries
+        .map((entry) => ({ entry, normalizedPhone: entry.client.phone ? normalizePhoneForWhatsapp(entry.client.phone) : null }))
+        .filter((c): c is typeof c & { normalizedPhone: string } => c.normalizedPhone !== null);
+
+      const bestMatch = findBestWaitlistMatch(
+        candidatesWithPhone.map((c) => c.entry),
+        {
+          locationId: appointment.locationId,
+          serviceId: appointment.serviceId,
+          professionalId: appointment.professionalId,
+          startsAt: appointment.startsAt,
+        }
+      );
+
+      if (bestMatch) {
+        await tx.waitlistEntry.update({
+          where: { id: bestMatch.id },
+          data: { status: "NOTIFIED", notifiedAt: new Date() },
+        });
+        const matchedCandidate = candidatesWithPhone.find((c) => c.entry.id === bestMatch.id)!;
+        waitlistNotification = {
+          to: matchedCandidate.normalizedPhone,
+          clientName: matchedCandidate.entry.client.name,
+          serviceName: appointment.service.name,
+          startsAt: appointment.startsAt,
+        };
+      }
+    }
+
+    return { lowStockCandidates, waitlistNotification };
   });
 
   revalidatePath(`/dashboard/${tenantSlug}`);
@@ -89,6 +145,17 @@ export async function updateAppointmentStatusAction(
   // bloquea la respuesta de la acción ni revierte nada si falla.
   if (lowStockCandidates.length > 0) {
     void maybeSendLowStockAlerts(lowStockCandidates);
+  }
+  if (waitlistNotification) {
+    void sendWaitlistSlotOpenedWhatsAppMessage({
+      to: waitlistNotification.to,
+      clientName: waitlistNotification.clientName,
+      serviceName: waitlistNotification.serviceName,
+      startsAtLabel: waitlistNotification.startsAt.toLocaleString("es-CL", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+    });
   }
 
   return { ok: true };
