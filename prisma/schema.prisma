@@ -70,6 +70,7 @@ enum TenantVertical {
   NUTRICION
   FISIOTERAPIA
   ESTETICA
+  BARBERIA
 }
 
 enum TenantStatus {

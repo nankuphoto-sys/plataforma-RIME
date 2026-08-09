@@ -8,6 +8,7 @@ const VERTICAL_OPTIONS = [
   { value: "NUTRICION", label: "Nutrición" },
   { value: "FISIOTERAPIA", label: "Fisioterapia" },
   { value: "ESTETICA", label: "Estética" },
+  { value: "BARBERIA", label: "Barbería" },
 ] as const;
 
 export default async function SignupPage({

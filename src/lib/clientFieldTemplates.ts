@@ -48,6 +48,17 @@ export const CLIENT_FIELD_TEMPLATES: Record<TenantVertical, ClientFieldDefinitio
     { key: "tratamientosPrevios", label: "Tratamientos previos", type: "textarea" },
     { key: "alergias", label: "Alergias", type: "textarea" },
   ],
+  BARBERIA: [
+    {
+      key: "estiloPreferido",
+      label: "Estilo preferido",
+      type: "select",
+      options: ["Clásico", "Degradado (fade)", "Barba", "Diseño", "A definir"],
+    },
+    { key: "maquinaMillimetro", label: "Máquina / milímetro habitual", type: "text" },
+    { key: "productosPreferidos", label: "Productos preferidos", type: "textarea" },
+    { key: "alergiasProductos", label: "Alergias a productos", type: "textarea" },
+  ],
 };
 
 export function getClientFieldTemplate(vertical: TenantVertical): ClientFieldDefinition[] {

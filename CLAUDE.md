@@ -1966,3 +1966,87 @@ usarse todas las sesiones (hoy el paquete queda `ACTIVE` para siempre si
 nadie lo cancela a mano — el enum ya tiene el valor pero nada lo asigna),
 más de una alerta por paquete (ej. "vence en 7 días" y otra distinta "vence
 mañana"), y los otros 7 módulos de nicho del roadmap.
+
+## Ficha de preferencias + portabilidad de cliente (barbería) + racha de constancia (bienestar)
+
+✅ hecho y verificado en vivo (mismo entorno sin navegador que la fase
+anterior — ver el mismo criterio de verificación al final de esta sección).
+Tres módulos de nicho más de los 8 del roadmap, agrupados en una sesión por
+ser chicos y no pisarse entre sí.
+
+**Ficha de preferencias (barbería)**: nueva vertical `BARBERIA` en el enum
+`TenantVertical` (migración `add_barberia_vertical`, puramente aditiva) +
+plantilla fija en `src/lib/clientFieldTemplates.ts` (estilo preferido,
+máquina/milímetro habitual, productos preferidos, alergias a productos) —
+mismo patrón que las 5 verticales existentes, cero código nuevo más allá de
+la plantilla (`getEffectiveClientFieldTemplate` ya es genérico). Agregada
+también a `VERTICAL_OPTIONS` (`signup/page.tsx`) y `VALID_VERTICALS`
+(`signup/actions.ts`) — sin esto, un tenant nuevo no podía elegir la
+vertical aunque el schema ya la soportara. El test existente
+`clientFieldTemplates.test.ts` ya iteraba `Object.values(TenantVertical)`,
+así que cubrió la vertical nueva sin tocar el archivo de test.
+
+**Portabilidad de cliente (barbería)**: nuevo route handler
+`GET /dashboard/[tenantSlug]/clients/[clientId]/export` — descarga un JSON
+con el registro completo de UN cliente puntual (ficha con **etiquetas
+legibles**, no las keys camelCase internas — pensado para que el archivo se
+pueda leer o llevar a otro negocio sin conocer el esquema de RIME), su
+historial de citas y sus paquetes de sesiones si el módulo está habilitado.
+Distinto del pendiente ya documentado en el roadmap de producto
+("Descargar mis datos" en Mi cuenta, que es la cuenta del NEGOCIO completa,
+sigue sin resolver) — este es portabilidad de UN cliente, no del tenant
+entero. Mismo guard y mismo criterio "solo lo mío" que la página de detalle
+del cliente (`requireDashboardAccess` + `isProfessionalOnlyInTenant`/
+`getLinkedProfessionalId`) — un profesional sin otro rol en el tenant solo
+puede exportar clientes con los que tiene alguna cita, y el historial
+exportado se filtra a sus propias citas, igual que ya hace la página. Link
+"Descargar datos" agregado junto al nombre del cliente en
+`clients/[clientId]/page.tsx`.
+
+**Racha de constancia (bienestar)**: `computeWeeklySessionStreak` en
+`src/lib/streak.ts` (pura, con tests) — cuenta semanas consecutivas (ventana
+de 7 días terminando en `now`) con al menos una cita `COMPLETED`, empezando
+por la semana actual; si no hubo ninguna cita completada en los últimos 7
+días la racha es 0 (no se arrastra una racha vieja ya cortada). Deliberadamente
+**sin gating de vertical**: igual que el CRM predictivo de recompra, es una
+señal de CRM útil para cualquier negocio (fitness, spa, incluso adherencia a
+tratamientos de salud), no exclusiva de una vertical puntual — no se creó
+ninguna vertical `FITNESS`/`SPA` nueva solo para esto. Se calcula sobre las
+mismas citas que ya carga `clients/[clientId]/page.tsx` para el historial
+(sin query nueva) y se muestra como badge 🔥 junto al nombre del cliente solo
+si la racha es de 2 semanas o más (una racha de 1 no es "constancia" todavía,
+es solo "vino esta semana"). Mismo límite ya aceptado por el resto de la
+página para un login `PROFESSIONAL` "solo lo mío": la racha ahí solo cuenta
+las semanas con sesión CON ESE profesional, no con el negocio en general.
+
+**Verificado en vivo (script real contra la base de Neon, sin sesión HTTP —
+este entorno no tiene navegador disponible)**: `prisma/qa-portabilidad-racha.ts`
+sembró un tenant BARBERIA con un cliente con ficha completa (3 campos de la
+plantilla nueva) y 4 citas `COMPLETED` (semanas 0/1/2 consecutivas + semana 5
+con hueco a propósito). **Bug real detectado y corregido durante esta
+verificación, en el script de QA, no en el código de producto**: la primera
+versión de `weeksAgo()` anclaba la fecha de "semana 0" a una hora fija del
+día en vez de a `Date.now()`, y esa hora todavía no había pasado en UTC al
+momento de correr el script — la cita de "semana actual" quedó en el futuro
+por unas horas, corriendo todos los buckets de la racha un lugar (dio 2 en
+vez de 3). `computeWeeklySessionStreak` en sí ya estaba cubierta por 6 tests
+unitarios con `now` fijo y controlado, y esos siguieron pasando sin cambios
+— confirmando que el bug era del script, no de la función. Corregido
+anclando `weeksAgo()` a `Date.now()` menos un margen fijo, se volvió a
+sembrar y `prisma/qa-portabilidad-racha-verify.ts` (llama directo a
+`computeWeeklySessionStreak` con las fechas reales de la base, y replica la
+misma consulta + armado de payload que el route handler de export, sin pasar
+por `auth()`) confirmó: racha calculada = 3 (correcto); ficha exportada con
+las 3 etiquetas legibles esperadas; paquete de sesiones presente en el
+export. Tenant QA borrado al terminar
+(`prisma/qa-portabilidad-racha-cleanup.ts`, cascade confirmado).
+
+**Deliberadamente NO verificado en esta sesión**: el route handler de export
+nunca se invocó por HTTP real (requiere una sesión de Auth.js que este
+entorno no puede simular sin navegador) — la lógica que ejecuta (mismas
+queries Prisma + `getEffectiveClientFieldTemplate` + `APPOINTMENT_STATUS_LABELS`)
+sí se verificó, replicada en el script de verificación, pero no el guard
+`requireDashboardAccess` en sí ni el header `Content-Disposition` real del
+navegador. Fuera de esta fase: los otros 4 módulos de nicho del roadmap
+(lista de espera inteligente, receta digital, auto-agendar seguimiento,
+línea de tiempo de fotos).

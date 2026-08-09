@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Package, Save } from "lucide-react";
+import { ArrowLeft, Download, Package, Save } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import type { SessionPackageStatus } from "@prisma/client";
 import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
@@ -12,6 +12,7 @@ import { getEffectiveClientFieldTemplate } from "@/lib/clientFieldTemplates";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
 import { planIncludesModule } from "@/lib/planLimits";
 import { canRedeemSession, remainingSessions } from "@/lib/packages";
+import { computeWeeklySessionStreak } from "@/lib/streak";
 import { cancelPackageAction, createPackageAction, redeemPackageSessionAction, updateClientAction } from "../actions";
 import { ClientForm } from "../ClientForm";
 
@@ -118,6 +119,15 @@ export default async function ClientDetailPage({
     (appointment) => appointment.status === "COMPLETED" && !appointment.packageRedemption
   );
 
+  // Racha de constancia: calculada sobre las mismas citas ya cargadas arriba
+  // (sin query nueva) — para un profesional "solo lo mío" refleja solo las
+  // semanas con sesión CON ESE profesional, mismo límite ya aceptado que el
+  // resto de esta página (ver la nota sobre Client.customFields más abajo).
+  const weeklyStreak = computeWeeklySessionStreak(
+    appointments.filter((appointment) => appointment.status === "COMPLETED").map((appointment) => appointment.startsAt),
+    new Date()
+  );
+
   return (
     <div className="mx-auto max-w-2xl">
       <Link href={`/dashboard/${tenantSlug}/clients`} className="group inline-flex items-center gap-1 shell-link">
@@ -125,7 +135,23 @@ export default async function ClientDetailPage({
         Volver a clientes
         <LinkPendingSpinner />
       </Link>
-      <h1 className="page-title mt-3">{client.name}</h1>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <h1 className="page-title">{client.name}</h1>
+          {weeklyStreak >= 2 && (
+            <span className="badge badge-sage" title={`${weeklyStreak} semanas seguidas con al menos una sesión`}>
+              🔥 Racha de {weeklyStreak} semanas
+            </span>
+          )}
+        </div>
+        <a
+          href={`/dashboard/${tenantSlug}/clients/${clientId}/export`}
+          className="inline-flex items-center gap-1 shell-link text-sm"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Descargar datos
+        </a>
+      </div>
 
       {saved && !error && <p className="msg-success mt-3">Cambios guardados.</p>}
 

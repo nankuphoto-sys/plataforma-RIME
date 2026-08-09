@@ -14,6 +14,7 @@ const VALID_VERTICALS: readonly TenantVertical[] = [
   "NUTRICION",
   "FISIOTERAPIA",
   "ESTETICA",
+  "BARBERIA",
 ];
 
 function isValidPlan(value: string): value is Plan {
