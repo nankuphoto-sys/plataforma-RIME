@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-// Dirección "cronógrafo": se retira Fraunces (serif cálida) — los títulos
-// ahora usan Plus Jakarta Sans en peso alto (--font-display apunta a la
-// misma variable que --font-sans, ver tailwind.config.ts `fontFamily.display`)
-// para el look técnico/instrumento en vez de editorial. El mono (IBM Plex)
-// se mantiene igual, sigue siendo el protagonista de horarios/montos/datos.
-const plusJakartaSans = Plus_Jakarta_Sans({
+// Dirección "Booksy" (turquesa + Inter): Inter reemplaza a Plus Jakarta Sans
+// como tipografía única de marca (--font-display apunta a la misma variable
+// que --font-sans, ver tailwind.config.ts `fontFamily.display`), pedido
+// explícito del spec de rediseño. El mono (IBM Plex) se mantiene igual,
+// sigue siendo el protagonista de horarios/montos/datos.
+const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
   weight: ["500", "600", "700", "800"],
@@ -32,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${plusJakartaSans.variable} ${ibmPlexMono.variable}`}
+      className={`${inter.variable} ${ibmPlexMono.variable}`}
       // Algunas extensiones del navegador (temas, lectores, gestores de
       // contraseñas) le agregan atributos al <html> antes de que React
       // hidrate (ej. data-theme, variables CSS de otra fuente/paleta que no

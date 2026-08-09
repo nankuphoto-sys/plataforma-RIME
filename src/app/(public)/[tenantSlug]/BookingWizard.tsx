@@ -6,6 +6,9 @@ import {
   getUpcomingBookableDates,
   type CalendarDate,
 } from "@/lib/availability";
+import { Chip } from "@/components/ui/Chip";
+import { OptionCard } from "@/components/ui/OptionCard";
+import { ServiceCard } from "@/components/ui/ServiceCard";
 import { AppointmentTicket } from "./AppointmentTicket";
 import {
   createAppointmentAction,
@@ -14,6 +17,27 @@ import {
   getAvailableSlotsAction,
   type CreatedAppointment,
 } from "./actions";
+
+// Agrupa los horarios sueltos bajo un segmentado Mañana/Tarde/Noche antes de
+// mostrarlos como chips — reduce el scroll en servicios con muchos huecos,
+// sobre los mismos slots que ya trae getAvailableSlotsAction (sin tocar datos).
+type DayPart = "morning" | "afternoon" | "evening";
+
+const DAY_PARTS: DayPart[] = ["morning", "afternoon", "evening"];
+const DAY_PART_LABEL: Record<DayPart, string> = {
+  morning: "Mañana",
+  afternoon: "Tarde",
+  evening: "Noche",
+};
+
+function slotDayPart(iso: string, timezone: string): DayPart {
+  const hour = Number(
+    new Date(iso).toLocaleTimeString("es-CL", { hour: "2-digit", hourCycle: "h23", timeZone: timezone })
+  );
+  if (hour < 12) return "morning";
+  if (hour < 18) return "afternoon";
+  return "evening";
+}
 
 export interface BookingLocation {
   id: string;
@@ -117,6 +141,7 @@ export function BookingWizard({
   const [slots, setSlots] = useState<string[]>([]);
   const [slotsError, setSlotsError] = useState<string | null>(null);
   const [selectedSlotIso, setSelectedSlotIso] = useState<string | null>(null);
+  const [dayPart, setDayPart] = useState<DayPart | null>(null);
 
   const [clientForm, setClientForm] = useState({ name: "", email: "", phone: "" });
   const [formError, setFormError] = useState<string | null>(null);
@@ -146,6 +171,7 @@ export function BookingWizard({
     setSlots([]);
     setSlotsError(null);
     setSelectedSlotIso(null);
+    setDayPart(null);
     setClientForm({ name: "", email: "", phone: "" });
     setFormError(null);
     setConfirmation(null);
@@ -193,6 +219,7 @@ export function BookingWizard({
     setSelectedSlotIso(null);
     setSlots([]);
     setSlotsError(null);
+    setDayPart(null);
 
     startTransition(async () => {
       const result = await getAvailableSlotsAction(
@@ -209,6 +236,11 @@ export function BookingWizard({
       setSlots(result.data.slotsIso);
       if (result.data.slotsIso.length === 0) {
         setSlotsError("No quedan horarios disponibles para ese día.");
+      } else {
+        const firstAvailablePart = DAY_PARTS.find((part) =>
+          result.data.slotsIso.some((iso) => slotDayPart(iso, locationTimezone) === part)
+        );
+        setDayPart(firstAvailablePart ?? null);
       }
     });
   }
@@ -320,9 +352,9 @@ export function BookingWizard({
       {step !== "location" && (
         <div className="mb-6 flex flex-wrap gap-2">
           {crumbs.map((crumb) => (
-            <span key={crumb.label} className={`booking-crumb ${crumb.done ? "booking-crumb-done" : "booking-crumb-pending"}`}>
+            <Chip key={crumb.label} variant={crumb.done ? "done" : "pending"}>
               {crumb.label}
-            </span>
+            </Chip>
           ))}
         </div>
       )}
@@ -331,9 +363,7 @@ export function BookingWizard({
         <ul className="space-y-3">
           {locations.map((loc) => (
             <li key={loc.id}>
-              <button type="button" onClick={() => handleSelectLocation(loc.id)} className="booking-option">
-                <span className="font-medium text-ink">{loc.name}</span>
-              </button>
+              <OptionCard onClick={() => handleSelectLocation(loc.id)} title={loc.name} />
             </li>
           ))}
         </ul>
@@ -345,15 +375,12 @@ export function BookingWizard({
           <ul className={hasLocationStep ? "mt-4 space-y-3" : "space-y-3"}>
             {services.map((service) => (
               <li key={service.id}>
-                <button type="button" onClick={() => handleSelectService(service.id)} className="booking-option">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-medium text-ink">{service.name}</span>
-                    <span className="data-mono flex-none text-sm text-ink/50">{service.durationMinutes} min</span>
-                  </div>
-                  <span className="data-mono mt-1 block text-sm font-medium text-pine-dark">
-                    ${Number(service.price).toLocaleString("es-CO")}
-                  </span>
-                </button>
+                <ServiceCard
+                  name={service.name}
+                  durationMinutes={service.durationMinutes}
+                  price={service.price}
+                  onClick={() => handleSelectService(service.id)}
+                />
                 {noProfessionalsServiceId === service.id && (
                   <p className="msg-error mt-2">Este servicio no tiene profesionales disponibles por el momento.</p>
                 )}
@@ -381,9 +408,7 @@ export function BookingWizard({
               )
               .map((professional) => (
                 <li key={professional.id}>
-                  <button type="button" onClick={() => handleSelectProfessional(professional.id)} className="booking-option">
-                    <span className="font-medium text-ink">{professional.name}</span>
-                  </button>
+                  <OptionCard onClick={() => handleSelectProfessional(professional.id)} title={professional.name} />
                 </li>
               ))}
           </ul>
@@ -403,14 +428,9 @@ export function BookingWizard({
               const key = calendarDateKey(date);
               const isSelected = selectedDate && calendarDateKey(selectedDate) === key;
               return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => handleSelectDate(date)}
-                  className={`booking-option-compact ${isSelected ? "booking-option-selected" : ""}`}
-                >
+                <Chip key={key} variant={isSelected ? "selected" : "option"} onClick={() => handleSelectDate(date)}>
                   {formatDateLabel(date)}
-                </button>
+                </Chip>
               );
             })}
           </div>
@@ -421,18 +441,30 @@ export function BookingWizard({
               {isPending && <p className="mt-2 text-sm text-ink/40">Cargando horarios…</p>}
               {!isPending && slotsError && <p className="msg-error mt-2">{slotsError}</p>}
               {!isPending && slots.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {slots.map((iso) => (
-                    <button
-                      key={iso}
-                      type="button"
-                      onClick={() => handleSelectSlot(iso)}
-                      className="booking-option-compact data-mono"
-                    >
-                      {formatSlotTime(iso, locationTimezone)}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="mt-2 flex gap-2">
+                    {DAY_PARTS.filter((part) => slots.some((iso) => slotDayPart(iso, locationTimezone) === part)).map(
+                      (part) => (
+                        <Chip
+                          key={part}
+                          variant={dayPart === part ? "selected" : "option"}
+                          onClick={() => setDayPart(part)}
+                        >
+                          {DAY_PART_LABEL[part]}
+                        </Chip>
+                      )
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {slots
+                      .filter((iso) => dayPart === null || slotDayPart(iso, locationTimezone) === dayPart)
+                      .map((iso) => (
+                        <Chip key={iso} variant="option" mono onClick={() => handleSelectSlot(iso)}>
+                          {formatSlotTime(iso, locationTimezone)}
+                        </Chip>
+                      ))}
+                  </div>
+                </>
               )}
             </div>
           )}

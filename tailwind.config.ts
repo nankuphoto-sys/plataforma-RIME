@@ -8,46 +8,51 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Paleta "cronógrafo" — reemplaza a la pine/sage/gold cálida
-        // original. Los NOMBRES de los tokens se mantienen igual a
-        // propósito (pine, sage, berry, gold, ink, paper) para que todo
-        // el código existente que ya usa bg-pine/text-ink/border-sage-dark
-        // en toda la app (dashboard, reserva pública, tickets, auth)
-        // herede el nuevo look sin tener que tocar cada archivo — ver
-        // CLAUDE.md para el detalle de la exploración de identidad.
-        ink: "#262119",
-        paper: "#F4EEE0",
-        // Antes verde pino; ahora latón — sigue siendo el color de acción
-        // primaria (botones, focus ring, links) en toda la app.
+        // Paleta "Booksy" (turquesa + Inter) — reemplaza a "cronógrafo".
+        // Mismos NOMBRES de token de siempre (ink, paper, pine, sage,
+        // berry, gold) para que todo el código que ya usa
+        // bg-pine/text-ink/border-sage-dark en toda la app (dashboard,
+        // reserva pública, tickets, auth) herede el nuevo look sin tocar
+        // archivo por archivo — ver CLAUDE.md para el detalle.
+        ink: "#17181A",
+        paper: "#F5F6F7",
+        // Turquesa-petróleo — sigue siendo el color de acción primaria
+        // (botones, focus ring, links) en toda la app.
         pine: {
-          DEFAULT: "#B08D57",
-          dark: "#8C6E3F",
-          light: "#C8A876",
+          DEFAULT: "#1E7F95",
+          dark: "#145D6E",
+          light: "#E6F3F5",
         },
-        // Neutro cálido para bordes/fondos sutiles (antes verde salvia).
+        // Neutro para bordes/fondos sutiles.
         sage: {
-          DEFAULT: "#EFE8D8",
-          dark: "#D9CDB0",
+          DEFAULT: "#EEF0F1",
+          dark: "#E5E7EB",
         },
-        // Rojo cronógrafo — reservado para alertas/errores, igual que antes.
+        // Rojo — alertas/errores, igual que antes.
         berry: {
-          DEFAULT: "#C23B2E",
-          dark: "#8F2A20",
+          DEFAULT: "#E0455C",
+          dark: "#B8394C",
         },
-        // Oro cálido, distinto del latón — para badges/acentos "pendiente".
+        // Ámbar — pendiente/warning.
         gold: {
-          DEFAULT: "#D4AF6A",
+          DEFAULT: "#F2A93B",
         },
-        // Nuevo: la "caja" oscura del sidebar (riel de íconos) — no existía
-        // un tono oscuro propio antes porque el sidebar usaba bg-pine.
+        // Nuevo: verde de estado ("cobrado"/confirmado positivo), pedido
+        // explícito del spec de Booksy — no existía como token propio
+        // antes (compartía color con pine). Se agrega ahora porque las
+        // próximas fases (depósito, reseñas) lo van a necesitar.
+        success: "#1FA855",
+        // Caja del sidebar (riel de íconos, agregado en la fase
+        // cronógrafo) — se conserva la estructura, se recolorea a negro
+        // casi puro: es el color real de la nav bar de Booksy Biz.
         case: {
-          DEFAULT: "#2A2622",
-          deep: "#1E1B18",
+          DEFAULT: "#24262B",
+          deep: "#1F2126",
         },
       },
       fontFamily: {
-        // "cronógrafo": display apunta a --font-sans (Plus Jakarta Sans en
-        // peso alto), no a una serif separada — ver src/app/layout.tsx.
+        // Inter reemplaza a Plus Jakarta Sans — ver src/app/layout.tsx.
+        // display apunta a la misma variable que sans (sin serif aparte).
         display: ["var(--font-sans)"],
         sans: ["var(--font-sans)"],
         mono: ["var(--font-mono)"],

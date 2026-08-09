@@ -17,7 +17,7 @@ const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie"] as const;
  */
 export function ProductPreview() {
   return (
-    <div className="relative mx-auto max-w-md lg:mx-0 lg:max-w-none">
+    <div className="relative mx-auto max-w-3xl">
       <div className="overflow-hidden rounded-2xl border border-sage-dark/40 bg-white shadow-xl shadow-ink/5">
         <div className="flex items-center gap-2 border-b border-sage-dark/30 bg-sage/40 px-4 py-3">
           <span className="h-2.5 w-2.5 rounded-full bg-berry/60" aria-hidden />
