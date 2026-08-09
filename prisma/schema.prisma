@@ -15,14 +15,14 @@ datasource db {
 // ------------------------------
 
 model Tenant {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   name      String
-  slug      String   @unique // usado en la URL pública de reservas: /book/[slug]
-  plan      Plan     @default(INDIVIDUAL)
-  status    TenantStatus @default(TRIAL)
+  slug      String         @unique // usado en la URL pública de reservas: /book/[slug]
+  plan      Plan           @default(INDIVIDUAL)
+  status    TenantStatus   @default(TRIAL)
   vertical  TenantVertical @default(GENERAL)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 
   // Suscripción del SaaS (cobro recurrente vía Stripe Billing) — no confundir
   // con los pagos de citas de clientes finales (model Payment).
@@ -44,16 +44,17 @@ model Tenant {
   // deliberadamente simple, no por sede/usuario — null = alertas desactivadas.
   lowStockAlertPhone String?
 
-  locations      Location[]
-  users          User[]
-  professionals  Professional[]
-  services       Service[]
-  clients        Client[]
-  appointments   Appointment[]
-  notifications  NotificationQueue[]
-  inventoryItems InventoryItem[]
-  wompiCharges   TenantWompiCharge[]
-  clientFields   TenantClientField[]
+  locations       Location[]
+  users           User[]
+  professionals   Professional[]
+  services        Service[]
+  clients         Client[]
+  appointments    Appointment[]
+  notifications   NotificationQueue[]
+  inventoryItems  InventoryItem[]
+  wompiCharges    TenantWompiCharge[]
+  clientFields    TenantClientField[]
+  sessionPackages SessionPackage[]
 }
 
 enum Plan {
@@ -101,22 +102,22 @@ model Location {
 // ------------------------------
 
 model User {
-  id            String    @id @default(cuid())
-  tenantId      String
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  email         String    @unique
-  emailVerified DateTime? // requerido por el Prisma adapter de Auth.js
-  image         String? // idem — solo se usa si más adelante se agregan providers OAuth
-  name          String
-  passwordHash  String
-  createdAt     DateTime  @default(now())
+  id                String    @id @default(cuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email             String    @unique
+  emailVerified     DateTime? // requerido por el Prisma adapter de Auth.js
+  image             String? // idem — solo se usa si más adelante se agregan providers OAuth
+  name              String
+  passwordHash      String
+  createdAt         DateTime  @default(now())
   // Se actualiza cada vez que cambia la contraseña (propio, admin-asistido o
   // reset por email). El callback `jwt` de Auth.js compara este valor contra
   // el momento en que se emitió el JWT — si la contraseña cambió después,
   // invalida la sesión en el próximo request (ver src/lib/auth.ts). Cierra el
   // hueco de "cambiar contraseña no cierra sesiones activas en otros
   // dispositivos" (limitación conocida de session: { strategy: "jwt" }).
-  passwordChangedAt DateTime @default(now())
+  passwordChangedAt DateTime  @default(now())
 
   locationRoles       StaffLocationRole[]
   professionalProfile Professional?
@@ -258,9 +259,10 @@ model Service {
   active          Boolean  @default(true)
   createdAt       DateTime @default(now())
 
-  professionals  ProfessionalService[]
-  appointments   Appointment[]
-  inventoryItems ServiceInventoryItem[]
+  professionals   ProfessionalService[]
+  appointments    Appointment[]
+  inventoryItems  ServiceInventoryItem[]
+  sessionPackages SessionPackage[]
 
   @@index([tenantId])
 }
@@ -291,20 +293,21 @@ model ProfessionalLocation {
 // ------------------------------
 
 model Client {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name         String
   email        String?
   phone        String?
   birthdate    DateTime?
   // Ficha clínica / de cliente configurable por vertical (psicología, nutrición, estética, etc.)
   // sin tener que migrar el esquema cada vez que cambian los campos.
-  customFields Json     @default("{}")
-  createdAt    DateTime @default(now())
+  customFields Json      @default("{}")
+  createdAt    DateTime  @default(now())
 
-  appointments  Appointment[]
-  notifications NotificationQueue[]
+  appointments    Appointment[]
+  notifications   NotificationQueue[]
+  sessionPackages SessionPackage[]
 
   @@index([tenantId])
 }
@@ -343,22 +346,22 @@ enum CustomClientFieldType {
 // ------------------------------
 
 model Appointment {
-  id             String            @id @default(cuid())
-  tenantId       String
-  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  locationId     String
-  location       Location          @relation(fields: [locationId], references: [id])
-  professionalId String
-  professional   Professional      @relation(fields: [professionalId], references: [id])
-  serviceId      String
-  service        Service           @relation(fields: [serviceId], references: [id])
-  clientId       String
-  client         Client            @relation(fields: [clientId], references: [id])
-  startsAt       DateTime
-  endsAt         DateTime
-  status         AppointmentStatus @default(PENDING)
-  source         AppointmentSource @default(MANUAL)
-  createdAt      DateTime          @default(now())
+  id               String            @id @default(cuid())
+  tenantId         String
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationId       String
+  location         Location          @relation(fields: [locationId], references: [id])
+  professionalId   String
+  professional     Professional      @relation(fields: [professionalId], references: [id])
+  serviceId        String
+  service          Service           @relation(fields: [serviceId], references: [id])
+  clientId         String
+  client           Client            @relation(fields: [clientId], references: [id])
+  startsAt         DateTime
+  endsAt           DateTime
+  status           AppointmentStatus @default(PENDING)
+  source           AppointmentSource @default(MANUAL)
+  createdAt        DateTime          @default(now())
   // Cuándo se le pagó al profesional la comisión de ESTA cita puntual — null
   // = comisión pendiente de pago. Solo tiene sentido para citas COMPLETED
   // (calculateCommissionAmount solo calcula comisión sobre esas), pero no se
@@ -370,6 +373,7 @@ model Appointment {
   payment            Payment?
   notifications      NotificationQueue[]
   inventoryMovements InventoryMovement[]
+  packageRedemption  PackageRedemption?
 
   @@index([tenantId, startsAt])
   @@index([locationId, startsAt])
@@ -393,15 +397,15 @@ enum AppointmentSource {
 // Pago 1:1 con la cita, con confirmación por webhook en tiempo real
 // (a diferencia de AgendaPro, donde usuarios reportan ~2 días de demora).
 model Payment {
-  id            String        @id @default(cuid())
-  appointmentId String        @unique
-  appointment   Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  amount        Decimal       @db.Decimal(10, 2)
-  currency      String        @default("USD")
+  id            String          @id @default(cuid())
+  appointmentId String          @unique
+  appointment   Appointment     @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  amount        Decimal         @db.Decimal(10, 2)
+  currency      String          @default("USD")
   provider      PaymentProvider
   providerRef   String? // id de la transacción en Stripe / Mercado Pago
-  status        PaymentStatus @default(PENDING)
-  createdAt     DateTime      @default(now())
+  status        PaymentStatus   @default(PENDING)
+  createdAt     DateTime        @default(now())
   confirmedAt   DateTime?
 }
 
@@ -443,25 +447,35 @@ enum WompiChargeStatus {
 }
 
 // Un recordatorio de cita (Fase 1) siempre tiene appointmentId seteado y
-// clientId null; un aviso de recompra (Fase 5) siempre tiene clientId
-// seteado y appointmentId null. Nunca ambos a la vez ni ninguno de los dos
-// — así cada cron (send-reminders / send-followup-reminders) filtra sin
-// ambigüedad cuál fila le corresponde.
+// clientId null; un aviso de recompra (Fase 5) y una alerta de vencimiento
+// de paquete (fase de Paquetes/bonos) siempre tienen clientId seteado y
+// appointmentId null — igual entre sí, así que appointmentId/clientId ya NO
+// alcanzan para distinguir de qué tipo es un aviso.
+// `kind` es el discriminador real: cada cron de envío (send-reminders,
+// send-followup-reminders, send-package-expiration-alerts) filtra
+// explícitamente por su `kind`, nunca solo por la forma de los IDs.
 model NotificationQueue {
-  id            String               @id @default(cuid())
+  id            String              @id @default(cuid())
   tenantId      String
-  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   appointmentId String?
-  appointment   Appointment?         @relation(fields: [appointmentId], references: [id])
+  appointment   Appointment?        @relation(fields: [appointmentId], references: [id])
   clientId      String?
-  client        Client?              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client        Client?             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  // Solo seteado para kind: PACKAGE_EXPIRATION — permite deduplicar por
+  // paquete puntual, no solo por cliente, porque un cliente puede tener más
+  // de un paquete activo a la vez (a diferencia de recordatorio/recompra,
+  // que son 1:1 con su cita/cliente).
+  packageId     String?
+  package       SessionPackage?     @relation(fields: [packageId], references: [id], onDelete: Cascade)
   channel       NotificationChannel
-  status        NotificationStatus   @default(SCHEDULED)
+  kind          NotificationKind
+  status        NotificationStatus  @default(SCHEDULED)
   scheduledFor  DateTime
   sentAt        DateTime?
-  payload       Json                 @default("{}")
+  payload       Json                @default("{}")
 
-  @@index([tenantId, status, scheduledFor])
+  @@index([tenantId, kind, status, scheduledFor])
 }
 
 enum NotificationChannel {
@@ -470,10 +484,79 @@ enum NotificationChannel {
   SMS
 }
 
+enum NotificationKind {
+  APPOINTMENT_REMINDER
+  REENGAGEMENT_FOLLOWUP
+  PACKAGE_EXPIRATION
+}
+
 enum NotificationStatus {
   SCHEDULED
   SENT
   FAILED
+}
+
+// ------------------------------
+// Paquetes y bonos de sesiones prepagas por cliente
+// ------------------------------
+
+// Un paquete de N sesiones prepagas que un cliente compra (ej. "10 masajes").
+// serviceId es opcional (informativo, no se valida contra la cita al
+// redimir) porque un paquete puede no estar atado a un único servicio.
+// Nunca se borra: status pasa a COMPLETED cuando usedSessions llega a
+// totalSessions, o a CANCELLED manual — mismo criterio que Profesionales/
+// Sedes/Inventario en este proyecto.
+model SessionPackage {
+  id              String               @id @default(cuid())
+  tenantId        String
+  tenant          Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId        String
+  client          Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceId       String?
+  service         Service?             @relation(fields: [serviceId], references: [id])
+  totalSessions   Int
+  usedSessions    Int                  @default(0)
+  price           Decimal?             @db.Decimal(10, 2)
+  purchasedAt     DateTime             @default(now())
+  expiresAt       DateTime?
+  status          SessionPackageStatus @default(ACTIVE)
+  createdByUserId String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  redemptions   PackageRedemption[]
+  notifications NotificationQueue[]
+
+  @@index([tenantId])
+  @@index([clientId])
+}
+
+enum SessionPackageStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+// Redención manual de 1 sesión de un paquete — nunca automática al completar
+// una cita (a diferencia de ServiceInventoryItem/Inventario): un cliente
+// puede tener paquetes ambiguos entre sí, y este proyecto prefiere una
+// acción manual explícita sobre inventar un vínculo automático ambiguo
+// (mismo criterio que el pago de comisiones en lote desde Reportes).
+// appointmentId es opcional, solo para trazabilidad de "qué visita usó esta
+// sesión" cuando el staff la elige de un selector — @unique con un campo
+// nullable permite múltiples NULL (Postgres no los considera duplicados),
+// así que no fuerza vincular cada redención a una cita.
+model PackageRedemption {
+  id              String         @id @default(cuid())
+  packageId       String
+  package         SessionPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  appointmentId   String?        @unique
+  appointment     Appointment?   @relation(fields: [appointmentId], references: [id])
+  redeemedAt      DateTime       @default(now())
+  createdByUserId String?
+
+  @@index([packageId])
 }
 
 // ------------------------------
@@ -494,8 +577,8 @@ model InventoryItem {
   active            Boolean  @default(true)
   createdAt         DateTime @default(now())
 
-  stockLevels InventoryStock[]
-  movements   InventoryMovement[]
+  stockLevels  InventoryStock[]
+  movements    InventoryMovement[]
   serviceLinks ServiceInventoryItem[]
 
   @@index([tenantId])

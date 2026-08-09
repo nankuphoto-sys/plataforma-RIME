@@ -1833,3 +1833,136 @@ indeseado con la plantilla `alerta_stock_bajo` (todavía en revisión). El
 camino de "sí hay teléfono configurado" se validó por lectura de código
 (mismo patrón ya probado en vivo para recordatorios de cita y seguimiento de
 recompra), no por una llamada real en esta sesión.
+
+## Paquetes y bonos de sesiones + alerta de vencimiento por WhatsApp
+
+✅ hecho y verificado en vivo (sesión con Claude Code fuera de VS Code, sin
+acceso a navegador — verificación por script real contra la base de Neon, no
+por revisión de código ni por sesión HTTP con cookies; ver el detalle de qué
+sí y qué no se probó al final de esta sección). Primer módulo de nicho de los
+8 que describe el roadmap de producto (`RIME - Estado del proyecto y
+roadmap.md`, sección "multi-industria con plantillas por rubro") — grupo
+estética ("línea de tiempo de fotos y alertas de paquete"), elegido por
+Jonta entre esos 8 para arrancar. Los otros 7 (receta digital, auto-agendar
+seguimiento, línea de tiempo de fotos, racha de constancia, lista de espera
+inteligente, ficha de preferencias, portabilidad de cliente) siguen sin
+empezar — quedan como fases aparte, mismo criterio de fases chicas y
+verificadas que ya sigue el proyecto.
+
+Modelo nuevo `SessionPackage` (tenantId, clientId, `serviceId` opcional —
+informativo, no se valida contra la cita al redimir, porque un paquete no
+tiene por qué estar atado a un único servicio —, totalSessions, usedSessions
+default 0, price opcional, purchasedAt, expiresAt opcional, status
+`SessionPackageStatus` default ACTIVE). Nunca se borra: pasa a COMPLETED
+automáticamente cuando usedSessions llega a totalSessions, o a CANCELLED
+manual — mismo criterio que Profesionales/Sedes/Inventario. `PackageRedemption`
+(packageId, `appointmentId` opcional y `@unique` — Postgres permite múltiples
+NULL en una columna unique, así que no fuerza vincular cada redención a una
+cita) registra cada sesión redimida.
+
+Redención **manual**, nunca automática al completar una cita (a diferencia de
+`ServiceInventoryItem`/Inventario): un cliente puede tener paquetes ambiguos
+entre sí (dos paquetes activos, o un paquete sin `serviceId`), y este
+proyecto ya prefiere una acción manual explícita sobre inventar un vínculo
+automático ambiguo (mismo criterio que el pago de comisiones en lote desde
+Reportes). `redeemPackageSessionAction` acepta un `appointmentId` opcional
+tomado de un `<select>` con las citas `COMPLETED` del cliente que todavía no
+tienen ninguna `PackageRedemption` — solo para trazabilidad de "qué visita
+usó esta sesión", sin disparar nada solo.
+
+**Hallazgo durante el diseño, no relacionado con este módulo**: `NotificationQueue`
+distinguía el tipo de aviso (recordatorio de cita vs. aviso de recompra) de
+forma implícita, por la combinación de `appointmentId`/`clientId` null —
+invariante que un tercer tipo (`clientId` set, `appointmentId` null, igual
+que recompra) rompe. Se agregó un discriminador real (`NotificationQueue.kind`,
+enum `NotificationKind`), con backfill manual de las filas existentes
+(`prisma migrate dev --create-only` + edición a mano del SQL generado — este
+proyecto no tenía precedente de una migración con `UPDATE`, siempre fueron
+columnas nuevas nullable o enums aditivos). Al escribir el `kind` de esta
+migración se detectó que `send-reminders` (cron horario, sin ningún filtro
+por `appointmentId`/`clientId`, solo `{channel, status, scheduledFor}`) podía
+agarrar una fila de recompra recién encolada por `detect-inactive-clients`
+(06:00, `scheduledFor: now`) **antes** de que `send-followup-reminders`
+(08:00) llegara a procesarla, marcándola `FAILED` con
+`appointment_cancelled_or_missing` por no tener `appointment` — un bug
+latente ya en producción, silenciando avisos de recompra, sin relación con
+paquetes. Las tres rutas de cron existentes (`send-reminders`,
+`send-followup-reminders`, más `detect-inactive-clients` al crear la fila)
+ahora filtran/escriben `kind` explícitamente, lo que cierra ese bug como
+efecto colateral necesario del cambio de esquema. `NotificationQueue` también
+ganó `packageId` opcional (además de `kind`): un cliente puede tener más de
+un paquete por vencer a la vez, así que el dedup de la alerta es por
+`packageId` puntual, no solo por `clientId` (a diferencia de recordatorio/
+recompra, que son 1:1 con su cita/cliente).
+
+Alertas: cron nuevo `detect-expiring-packages` (paquetes `ACTIVE` con
+`usedSessions < totalSessions` y `expiresAt` dentro de una ventana de 7 días
+—`PACKAGE_EXPIRATION_ALERT_WINDOW_DAYS` en `src/lib/packages.ts`—, filtrado
+por tenants cuyo plan incluye el módulo `"packages"`) encola
+`NotificationQueue` (`kind: PACKAGE_EXPIRATION`). Cron nuevo
+`send-package-expiration-alerts` lo procesa vía un 4º triplete en
+`src/lib/whatsapp.ts` (`buildPackageExpirationTemplatePayload`/
+`sendPackageExpirationWhatsAppMessage`, plantilla nueva
+`alerta_paquete_vencimiento`/`es_MX` — pendiente de aprobación en Meta igual
+que las otras 3, trámite manual no de código). Ambos crons agregados a
+`vercel.json` en horarios escalonados de los existentes (07:00 detección,
+10:00 envío).
+
+Gating: nuevo módulo `"packages"` en `PlanModule`
+(`src/lib/planLimits.ts`), mismo tier que `inventory`/`reengagement`
+(PREMIUM y PRO, no INDIVIDUAL/BASICO). `requirePackagesAccess`
+(`src/lib/auth-guards.ts`, chequeo de plan, redirige a `/plan-required?
+feature=paquetes&requiredPlan=PREMIUM`) para ver/redimir — cualquiera con
+acceso al dashboard; `requirePackagesManageAccess` (además OWNER/ADMIN,
+mismo split que Inventario) para crear/cancelar un paquete.
+
+UI: sección "Paquetes de sesiones" embebida en
+`clients/[clientId]/page.tsx` (no es un catálogo tenant-wide como Inventario/
+Servicios — un paquete pertenece a un cliente, igual que su historial de
+citas), oculta (nunca redirige) si el plan no incluye el módulo — un tenant
+BASICO/INDIVIDUAL sigue viendo el resto de la ficha del cliente sin cambios.
+Las tres acciones nuevas (`createPackageAction`, `redeemPackageSessionAction`,
+`cancelPackageAction`) viven en el `clients/actions.ts` ya existente, no en un
+archivo aparte — este proyecto tiene exactamente un `actions.ts` por carpeta
+del dashboard, sin excepción, en las 9 carpetas revisadas.
+
+**Verificado en vivo (sin navegador — este entorno no tenía uno disponible en
+esta sesión, a diferencia de las sesiones de Cowork anteriores)**: sembrado un
+tenant QA descartable (`prisma/qa-paquetes.ts`, plan PREMIUM) con 4 paquetes
+de un mismo cliente en los cuatro casos relevantes (por vencer con sesiones
+disponibles / sin sesiones disponibles aunque venza pronto / vencimiento
+lejano / sin fecha de vencimiento). `prisma/qa-paquetes-verify.ts` llamó
+directamente a la función `GET` real de `detect-expiring-packages` (mismo
+código que correría en producción, con una `Request` construida a mano y el
+`CRON_SECRET` real) dos veces seguidas: la primera encoló exactamente el
+paquete "por vencer con sesiones disponibles" (`scanned: 3` — el de
+`expiresAt: null` ni siquiera entra a la query —, `enqueued: 1`) con el
+payload correcto (`remainingSessions: 1`, teléfono normalizado); la segunda
+dio `enqueued: 0`, confirmando el dedup por `packageId`. Redimir la única
+sesión disponible del paquete "por vencer" (mismas operaciones de Prisma que
+`redeemPackageSessionAction`) lo dejó en 3/3 con `status: COMPLETED`, y
+`canRedeemSession` pasó a `false` tanto para ese paquete como para el que ya
+estaba en 5/5 desde el inicio. Tenant QA borrado al terminar
+(`prisma/qa-paquetes-cleanup.ts`, cascade confirmado) y confirmado por
+separado que el tenant demo (`consultorio-demo`, 3 sedes, 2 usuarios) quedó
+exactamente igual que antes.
+
+**Deliberadamente NO verificado en esta sesión**: `send-package-expiration-alerts`
+nunca se corrió contra las filas encoladas — `WHATSAPP_CLOUD_API_TOKEN` en
+`.env` es una credencial real de Meta y la plantilla
+`alerta_paquete_vencimiento` no existe/no está aprobada todavía, mismo
+criterio ya documentado arriba para `alerta_stock_bajo` (evitar gastar cuota
+o arriesgar un envío indeseado); queda cubierto solo por el test unitario de
+`buildPackageExpirationTemplatePayload`. Tampoco se probó ningún flujo por
+navegador real (login, clicks) — a diferencia de las sesiones de Cowork
+anteriores, este entorno no tenía uno disponible; las Server Actions
+(`createPackageAction`/`redeemPackageSessionAction`/`cancelPackageAction`)
+están cubiertas por `tsc --noEmit` limpio y por la verificación de la lógica
+de Prisma que ejecutan (idéntica a la que corrió `qa-paquetes-verify.ts`),
+pero no por una sesión HTTP real con `requirePackagesAccess`/
+`requirePackagesManageAccess` de por medio. Fuera de esta fase: marcar
+`SessionPackageStatus.EXPIRED` automáticamente cuando pasa la fecha sin
+usarse todas las sesiones (hoy el paquete queda `ACTIVE` para siempre si
+nadie lo cancela a mano — el enum ya tiene el valor pero nada lo asigna),
+más de una alerta por paquete (ej. "vence en 7 días" y otra distinta "vence
+mañana"), y los otros 7 módulos de nicho del roadmap.

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendFollowUpWhatsAppMessage } from "@/lib/whatsapp";
+import { sendPackageExpirationWhatsAppMessage } from "@/lib/whatsapp";
 
 const MAX_BATCH_SIZE = 50;
 
@@ -25,7 +25,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const due = await prisma.notificationQueue.findMany({
     where: {
       channel: "WHATSAPP",
-      kind: "REENGAGEMENT_FOLLOWUP",
+      kind: "PACKAGE_EXPIRATION",
       status: "SCHEDULED",
       scheduledFor: { lte: new Date() },
     },
@@ -39,10 +39,11 @@ export async function GET(request: Request): Promise<NextResponse> {
   for (const notification of due) {
     const payload = (notification.payload ?? {}) as Record<string, unknown>;
 
-    const result = await sendFollowUpWhatsAppMessage({
+    const result = await sendPackageExpirationWhatsAppMessage({
       to: String(payload.to ?? ""),
       clientName: String(payload.clientName ?? ""),
-      tenantName: String(payload.tenantName ?? ""),
+      remainingSessions: Number(payload.remainingSessions ?? 0),
+      expiresAtLabel: String(payload.expiresAtLabel ?? ""),
     });
 
     if (result.ok) {

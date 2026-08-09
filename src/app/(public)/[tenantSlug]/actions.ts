@@ -208,6 +208,7 @@ export async function createAppointmentAction(
           tenantId: tenant.id,
           appointmentId: appointment.id,
           channel: "WHATSAPP",
+          kind: "APPOINTMENT_REMINDER",
           status: "SCHEDULED",
           scheduledFor: reminderScheduledFor,
           payload: {

@@ -72,7 +72,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       where: {
         clientId: client.id,
         channel: "WHATSAPP",
-        appointmentId: null,
+        kind: "REENGAGEMENT_FOLLOWUP",
         OR: [{ status: "SCHEDULED" }, { status: "SENT", sentAt: { gte: cooldownStart } }],
       },
     });
@@ -84,6 +84,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         clientId: client.id,
         appointmentId: null,
         channel: "WHATSAPP",
+        kind: "REENGAGEMENT_FOLLOWUP",
         status: "SCHEDULED",
         scheduledFor: now,
         payload: {

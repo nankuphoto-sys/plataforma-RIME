@@ -99,6 +99,41 @@ export async function requireInventoryAccess(tenantSlug: string) {
   return { session, tenant };
 }
 
+// Guard de acceso al módulo de paquetes/bonos de sesiones (ver/crear/redimir
+// desde la ficha de un cliente): exige que el plan del tenant incluya
+// "packages" (si no, manda a /plan-required), mismo patrón que
+// requireInventoryAccess. Cualquier usuario con acceso al dashboard puede
+// ver y redimir sesiones — crear un paquete nuevo exige además OWNER/ADMIN,
+// verificado aparte en la Server Action (mismo split que Inventario:
+// requireInventoryAccess vs requireInventoryManageAccess).
+export async function requirePackagesAccess(tenantSlug: string) {
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  if (!planIncludesModule(tenant.plan, "packages")) {
+    redirect(`/dashboard/${tenantSlug}/plan-required?feature=paquetes&requiredPlan=PREMIUM`);
+  }
+
+  return { session, tenant };
+}
+
+// Guard de acceso para gestionar paquetes (crear uno nuevo, cancelarlo):
+// además del chequeo de plan de requirePackagesAccess, exige OWNER o ADMIN,
+// mismo criterio que requireInventoryManageAccess. Ver los paquetes de un
+// cliente y redimir una sesión NO usa este guard — alcanza con
+// requirePackagesAccess (cualquiera con acceso al dashboard).
+export async function requirePackagesManageAccess(tenantSlug: string) {
+  const { session, tenant } = await requirePackagesAccess(tenantSlug);
+
+  const hasPackagesManageAccess = hasAnyOfRolesInTenantLocations(
+    session.user.locationRoles,
+    tenant.locations.map((location) => location.id),
+    ["OWNER", "ADMIN"]
+  );
+  if (!hasPackagesManageAccess) notFound();
+
+  return { session, tenant };
+}
+
 // Guard de acceso para gestionar profesionales (crear/editar, activar/
 // desactivar, asignar servicios y sedes): OWNER o ADMIN, mismo criterio que
 // reportes/inventario. No necesita chequeo de plan/módulo — gestionar

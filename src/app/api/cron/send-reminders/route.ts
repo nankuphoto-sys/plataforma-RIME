@@ -23,7 +23,12 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const due = await prisma.notificationQueue.findMany({
-    where: { channel: "WHATSAPP", status: "SCHEDULED", scheduledFor: { lte: new Date() } },
+    where: {
+      channel: "WHATSAPP",
+      kind: "APPOINTMENT_REMINDER",
+      status: "SCHEDULED",
+      scheduledFor: { lte: new Date() },
+    },
     include: { appointment: true },
     take: MAX_BATCH_SIZE,
     orderBy: { scheduledFor: "asc" },

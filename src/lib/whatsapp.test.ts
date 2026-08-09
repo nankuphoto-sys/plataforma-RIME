@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildLowStockAlertTemplatePayload,
+  buildPackageExpirationTemplatePayload,
   buildReminderTemplatePayload,
   normalizePhoneForWhatsapp,
 } from "./whatsapp";
@@ -139,6 +140,65 @@ describe("buildLowStockAlertTemplatePayload", () => {
     });
 
     expect((payload.template as { name: string }).name).toBe("alerta_stock_bajo");
+    expect((payload.template as { language: { code: string } }).language.code).toBe("es_MX");
+  });
+});
+
+describe("buildPackageExpirationTemplatePayload", () => {
+  const originalName = process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_NAME;
+  const originalLang = process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_LANG;
+
+  afterEach(() => {
+    if (originalName === undefined) delete process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_NAME;
+    else process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_NAME = originalName;
+    if (originalLang === undefined) delete process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_LANG;
+    else process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_LANG = originalLang;
+  });
+
+  it("arma el body exacto esperado por la API de Meta", () => {
+    process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_NAME = "alerta_paquete_vencimiento";
+    process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_LANG = "es_MX";
+
+    const payload = buildPackageExpirationTemplatePayload({
+      to: "573001234567",
+      clientName: "María Pérez",
+      remainingSessions: 3,
+      expiresAtLabel: "10 de agosto",
+    });
+
+    expect(payload).toEqual({
+      messaging_product: "whatsapp",
+      to: "573001234567",
+      type: "template",
+      template: {
+        name: "alerta_paquete_vencimiento",
+        language: { code: "es_MX" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: "María Pérez" },
+              { type: "text", text: "3" },
+              { type: "text", text: "10 de agosto" },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it("usa los defaults si no hay variables de entorno configuradas", () => {
+    delete process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_NAME;
+    delete process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_LANG;
+
+    const payload = buildPackageExpirationTemplatePayload({
+      to: "573001234567",
+      clientName: "María Pérez",
+      remainingSessions: 3,
+      expiresAtLabel: "10 de agosto",
+    });
+
+    expect((payload.template as { name: string }).name).toBe("alerta_paquete_vencimiento");
     expect((payload.template as { language: { code: string } }).language.code).toBe("es_MX");
   });
 });

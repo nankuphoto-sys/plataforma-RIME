@@ -174,3 +174,48 @@ export async function sendLowStockAlertWhatsAppMessage(params: {
 }): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
   return sendWhatsAppMessage(buildLowStockAlertTemplatePayload(params));
 }
+
+// Alerta de vencimiento de paquete (Paquetes y bonos de sesiones): avisa a un
+// cliente que su paquete prepago está por vencer con sesiones sin usar. A
+// diferencia de la alerta de stock bajo, SÍ pasa por NotificationQueue
+// (kind: PACKAGE_EXPIRATION) porque es un aviso ligado a un cliente puntual,
+// igual que el recordatorio de cita y el seguimiento de recompra.
+export function buildPackageExpirationTemplatePayload(params: {
+  to: string; // ya normalizado
+  clientName: string;
+  remainingSessions: number;
+  expiresAtLabel: string;
+}): Record<string, unknown> {
+  const templateName =
+    process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_NAME ?? "alerta_paquete_vencimiento";
+  const templateLang = process.env.WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_LANG ?? "es_MX";
+
+  return {
+    messaging_product: "whatsapp",
+    to: params.to,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: templateLang },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.clientName },
+            { type: "text", text: String(params.remainingSessions) },
+            { type: "text", text: params.expiresAtLabel },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+export async function sendPackageExpirationWhatsAppMessage(params: {
+  to: string;
+  clientName: string;
+  remainingSessions: number;
+  expiresAtLabel: string;
+}): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
+  return sendWhatsAppMessage(buildPackageExpirationTemplatePayload(params));
+}
