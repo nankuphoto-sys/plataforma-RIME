@@ -4,6 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireDashboardAccess } from "@/lib/auth-guards";
+import { isProfessionalOnlyInTenant } from "@/lib/authorization";
+import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { getEffectiveClientFieldTemplate, type ClientFieldDefinition } from "@/lib/clientFieldTemplates";
 
 // Arma customFields solo a partir de las keys de la plantilla del tenant —
@@ -43,7 +45,26 @@ function parseBaseFields(formData: FormData) {
 }
 
 export async function createClientAction(tenantSlug: string, formData: FormData): Promise<void> {
-  const { tenant } = await requireDashboardAccess(tenantSlug);
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  // Un usuario "solo profesional" (nunca OWNER/ADMIN/STAFF en ninguna sede)
+  // ve el CRM filtrado a "sus" clientes (con los que ya tiene una cita) — si
+  // pudiera crear uno nuevo, quedaría invisible para él mismo hasta tener una
+  // cita, un callejón sin salida confuso. Crear clientes queda para
+  // recepción/administración, igual que gestionar profesionales/sedes/
+  // servicios. La UI ya oculta el link "+ Nuevo cliente"; esto es el mismo
+  // chequeo re-verificado server-side, por si se fuerza la ruta a mano.
+  const isProfessionalOnly = isProfessionalOnlyInTenant(
+    session.user.locationRoles,
+    tenant.locations.map((location) => location.id)
+  );
+  if (isProfessionalOnly) {
+    redirect(
+      `/dashboard/${tenantSlug}/clients?error=${encodeURIComponent(
+        "No tenés permiso para crear clientes nuevos. Pedile a recepción o a tu administrador que lo haga."
+      )}`
+    );
+  }
 
   const { name, email, phone, birthdate } = parseBaseFields(formData);
   if (!name) {
@@ -68,10 +89,28 @@ export async function updateClientAction(
   clientId: string,
   formData: FormData
 ): Promise<void> {
-  const { tenant } = await requireDashboardAccess(tenantSlug);
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  // Mismo criterio "solo lo mío" que la página de detalle: un usuario "solo
+  // profesional" no puede editar un cliente con el que no tiene ninguna
+  // cita, aunque adivine el id en la URL — nunca confiar solo en que la UI
+  // ya lo ocultó.
+  const isProfessionalOnly = isProfessionalOnlyInTenant(
+    session.user.locationRoles,
+    tenant.locations.map((location) => location.id)
+  );
+  const viewerProfessionalId = isProfessionalOnly
+    ? await getLinkedProfessionalId(session.user.id)
+    : null;
 
   const client = await prisma.client.findFirst({
-    where: { id: clientId, tenantId: tenant.id },
+    where: {
+      id: clientId,
+      tenantId: tenant.id,
+      ...(isProfessionalOnly
+        ? { appointments: { some: { professionalId: viewerProfessionalId ?? "__sin-profesional-vinculado__" } } }
+        : {}),
+    },
   });
   if (!client) notFound();
 

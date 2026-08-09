@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { requireReportsAccess } from "@/lib/auth-guards";
-import { computeReportData, getDefaultReportRange, parseReportDateParam } from "@/lib/reports";
+import {
+  computeInventoryConsumption,
+  computeReportData,
+  getDefaultReportRange,
+  parseReportDateParam,
+} from "@/lib/reports";
+import { planIncludesModule } from "@/lib/planLimits";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
 import { buildCsvRow } from "@/lib/csv";
 
 const PROVIDER_LABELS: Record<string, string> = { STRIPE: "Stripe", WOMPI: "Wompi" };
-const VALID_SECTIONS = ["citas", "ingresos", "comisiones"] as const;
+const VALID_SECTIONS = ["citas", "ingresos", "comisiones", "consumo"] as const;
 type Section = (typeof VALID_SECTIONS)[number];
 
 function isValidSection(value: string | null): value is Section {
@@ -57,14 +63,16 @@ export async function GET(
         ])
       );
     }
-  } else {
+  } else if (section === "comisiones") {
     rows.push(
       buildCsvRow([
         "Profesional",
         "Citas completadas",
         "Ingreso por servicios",
-        "% Comisión",
-        "Comisión a pagar",
+        "% Comisión (default)",
+        "Comisión total",
+        "Comisión pagada",
+        "Comisión pendiente",
       ])
     );
     for (const row of commissionRows) {
@@ -75,8 +83,31 @@ export async function GET(
           row.totalServiceRevenue.toFixed(2),
           row.commissionRatePercent,
           row.commissionAmount.toFixed(2),
+          row.paidCommissionAmount.toFixed(2),
+          row.pendingCommissionAmount.toFixed(2),
         ])
       );
+    }
+  } else {
+    // "consumo" — no depende del gating de plan acá (requireReportsAccess ya
+    // exige el módulo "reports"): si el tenant no tiene el módulo
+    // "inventory", simplemente no va a tener InventoryMovement, así que el
+    // CSV sale con solo el encabezado. Se valida igual por prolijidad.
+    rows.push(buildCsvRow(["Insumo", "Automático (citas)", "Manual", "Total consumido", "Unidad", "Valor (USD)"]));
+    if (planIncludesModule(tenant.plan, "inventory")) {
+      const consumptionRows = await computeInventoryConsumption(tenant.id, from, to);
+      for (const row of consumptionRows) {
+        rows.push(
+          buildCsvRow([
+            row.itemName,
+            row.automaticQuantity,
+            row.manualOutQuantity,
+            row.totalQuantity,
+            row.unit,
+            row.totalValue !== null ? row.totalValue.toFixed(2) : "",
+          ])
+        );
+      }
     }
   }
 

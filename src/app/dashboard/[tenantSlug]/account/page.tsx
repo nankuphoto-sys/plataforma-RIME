@@ -1,21 +1,78 @@
+import { KeyRound, Trash2 } from "lucide-react";
+import { prisma } from "@/lib/prisma";
 import { requireDashboardAccess } from "@/lib/auth-guards";
-import { changePasswordAction } from "./actions";
+import { SubmitButton } from "@/components/ui/SubmitButton";
+import { MAX_PROFILE_IMAGE_LABEL } from "@/lib/profileImage";
+import { changePasswordAction, removeProfilePhotoAction } from "./actions";
+import { ProfilePhotoUploadForm } from "./ProfilePhotoUploadForm";
+
+function getInitials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
 
 export default async function AccountPage({
   params,
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; photoError?: string; savedPhoto?: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { error, saved } = await searchParams;
+  const { error, saved, photoError, savedPhoto } = await searchParams;
   const { session } = await requireDashboardAccess(tenantSlug);
+
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: session.user.id },
+    select: { name: true, email: true, image: true },
+  });
 
   return (
     <div className="mx-auto max-w-xl">
       <h1 className="page-title">Mi cuenta</h1>
       <p className="page-subtitle">{session.user.email}</p>
+
+      <div className="mt-6 border-t border-sage-dark/30 pt-4">
+        <p className="section-title text-sm">Foto de perfil</p>
+
+        {photoError && <p className="msg-error mt-3">{photoError}</p>}
+        {savedPhoto && !photoError && <p className="msg-success mt-3">Foto actualizada.</p>}
+
+        <div className="mt-4 flex items-center gap-4">
+          {user.image ? (
+            // eslint-disable-next-line @next/next/no-img-element -- data URI, no sirve next/image
+            <img
+              src={user.image}
+              alt="Foto de perfil"
+              className="h-24 w-24 rounded-full object-cover ring-1 ring-sage-dark/40"
+            />
+          ) : (
+            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-pine/15 text-2xl font-semibold text-pine-dark">
+              {getInitials(user.name)}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <ProfilePhotoUploadForm tenantSlug={tenantSlug} />
+            {user.image && (
+              <form action={removeProfilePhotoAction.bind(null, tenantSlug)}>
+                <SubmitButton
+                  icon={<Trash2 className="h-3.5 w-3.5" />}
+                  pendingLabel="Quitando…"
+                  className="group inline-flex items-center gap-1 text-xs text-ink/50 underline transition-colors hover:text-berry-dark active:scale-[0.98]"
+                >
+                  Quitar foto
+                </SubmitButton>
+              </form>
+            )}
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-ink/40">JPG, PNG o WEBP. Máximo {MAX_PROFILE_IMAGE_LABEL}.</p>
+      </div>
 
       <div className="mt-6 border-t border-sage-dark/30 pt-4">
         <p className="section-title text-sm">Cambiar contraseña</p>
@@ -68,9 +125,9 @@ export default async function AccountPage({
             />
           </div>
 
-          <button type="submit" className="btn-primary">
+          <SubmitButton icon={<KeyRound className="h-4 w-4" />} pendingLabel="Guardando…">
             Guardar contraseña
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </div>

@@ -5,8 +5,9 @@ import type { AppointmentStatus } from "@prisma/client";
 import { auth, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ALLOWED_STATUS_TRANSITIONS } from "@/lib/appointmentStatus";
-import { hasLocationAccess } from "@/lib/authorization";
-import { deductInventoryForCompletedAppointment } from "@/lib/inventory";
+import { getRoleAtLocation, hasLocationAccess } from "@/lib/authorization";
+import { getLinkedProfessionalId } from "@/lib/professionalScope";
+import { deductInventoryForCompletedAppointment, maybeSendLowStockAlerts } from "@/lib/inventory";
 import { planIncludesModule } from "@/lib/planLimits";
 
 export interface UpdateAppointmentStatusResult {
@@ -44,6 +45,16 @@ export async function updateAppointmentStatusAction(
     return { ok: false, error: "No tienes permisos sobre la sede de esta cita." };
   }
 
+  // Un rol PROFESSIONAL en la sede de esta cita solo puede cambiar el estado
+  // de SUS PROPIAS citas — nunca las de un colega, aunque comparta sede.
+  // OWNER/ADMIN/STAFF no pasan por este chequeo extra.
+  if (getRoleAtLocation(roles, appointment.locationId) === "PROFESSIONAL") {
+    const viewerProfessionalId = await getLinkedProfessionalId(session.user.id);
+    if (appointment.professionalId !== viewerProfessionalId) {
+      return { ok: false, error: "No tienes permisos sobre esta cita." };
+    }
+  }
+
   if (!ALLOWED_STATUS_TRANSITIONS[appointment.status].includes(nextStatus)) {
     return { ok: false, error: "Esa transición de estado no está permitida." };
   }
@@ -54,23 +65,31 @@ export async function updateAppointmentStatusAction(
   // plan del tenant no incluye "inventory", el descuento ni se intenta (ni
   // genera movimientos, ni falla) — mismo criterio que detect-inactive-clients
   // con el módulo "reengagement".
-  await prisma.$transaction(async (tx) => {
+  const lowStockCandidates = await prisma.$transaction(async (tx) => {
     await tx.appointment.update({
       where: { id: appointment.id },
       data: { status: nextStatus },
     });
 
     if (nextStatus === "COMPLETED" && planIncludesModule(tenant.plan, "inventory")) {
-      await deductInventoryForCompletedAppointment(tx, {
+      return deductInventoryForCompletedAppointment(tx, {
         serviceId: appointment.serviceId,
         locationId: appointment.locationId,
         appointmentId: appointment.id,
         performedByUserId: session.user.id,
       });
     }
+    return [];
   });
 
   revalidatePath(`/dashboard/${tenantSlug}`);
+
+  // Fuera de la transacción a propósito — un envío de WhatsApp nunca debe
+  // vivir dentro de una transacción de base de datos. Fire-and-forget: no
+  // bloquea la respuesta de la acción ni revierte nada si falla.
+  if (lowStockCandidates.length > 0) {
+    void maybeSendLowStockAlerts(lowStockCandidates);
+  }
 
   return { ok: true };
 }

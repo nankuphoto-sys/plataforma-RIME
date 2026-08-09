@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  getRoleAtLocation,
   hasAnyOfRolesInTenantLocations,
   hasAnyRoleInTenantLocations,
   hasLocationAccess,
+  isProfessionalOnlyInTenant,
   type StaffLocationRoleRecord,
 } from "./authorization";
 
@@ -65,5 +67,54 @@ describe("hasAnyOfRolesInTenantLocations", () => {
 
   it("retorna false cuando el usuario no tiene ningún rol", () => {
     expect(hasAnyOfRolesInTenantLocations([], ["loc-1"], ["OWNER", "ADMIN"])).toBe(false);
+  });
+});
+
+describe("getRoleAtLocation", () => {
+  it("retorna el rol del usuario en esa location exacta", () => {
+    const roles: StaffLocationRoleRecord[] = [
+      { locationId: "loc-1", role: "PROFESSIONAL" },
+      { locationId: "loc-2", role: "STAFF" },
+    ];
+    expect(getRoleAtLocation(roles, "loc-1")).toBe("PROFESSIONAL");
+    expect(getRoleAtLocation(roles, "loc-2")).toBe("STAFF");
+  });
+
+  it("retorna undefined si el usuario no tiene ningún rol en esa location", () => {
+    const roles: StaffLocationRoleRecord[] = [{ locationId: "loc-2", role: "STAFF" }];
+    expect(getRoleAtLocation(roles, "loc-1")).toBeUndefined();
+  });
+});
+
+describe("isProfessionalOnlyInTenant", () => {
+  it("retorna true si todos los roles del usuario en el tenant son PROFESSIONAL", () => {
+    const roles: StaffLocationRoleRecord[] = [
+      { locationId: "loc-1", role: "PROFESSIONAL" },
+      { locationId: "loc-2", role: "PROFESSIONAL" },
+    ];
+    expect(isProfessionalOnlyInTenant(roles, ["loc-1", "loc-2"])).toBe(true);
+  });
+
+  it("retorna false si el usuario tiene STAFF/ADMIN/OWNER en alguna sede del tenant", () => {
+    const roles: StaffLocationRoleRecord[] = [
+      { locationId: "loc-1", role: "PROFESSIONAL" },
+      { locationId: "loc-2", role: "STAFF" },
+    ];
+    expect(isProfessionalOnlyInTenant(roles, ["loc-1", "loc-2"])).toBe(false);
+  });
+
+  it("ignora roles de locations de otro tenant al decidir", () => {
+    const roles: StaffLocationRoleRecord[] = [
+      { locationId: "loc-1", role: "PROFESSIONAL" },
+      { locationId: "loc-de-otro-tenant", role: "OWNER" },
+    ];
+    expect(isProfessionalOnlyInTenant(roles, ["loc-1"])).toBe(true);
+  });
+
+  it("retorna false cuando el usuario no tiene ningún rol en el tenant", () => {
+    expect(isProfessionalOnlyInTenant([], ["loc-1"])).toBe(false);
+    expect(isProfessionalOnlyInTenant([{ locationId: "loc-de-otro-tenant", role: "PROFESSIONAL" }], ["loc-1"])).toBe(
+      false
+    );
   });
 });

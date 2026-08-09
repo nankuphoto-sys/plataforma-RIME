@@ -14,12 +14,42 @@
   *:focus-visible {
     @apply outline-none ring-2 ring-pine/40 ring-offset-2 ring-offset-paper;
   }
+
+  /* Accesibilidad: apaga toda transición/animación (hover de íconos, scale
+     de click, conteo de AnimatedNumber, etc.) para quien pida menos
+     movimiento — un solo interruptor global en vez de repetir
+     motion-safe:/motion-reduce: en cada utilidad nueva. AnimatedNumber
+     además chequea matchMedia en JS porque ahí la animación es de estado
+     (un valor numérico interpolado), no CSS, así que este media query no
+     alcanza para eso por sí solo. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
   /* Navegación / texto de apoyo */
   .shell-link {
     @apply text-sm text-ink/50 transition-colors hover:text-pine;
+  }
+
+  /* Nav del dashboard: item con ícono, animación leve de ícono en hover */
+  .nav-link {
+    @apply flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm text-paper/75 transition-colors duration-150 hover:bg-white/10 hover:text-paper [&_svg]:shrink-0 [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-out hover:[&_svg]:scale-110;
+  }
+
+  /* Ruta actual del sidebar: fondo sólido + texto e ícono a full opacidad
+     (a diferencia del hover, que es más sutil) para que se note de un
+     vistazo en qué sección está parado el usuario. */
+  .nav-link-active {
+    @apply bg-white/15 font-medium text-paper;
   }
 
   .page-title {
@@ -35,20 +65,35 @@
   }
 
   /* Botones */
+  /* `transition` (no solo transition-colors) para que el mismo botón cubra
+     el color en hover Y el scale en active sin pisarse — ambos son parte
+     del MISMO utility (`transition` ya incluye `transform` en su lista de
+     transition-property por default de Tailwind), así que no hace falta
+     (ni conviene) sumar además `transition-transform` aparte: dos
+     utilidades de transition-property distintas aplicadas juntas se pisan
+     entre sí en vez de sumarse (gana la que Tailwind genera después en su
+     stylesheet, no la que está escrita después en el @apply), lo que
+     rompería la transición de color. `duration-150` queda explícito igual
+     aunque `transition` ya trae 150ms por default, para que quede claro a
+     simple vista. El ícono interno (si lo hay) escala levemente en hover
+     vía el selector [&_svg]. Fondo/borde reaccionan en hover; el
+     active:scale-[0.97] es el feedback de "toqué esto" instantáneo al
+     click, antes de que la Server Action responda (para eso está el
+     spinner de SubmitButton). */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-pine px-4 py-2 text-sm font-medium text-paper transition-colors hover:bg-pine-dark disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-pine px-4 py-2 text-sm font-medium text-paper transition duration-150 hover:bg-pine-dark active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-out hover:[&_svg]:scale-110;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-sage-dark/70 bg-white px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-pine/40 hover:bg-sage/40 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-sage-dark/70 bg-white px-4 py-2 text-sm font-medium text-ink transition duration-150 hover:border-pine/40 hover:bg-sage/40 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-out hover:[&_svg]:scale-110;
   }
 
   .btn-secondary-sm {
-    @apply inline-flex items-center justify-center gap-1 rounded-md border border-sage-dark/70 bg-white px-2.5 py-1.5 text-xs font-medium text-ink transition-colors hover:border-pine/40 hover:bg-sage/40 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1 rounded-md border border-sage-dark/70 bg-white px-2.5 py-1.5 text-xs font-medium text-ink transition duration-150 hover:border-pine/40 hover:bg-sage/40 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-out hover:[&_svg]:scale-110;
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-berry px-4 py-2 text-sm font-medium text-paper transition-colors hover:bg-berry-dark disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-berry px-4 py-2 text-sm font-medium text-paper transition duration-150 hover:bg-berry-dark active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-out hover:[&_svg]:scale-110;
   }
 
   /* Formularios */
@@ -66,12 +111,17 @@
 
   /* Tarjetas / paneles */
   .panel {
-    @apply rounded-xl border border-sage-dark/40 bg-white p-4;
+    @apply rounded-xl border border-sage-dark/40 bg-white p-4 transition-shadow duration-150 hover:shadow-md;
   }
 
   /* Tablas */
+  /* `overflow-x-auto` (no `overflow-hidden`) — con overflow-hidden, en una
+     pantalla angosta (celular) las columnas que no entran quedan cortadas
+     e invisibles sin ninguna forma de verlas; con auto, la tabla scrollea
+     horizontal y las esquinas redondeadas se siguen viendo igual mientras
+     no está scrolleada. */
   .table-shell {
-    @apply overflow-hidden rounded-xl border border-sage-dark/40 bg-white;
+    @apply overflow-x-auto rounded-xl border border-sage-dark/40 bg-white;
   }
 
   .table-head {
@@ -82,8 +132,12 @@
     @apply px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink/45;
   }
 
+  /* transition-[...] combinado (en vez de transition-colors +
+     transition-shadow por separado) porque ambas utilidades pisan la misma
+     propiedad transition-property — combinarlas en una sola es lo único
+     que hace que color Y sombra animen juntas sin que una calle a la otra. */
   .table-row {
-    @apply border-t border-sage-dark/25 transition-colors hover:bg-sage/25;
+    @apply border-t border-sage-dark/25 transition-[background-color,box-shadow] duration-150 ease-out hover:bg-sage/25 hover:shadow-md;
   }
 
   .table-cell {
@@ -135,5 +189,41 @@
 
   .badge-neutral {
     @apply bg-ink/5 text-ink/45 line-through;
+  }
+
+  /* ---------------------------------------------------------------------
+     Landing pública (src/app/page.tsx y src/components/marketing/*) —
+     clases separadas de las de arriba a propósito: el dashboard interno
+     necesita botones/tarjetas compactos y funcionales, la home pública
+     necesita elementos grandes y llamativos tipo "página de ventas". Nunca
+     reutilizar .btn-primary/.panel acá ni estas acá allá, para que un
+     cambio de una no arrastre a la otra sin querer. */
+  .btn-hero-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-pine-light to-pine px-6 py-3.5 text-sm font-semibold text-paper shadow-lg shadow-pine/30 transition duration-150 hover:shadow-xl hover:shadow-pine/40 hover:brightness-110 active:scale-[0.97] [&_svg]:transition-transform [&_svg]:duration-150 [&_svg]:ease-out hover:[&_svg]:translate-x-0.5;
+  }
+
+  .btn-hero-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-paper/25 bg-paper/5 px-6 py-3.5 text-sm font-semibold text-paper backdrop-blur transition duration-150 hover:border-paper/40 hover:bg-paper/10 active:scale-[0.97];
+  }
+
+  /* Ícono de feature: círculo con anillo degradado, escala + rota apenas al
+     hover (mismo lenguaje de "el ícono reacciona" que .nav-link en el
+     dashboard, pero un poco más notorio porque acá es decorativo, no
+     funcional). */
+  .feature-icon-badge {
+    @apply flex h-12 w-12 flex-none items-center justify-center rounded-full bg-gradient-to-br from-pine/15 to-gold/10 text-pine ring-1 ring-pine/20 transition duration-200 ease-out group-hover:scale-110 group-hover:ring-pine/40;
+  }
+
+  /* Tarjeta de especialidad: bloque degradado con el nombre superpuesto
+     abajo (estilo "tarjeta de foto"), botón de flecha circular flotante.
+     `group` no puede ir en este @apply (Tailwind no genera CSS para esa
+     clase marcadora, solo la usan los `group-hover:` de otros elementos) —
+     va como clase aparte en el className del JSX que usa .specialty-card. */
+  .specialty-card {
+    @apply relative block h-40 overflow-hidden rounded-2xl transition duration-200 ease-out hover:-translate-y-1 hover:shadow-xl hover:shadow-ink/10;
+  }
+
+  .specialty-arrow {
+    @apply flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink shadow-md transition duration-200 ease-out group-hover:translate-x-0.5 group-hover:bg-pine group-hover:text-paper;
   }
 }

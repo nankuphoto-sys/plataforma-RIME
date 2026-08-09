@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { ArrowLeft, ListPlus } from "lucide-react";
 import { requireClientFieldsManageAccess } from "@/lib/auth-guards";
+import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { createClientFieldAction } from "../actions";
 
 const TYPE_OPTIONS = [
@@ -24,8 +27,10 @@ export default async function NewClientFieldPage({
 
   return (
     <div className="mx-auto max-w-xl">
-      <Link href={`/dashboard/${tenantSlug}/client-fields`} className="shell-link">
-        ← Volver a campos de ficha
+      <Link href={`/dashboard/${tenantSlug}/client-fields`} className="group inline-flex items-center gap-1 shell-link">
+        <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:-translate-x-0.5" />
+        Volver a campos de ficha
+        <LinkPendingSpinner />
       </Link>
       <h1 className="page-title mt-3">Nuevo campo</h1>
 
@@ -59,9 +64,9 @@ export default async function NewClientFieldPage({
           <textarea id="options" name="options" rows={4} className="field-input" />
         </div>
 
-        <button type="submit" className="btn-primary">
+        <SubmitButton icon={<ListPlus className="h-4 w-4" />} pendingLabel="Creando…">
           Crear campo
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

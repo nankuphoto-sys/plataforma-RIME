@@ -1,17 +1,20 @@
 import Link from "next/link";
+import { ArrowLeftRight, PackagePlus, Save } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireInventoryAccess } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations, hasLocationAccess } from "@/lib/authorization";
+import { SubmitButton } from "@/components/ui/SubmitButton";
+import { updateLowStockAlertPhoneAction } from "./actions";
 
 export default async function InventoryPage({
   params,
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ locationId?: string }>;
+  searchParams: Promise<{ locationId?: string; error?: string; alertPhoneSaved?: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { locationId } = await searchParams;
+  const { locationId, error, alertPhoneSaved } = await searchParams;
   const { session, tenant } = await requireInventoryAccess(tenantSlug);
 
   const hasInventoryManageAccess = hasAnyOfRolesInTenantLocations(
@@ -56,10 +59,39 @@ export default async function InventoryPage({
         </div>
         {hasInventoryManageAccess && (
           <Link href={`/dashboard/${tenantSlug}/inventory/new`} className="btn-primary">
-            + Nuevo ítem
+            <PackagePlus className="h-4 w-4" />
+            Nuevo ítem
           </Link>
         )}
       </div>
+
+      {error && <p className="msg-error mt-3">{error}</p>}
+      {alertPhoneSaved && !error && <p className="msg-success mt-3">Preferencia de alertas guardada.</p>}
+
+      {hasInventoryManageAccess && (
+        <div className="mt-6 border-t border-sage-dark/30 pt-4">
+          <p className="section-title text-sm">Alertas de stock bajo por WhatsApp</p>
+          <p className="mt-1 text-sm text-ink/60">
+            Cuando una salida de inventario deja un ítem en su umbral de stock bajo o por debajo, se
+            avisa por WhatsApp a este número. Dejalo vacío para desactivar las alertas.
+          </p>
+          <form
+            action={updateLowStockAlertPhoneAction.bind(null, tenantSlug)}
+            className="mt-3 flex flex-wrap items-end gap-2"
+          >
+            <input
+              type="tel"
+              name="lowStockAlertPhone"
+              placeholder="+57 300 123 4567"
+              defaultValue={tenant.lowStockAlertPhone ?? ""}
+              className="field-input mt-0 w-64"
+            />
+            <SubmitButton icon={<Save className="h-4 w-4" />} pendingLabel="Guardando…" className="btn-secondary">
+              Guardar
+            </SubmitButton>
+          </form>
+        </div>
+      )}
 
       {accessibleLocations.length > 1 && (
         <form method="get" className="mt-4 flex items-end gap-2">
@@ -71,6 +103,7 @@ export default async function InventoryPage({
             ))}
           </select>
           <button type="submit" className="btn-secondary">
+            <ArrowLeftRight className="h-4 w-4" />
             Cambiar
           </button>
         </form>

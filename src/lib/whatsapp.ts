@@ -127,3 +127,50 @@ export async function sendFollowUpWhatsAppMessage(params: {
 }): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
   return sendWhatsAppMessage(buildFollowUpTemplatePayload(params));
 }
+
+// Alerta de stock bajo (sesión de Cowork): avisa al número configurado en
+// Tenant.lowStockAlertPhone que un insumo cruzó su umbral. Sin NotificationQueue
+// de por medio a propósito — ese modelo exige appointmentId o clientId, y esto
+// no es ni uno ni otro (es un evento de negocio interno, no ligado a un
+// cliente puntual). Se dispara fire-and-forget desde donde se detecta el
+// cruce; nunca bloquea ni revierte el movimiento de inventario que lo originó.
+export function buildLowStockAlertTemplatePayload(params: {
+  to: string; // ya normalizado
+  itemName: string;
+  currentStock: number;
+  unit: string;
+  locationName: string;
+}): Record<string, unknown> {
+  const templateName = process.env.WHATSAPP_LOW_STOCK_TEMPLATE_NAME ?? "alerta_stock_bajo";
+  const templateLang = process.env.WHATSAPP_LOW_STOCK_TEMPLATE_LANG ?? "es_MX";
+
+  return {
+    messaging_product: "whatsapp",
+    to: params.to,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: templateLang },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.itemName },
+            { type: "text", text: `${params.currentStock} ${params.unit}` },
+            { type: "text", text: params.locationName },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+export async function sendLowStockAlertWhatsAppMessage(params: {
+  to: string;
+  itemName: string;
+  currentStock: number;
+  unit: string;
+  locationName: string;
+}): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
+  return sendWhatsAppMessage(buildLowStockAlertTemplatePayload(params));
+}

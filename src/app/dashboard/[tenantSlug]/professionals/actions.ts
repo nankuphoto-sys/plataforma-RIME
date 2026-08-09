@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireProfessionalsManageAccess } from "@/lib/auth-guards";
 import { getPlanLimits, hasReachedProfessionalLimit } from "@/lib/planLimits";
+import { grantProfessionalLocationAccess, revokeProfessionalLocationAccess } from "@/lib/professionalLocationSync";
 
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -75,7 +76,13 @@ async function applyProfessionalServicesUpdate(
   ]);
 }
 
-// Mismo patrón que applyProfessionalServicesUpdate, para ProfessionalLocation.
+// Mismo patrón que applyProfessionalServicesUpdate, para ProfessionalLocation
+// — más la resincronización automática de StaffLocationRole(PROFESSIONAL)
+// del profesional (si tiene un usuario vinculado) contra el diff de sedes
+// agregadas/quitadas: sin esto, asignar una sede nueva no le daba acceso
+// real para ver su agenda ahí, y desasignarlo dejaba acceso viejo colgado.
+// Ver src/lib/professionalLocationSync.ts para la regla completa (nunca
+// pisa/borra un rol que no sea exactamente PROFESSIONAL).
 async function applyProfessionalLocationsUpdate(
   tenantId: string,
   professionalId: string,
@@ -91,18 +98,35 @@ async function applyProfessionalLocationsUpdate(
     : [];
   const validIds = validLocations.map((location) => location.id);
 
-  await prisma.$transaction([
-    prisma.professionalLocation.deleteMany({
+  const currentAssignments = await prisma.professionalLocation.findMany({
+    where: { professionalId },
+    select: { locationId: true },
+  });
+  const currentIds = currentAssignments.map((assignment) => assignment.locationId);
+  const addedLocationIds = validIds.filter((id) => !currentIds.includes(id));
+  const removedLocationIds = currentIds.filter((id) => !validIds.includes(id));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.professionalLocation.deleteMany({
       where: { professionalId, locationId: { notIn: validIds } },
-    }),
-    ...validIds.map((locationId) =>
-      prisma.professionalLocation.upsert({
+    });
+    for (const locationId of validIds) {
+      await tx.professionalLocation.upsert({
         where: { professionalId_locationId: { professionalId, locationId } },
         create: { professionalId, locationId },
         update: {},
-      })
-    ),
-  ]);
+      });
+    }
+
+    await grantProfessionalLocationAccess(
+      tx,
+      addedLocationIds.map((locationId) => ({ professionalId, locationId }))
+    );
+    await revokeProfessionalLocationAccess(
+      tx,
+      removedLocationIds.map((locationId) => ({ professionalId, locationId }))
+    );
+  });
 }
 
 export async function createProfessionalAction(tenantSlug: string, formData: FormData): Promise<void> {

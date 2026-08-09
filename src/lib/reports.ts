@@ -40,6 +40,12 @@ export interface ReportData {
     totalServiceRevenue: number;
     commissionRatePercent: number;
     commissionAmount: number;
+    // Split de commissionAmount según Appointment.commissionPaidAt — la suma
+    // de ambos siempre da commissionAmount. paidCommissionAmount es lo que
+    // ya se marcó pagado (markCommissionAsPaidAction), pendingCommissionAmount
+    // lo que todavía no.
+    paidCommissionAmount: number;
+    pendingCommissionAmount: number;
   }[];
 }
 
@@ -114,21 +120,113 @@ export async function computeReportData(
     const professionalAppointments = completedAppointments.filter(
       (appointment) => appointment.professionalId === professional.id
     );
-    const totalServiceRevenue = professionalAppointments.reduce(
-      (sum, appointment) => sum + Number(appointment.service.price),
-      0
-    );
-    const commissionRatePercent = Number(professional.commissionRate);
+    const defaultRatePercent = Number(professional.commissionRate);
+
+    let totalServiceRevenue = 0;
+    let commissionAmount = 0;
+    let paidCommissionAmount = 0;
+
+    for (const appointment of professionalAppointments) {
+      const servicePrice = Number(appointment.service.price);
+      // Service.commissionRate es un override opcional para ESTE servicio —
+      // si está seteado, manda por sobre el % default del profesional (nunca
+      // al revés). La gran mayoría de los servicios no tiene override, así
+      // que en la práctica esto sigue dando el mismo resultado que antes.
+      const effectiveRatePercent =
+        appointment.service.commissionRate !== null
+          ? Number(appointment.service.commissionRate)
+          : defaultRatePercent;
+      const appointmentCommission = calculateCommissionAmount(servicePrice, effectiveRatePercent);
+
+      totalServiceRevenue += servicePrice;
+      commissionAmount += appointmentCommission;
+      if (appointment.commissionPaidAt) {
+        paidCommissionAmount += appointmentCommission;
+      }
+    }
+
+    // Redondeo final: cada término ya viene redondeado a centavos (ver
+    // calculateCommissionAmount), pero sumar varios números de 2 decimales en
+    // punto flotante puede dejar restos como 20.299999999999997.
+    commissionAmount = Math.round(commissionAmount * 100) / 100;
+    paidCommissionAmount = Math.round(paidCommissionAmount * 100) / 100;
+    const pendingCommissionAmount = Math.round((commissionAmount - paidCommissionAmount) * 100) / 100;
 
     return {
       id: professional.id,
       name: professional.name,
       completedCount: professionalAppointments.length,
       totalServiceRevenue,
-      commissionRatePercent,
-      commissionAmount: calculateCommissionAmount(totalServiceRevenue, commissionRatePercent),
+      commissionRatePercent: defaultRatePercent,
+      commissionAmount,
+      paidCommissionAmount,
+      pendingCommissionAmount,
     };
   });
 
   return { statusCountsByStatus, revenueRows, commissionRows };
+}
+
+export interface InventoryConsumptionRow {
+  itemId: string;
+  itemName: string;
+  unit: string;
+  automaticQuantity: number;
+  manualOutQuantity: number;
+  totalQuantity: number;
+  unitCost: number | null;
+  // null si unitCost es null (costo no cargado) — nunca se asume 0, para no
+  // mostrar un total de $0 que en realidad es "no sabemos".
+  totalValue: number | null;
+}
+
+// Consumo de insumos (movimientos OUT) en un rango de fechas, para el tenant
+// completo (todas las sedes) — mismo eje de tiempo que el resto de Reportes
+// (InventoryMovement.createdAt, análogo a Appointment.startsAt ahí). Se
+// distingue consumo automático (appointmentId seteado, ver
+// deductInventoryForCompletedAppointment) de manual (registrado a mano vía
+// recordInventoryMovementAction) — mismo criterio que ya usa la UI de
+// Inventario para la etiqueta "Automático — cita completada".
+export async function computeInventoryConsumption(
+  tenantId: string,
+  from: Date,
+  to: Date
+): Promise<InventoryConsumptionRow[]> {
+  const outMovements = await prisma.inventoryMovement.findMany({
+    where: {
+      type: "OUT",
+      createdAt: { gte: from, lte: to },
+      item: { tenantId },
+    },
+    include: { item: true },
+  });
+
+  const rowsByItemId = new Map<string, InventoryConsumptionRow>();
+  for (const movement of outMovements) {
+    const existing = rowsByItemId.get(movement.itemId);
+    const unitCost = movement.item.unitCost !== null ? Number(movement.item.unitCost) : null;
+    const row =
+      existing ??
+      ({
+        itemId: movement.itemId,
+        itemName: movement.item.name,
+        unit: movement.item.unit,
+        automaticQuantity: 0,
+        manualOutQuantity: 0,
+        totalQuantity: 0,
+        unitCost,
+        totalValue: unitCost !== null ? 0 : null,
+      } satisfies InventoryConsumptionRow);
+
+    if (movement.appointmentId) row.automaticQuantity += movement.quantity;
+    else row.manualOutQuantity += movement.quantity;
+    row.totalQuantity += movement.quantity;
+    if (row.totalValue !== null && unitCost !== null) {
+      row.totalValue = Math.round((row.totalValue + movement.quantity * unitCost) * 100) / 100;
+    }
+
+    rowsByItemId.set(movement.itemId, row);
+  }
+
+  return Array.from(rowsByItemId.values()).sort((a, b) => a.itemName.localeCompare(b.itemName));
 }

@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { ArrowLeft, KeyRound, Save } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireTeamManageAccess } from "@/lib/auth-guards";
+import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { resetTeamMemberPasswordAction, updateTeamMemberAction } from "../actions";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -44,8 +47,10 @@ export default async function TeamMemberDetailPage({
 
   return (
     <div className="mx-auto max-w-xl">
-      <Link href={`/dashboard/${tenantSlug}/team`} className="shell-link">
-        ← Volver a equipo
+      <Link href={`/dashboard/${tenantSlug}/team`} className="group inline-flex items-center gap-1 shell-link">
+        <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:-translate-x-0.5" />
+        Volver a equipo
+        <LinkPendingSpinner />
       </Link>
       <h1 className="page-title mt-3">{user.name}</h1>
       <p className="page-subtitle">{user.email}</p>
@@ -87,9 +92,9 @@ export default async function TeamMemberDetailPage({
           )}
         </div>
 
-        <button type="submit" className="btn-primary">
+        <SubmitButton icon={<Save className="h-4 w-4" />} pendingLabel="Guardando…">
           Guardar
-        </button>
+        </SubmitButton>
       </form>
 
       <form
@@ -101,9 +106,13 @@ export default async function TeamMemberDetailPage({
           Genera una nueva contraseña temporal para este usuario, por si no puede usar el link de
           recuperación por email.
         </p>
-        <button type="submit" className="btn-primary mt-3">
+        <SubmitButton
+          icon={<KeyRound className="h-4 w-4" />}
+          pendingLabel="Restableciendo…"
+          className="btn-primary mt-3"
+        >
           Restablecer contraseña
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

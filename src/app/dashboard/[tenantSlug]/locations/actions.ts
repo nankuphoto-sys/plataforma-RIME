@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireOwnerAccess } from "@/lib/auth-guards";
 import { getPlanLimits, hasReachedLocationLimit } from "@/lib/planLimits";
+import { grantProfessionalLocationAccess, revokeProfessionalLocationAccess } from "@/lib/professionalLocationSync";
 
 const DEFAULT_TIMEZONE = "America/Santiago";
 
@@ -29,7 +30,12 @@ async function applyLocationFieldsUpdate(locationId: string, formData: FormData)
 // a partir de la lista de professionalId marcados en el checklist — borra
 // las que ya no están marcadas y crea las que faltan, dentro de una
 // transacción. Valida que cada professionalId pertenezca al tenant antes de
-// asignarlo (nunca confiar en los ids que llegan del form).
+// asignarlo (nunca confiar en los ids que llegan del form). Además
+// resincroniza StaffLocationRole(PROFESSIONAL) contra el diff — mismo
+// mecanismo (y misma protección de nunca pisar OWNER/ADMIN/STAFF) que
+// applyProfessionalLocationsUpdate en professionals/actions.ts, la otra
+// punta desde donde se edita esta misma relación. Ver
+// src/lib/professionalLocationSync.ts.
 async function applyLocationProfessionalsUpdate(
   tenantId: string,
   locationId: string,
@@ -45,18 +51,35 @@ async function applyLocationProfessionalsUpdate(
     : [];
   const validIds = validProfessionals.map((professional) => professional.id);
 
-  await prisma.$transaction([
-    prisma.professionalLocation.deleteMany({
+  const currentAssignments = await prisma.professionalLocation.findMany({
+    where: { locationId },
+    select: { professionalId: true },
+  });
+  const currentIds = currentAssignments.map((assignment) => assignment.professionalId);
+  const addedProfessionalIds = validIds.filter((id) => !currentIds.includes(id));
+  const removedProfessionalIds = currentIds.filter((id) => !validIds.includes(id));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.professionalLocation.deleteMany({
       where: { locationId, professionalId: { notIn: validIds } },
-    }),
-    ...validIds.map((professionalId) =>
-      prisma.professionalLocation.upsert({
+    });
+    for (const professionalId of validIds) {
+      await tx.professionalLocation.upsert({
         where: { professionalId_locationId: { professionalId, locationId } },
         create: { professionalId, locationId },
         update: {},
-      })
-    ),
-  ]);
+      });
+    }
+
+    await grantProfessionalLocationAccess(
+      tx,
+      addedProfessionalIds.map((professionalId) => ({ professionalId, locationId }))
+    );
+    await revokeProfessionalLocationAccess(
+      tx,
+      removedProfessionalIds.map((professionalId) => ({ professionalId, locationId }))
+    );
+  });
 }
 
 export async function createLocationAction(tenantSlug: string, formData: FormData): Promise<void> {

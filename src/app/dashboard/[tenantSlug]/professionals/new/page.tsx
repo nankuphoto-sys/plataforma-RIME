@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { ArrowLeft, UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireProfessionalsManageAccess } from "@/lib/auth-guards";
+import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { createProfessionalAction } from "../actions";
 
 export default async function NewProfessionalPage({
@@ -21,8 +24,10 @@ export default async function NewProfessionalPage({
 
   return (
     <div className="mx-auto max-w-xl">
-      <Link href={`/dashboard/${tenantSlug}/professionals`} className="shell-link">
-        ← Volver a profesionales
+      <Link href={`/dashboard/${tenantSlug}/professionals`} className="group inline-flex items-center gap-1 shell-link">
+        <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:-translate-x-0.5" />
+        Volver a profesionales
+        <LinkPendingSpinner />
       </Link>
       <h1 className="page-title mt-3">Nuevo profesional</h1>
 
@@ -96,9 +101,9 @@ export default async function NewProfessionalPage({
           )}
         </div>
 
-        <button type="submit" className="btn-primary">
+        <SubmitButton icon={<UserPlus className="h-4 w-4" />} pendingLabel="Creando…">
           Crear profesional
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

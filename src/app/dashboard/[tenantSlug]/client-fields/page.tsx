@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ListPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireClientFieldsManageAccess } from "@/lib/auth-guards";
 
@@ -29,7 +30,8 @@ export default async function ClientFieldsPage({
       <div className="flex items-center justify-between gap-4">
         <h1 className="page-title">Campos de ficha</h1>
         <Link href={`/dashboard/${tenantSlug}/client-fields/new`} className="btn-primary">
-          + Nuevo campo
+          <ListPlus className="h-4 w-4" />
+          Nuevo campo
         </Link>
       </div>
       <p className="page-subtitle">

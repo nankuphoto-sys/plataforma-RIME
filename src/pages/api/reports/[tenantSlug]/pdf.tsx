@@ -112,10 +112,12 @@ function ReportPdfDocument({ tenantName, fromLabel, toLabel, data }: ReportPdfDo
             <View>
               <View style={styles.headerRow}>
                 <Text style={styles.headerCell}>Profesional</Text>
-                <Text style={styles.headerCell}>Citas completadas</Text>
-                <Text style={styles.headerCell}>Ingreso por servicios</Text>
-                <Text style={styles.headerCell}>% Comisión</Text>
-                <Text style={styles.headerCell}>Comisión a pagar</Text>
+                <Text style={styles.headerCell}>Citas</Text>
+                <Text style={styles.headerCell}>Ingreso</Text>
+                <Text style={styles.headerCell}>% (default)</Text>
+                <Text style={styles.headerCell}>Total</Text>
+                <Text style={styles.headerCell}>Pagada</Text>
+                <Text style={styles.headerCell}>Pendiente</Text>
               </View>
               {commissionRows.map((row) => (
                 <View key={row.id} style={styles.row}>
@@ -124,6 +126,8 @@ function ReportPdfDocument({ tenantName, fromLabel, toLabel, data }: ReportPdfDo
                   <Text style={styles.cell}>USD {row.totalServiceRevenue.toFixed(2)}</Text>
                   <Text style={styles.cell}>{row.commissionRatePercent}%</Text>
                   <Text style={styles.cell}>USD {row.commissionAmount.toFixed(2)}</Text>
+                  <Text style={styles.cell}>USD {row.paidCommissionAmount.toFixed(2)}</Text>
+                  <Text style={styles.cell}>USD {row.pendingCommissionAmount.toFixed(2)}</Text>
                 </View>
               ))}
             </View>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MapPinPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireOwnerAccess } from "@/lib/auth-guards";
 import { getPlanLimits, hasReachedLocationLimit } from "@/lib/planLimits";
@@ -26,7 +27,8 @@ export default async function LocationsPage({
         <h1 className="page-title">Sedes</h1>
         {!atLocationLimit && (
           <Link href={`/dashboard/${tenantSlug}/locations/new`} className="btn-primary">
-            + Nueva sede
+            <MapPinPlus className="h-4 w-4" />
+            Nueva sede
           </Link>
         )}
       </div>

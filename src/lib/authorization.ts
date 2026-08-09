@@ -42,3 +42,33 @@ export function hasAnyOfRolesInTenantLocations(
     (role) => tenantLocationIdSet.has(role.locationId) && allowedRoles.includes(role.role)
   );
 }
+
+// ¿Cuál es el rol del usuario en ESTA location puntual? Como
+// StaffLocationRole tiene @@unique([userId, locationId]), un usuario tiene
+// a lo sumo un rol por location — nunca hace falta desambiguar entre varios
+// roles para la misma location. Usado por la agenda interna para decidir si
+// mostrar "solo lo mío" (rol PROFESSIONAL) o la vista completa de la sede.
+export function getRoleAtLocation(
+  roles: StaffLocationRoleRecord[],
+  locationId: string
+): Role | undefined {
+  return roles.find((role) => role.locationId === locationId)?.role;
+}
+
+// ¿Es este usuario "solo profesional" dentro del tenant? Es decir: tiene al
+// menos un rol en alguna location del tenant, y TODOS esos roles son
+// PROFESSIONAL — nunca OWNER/ADMIN/STAFF en ninguna sede del tenant. Se usa
+// para restringir la ficha de clientes a "solo lo mío": un usuario que
+// además es STAFF/ADMIN/OWNER en alguna sede sigue viendo el CRM completo,
+// porque ese otro rol ya requiere esa visibilidad más amplia. A diferencia
+// de getRoleAtLocation (que es por sede puntual, para la agenda), esto es a
+// nivel de todo el tenant porque Client no tiene locationId propio.
+export function isProfessionalOnlyInTenant(
+  roles: StaffLocationRoleRecord[],
+  tenantLocationIds: string[]
+): boolean {
+  const tenantLocationIdSet = new Set(tenantLocationIds);
+  const rolesInTenant = roles.filter((role) => tenantLocationIdSet.has(role.locationId));
+  if (rolesInTenant.length === 0) return false;
+  return rolesInTenant.every((role) => role.role === "PROFESSIONAL");
+}

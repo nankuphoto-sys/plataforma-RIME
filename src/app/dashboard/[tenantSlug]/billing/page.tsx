@@ -1,13 +1,17 @@
 import Link from "next/link";
+import { ArrowRightLeft, CreditCard, RefreshCw, Settings, XCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireBillingAccess } from "@/lib/auth-guards";
 import { getPlanLimits } from "@/lib/planLimits";
 import { PLAN_OPTIONS, describePlan } from "@/lib/planDisplay";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import {
   createSubscriptionCheckoutAction,
   createBillingPortalSessionAction,
   changeSubscriptionPlanAction,
+  changeWompiSubscriptionPlanAction,
   cancelWompiSubscriptionAction,
+  reactivateWompiSubscriptionAction,
 } from "./actions";
 
 export default async function BillingPage({
@@ -21,15 +25,28 @@ export default async function BillingPage({
   const { checkout, error } = await searchParams;
   const { tenant } = await requireBillingAccess(tenantSlug);
 
-  const [locationCount, activeProfessionalCount] = tenant.stripeSubscriptionId
+  const hasWompiSubscription = Boolean(tenant.wompiPaymentSourceId);
+  const hasStripeSubscription = Boolean(tenant.stripeSubscriptionId);
+  // Mutuamente excluyentes (un tenant no puede tener las dos a la vez — ver
+  // el error "ya-tenes-stripe" más abajo), así que alcanza con "cualquiera
+  // de las dos" para decidir si mostrar la sección de cambio de plan.
+  const hasAnySubscription = hasStripeSubscription || hasWompiSubscription;
+  // `stripeSubscriptionId` NUNCA se borra cuando Stripe cancela la
+  // suscripción (customer.subscription.deleted solo toca `status`, ver
+  // webhook) — así que "tiene stripeSubscriptionId" no alcanza para saber
+  // si la suscripción sigue viva. Si el tenant quedó CANCELLED, esa
+  // suscripción vieja ya está muerta del lado de Stripe y no se puede
+  // reactivar vía Billing Portal: hay que armar un Checkout nuevo (mismo
+  // botón que la primera vez), que Stripe permite sin problema para un
+  // customer que ya tuvo una suscripción anterior.
+  const stripeNeedsReactivation = hasStripeSubscription && tenant.status === "CANCELLED";
+
+  const [locationCount, activeProfessionalCount] = hasAnySubscription
     ? await Promise.all([
         prisma.location.count({ where: { tenantId: tenant.id } }),
         prisma.professional.count({ where: { tenantId: tenant.id, active: true } }),
       ])
     : [0, 0];
-
-  const hasWompiSubscription = Boolean(tenant.wompiPaymentSourceId);
-  const hasStripeSubscription = Boolean(tenant.stripeSubscriptionId);
 
   return (
     <div className="mx-auto max-w-xl">
@@ -48,6 +65,18 @@ export default async function BillingPage({
         </p>
       )}
       {checkout === "wompi-cancelado" && <p className="msg-success mt-4">Suscripción de Wompi cancelada.</p>}
+      {checkout === "wompi-plan-changed" && (
+        <p className="msg-success mt-4">
+          Plan actualizado. Tu próximo cobro automático por Wompi va a salir con el monto del plan
+          nuevo (sin prorrateo por lo que quedaba del ciclo actual).
+        </p>
+      )}
+      {checkout === "wompi-reactivando" && (
+        <p className="msg-success mt-4">
+          Reactivación en camino. Puede tardar unos segundos en reflejarse mientras Wompi confirma
+          el cobro.
+        </p>
+      )}
       {error === "sin-suscripcion" && (
         <p className="msg-error mt-4">Todavía no hay ninguna suscripción configurada para gestionar.</p>
       )}
@@ -74,28 +103,38 @@ export default async function BillingPage({
 
       {!hasWompiSubscription && (
         <div className="mt-6">
-          {!hasStripeSubscription ? (
+          {!hasStripeSubscription || stripeNeedsReactivation ? (
             <form action={createSubscriptionCheckoutAction.bind(null, tenantSlug)}>
-              <button type="submit" className="btn-primary">
-                Configurar cobro automático
-              </button>
+              <SubmitButton
+                icon={
+                  stripeNeedsReactivation ? (
+                    <RefreshCw className="h-4 w-4" />
+                  ) : (
+                    <CreditCard className="h-4 w-4" />
+                  )
+                }
+                pendingLabel={stripeNeedsReactivation ? "Reactivando…" : "Configurando…"}
+              >
+                {stripeNeedsReactivation ? "Reactivar suscripción" : "Configurar cobro automático"}
+              </SubmitButton>
             </form>
           ) : (
             <form action={createBillingPortalSessionAction.bind(null, tenantSlug)}>
-              <button type="submit" className="btn-secondary">
+              <SubmitButton icon={<Settings className="h-4 w-4" />} pendingLabel="Abriendo…" className="btn-secondary">
                 Gestionar suscripción / actualizar método de pago
-              </button>
+              </SubmitButton>
             </form>
           )}
         </div>
       )}
 
-      {tenant.stripeSubscriptionId && (
+      {hasAnySubscription && tenant.status !== "CANCELLED" && (
         <section className="mt-10 border-t border-sage-dark/30 pt-6">
           <h2 className="section-title">Cambiar de plan</h2>
           <p className="mt-2 text-sm text-ink/55">
-            El cambio aplica de inmediato. Si subís de plan, Stripe cobra la diferencia prorrateada
-            ahora; si bajás, te acredita la diferencia en tu próxima factura.
+            {hasStripeSubscription
+              ? "El cambio aplica de inmediato. Si subís de plan, Stripe cobra la diferencia prorrateada ahora; si bajás, te acredita la diferencia en tu próxima factura."
+              : "El cambio de acceso aplica de inmediato. A diferencia de Stripe, acá no hay prorrateo: tu próximo cobro automático por Wompi ya sale con el monto completo del plan nuevo, sin ajustar por lo que quedaba del ciclo actual."}
           </p>
 
           <div className="mt-4 space-y-3">
@@ -104,6 +143,9 @@ export default async function BillingPage({
               const { maxLocations, maxProfessionals } = getPlanLimits(option.value);
               const overLocations = maxLocations !== null && locationCount > maxLocations;
               const overProfessionals = maxProfessionals !== null && activeProfessionalCount > maxProfessionals;
+              const changePlanAction = hasStripeSubscription
+                ? changeSubscriptionPlanAction
+                : changeWompiSubscriptionPlanAction;
 
               return (
                 <div key={option.value} className="panel flex items-center justify-between gap-4">
@@ -124,10 +166,14 @@ export default async function BillingPage({
                     )}
                   </div>
                   {!isCurrent && (
-                    <form action={changeSubscriptionPlanAction.bind(null, tenantSlug, option.value)}>
-                      <button type="submit" className="btn-secondary-sm whitespace-nowrap">
+                    <form action={changePlanAction.bind(null, tenantSlug, option.value)}>
+                      <SubmitButton
+                        icon={<ArrowRightLeft className="h-3.5 w-3.5" />}
+                        pendingLabel="Cambiando…"
+                        className="btn-secondary-sm whitespace-nowrap"
+                      >
                         Cambiar a {option.label}
-                      </button>
+                      </SubmitButton>
                     </form>
                   )}
                 </div>
@@ -143,6 +189,7 @@ export default async function BillingPage({
           {!hasWompiSubscription ? (
             <div className="mt-4">
               <Link href={`/dashboard/${tenantSlug}/billing/wompi-setup`} className="btn-primary">
+                <CreditCard className="h-4 w-4" />
                 Configurar cobro automático (Wompi)
               </Link>
             </div>
@@ -160,11 +207,25 @@ export default async function BillingPage({
                   </span>
                 </p>
               )}
-              {tenant.status !== "CANCELLED" && (
+              {tenant.status === "CANCELLED" ? (
+                <form action={reactivateWompiSubscriptionAction.bind(null, tenantSlug)} className="pt-2">
+                  <SubmitButton
+                    icon={<RefreshCw className="h-3.5 w-3.5" />}
+                    pendingLabel="Reactivando…"
+                    className="btn-secondary-sm"
+                  >
+                    Reactivar suscripción
+                  </SubmitButton>
+                </form>
+              ) : (
                 <form action={cancelWompiSubscriptionAction.bind(null, tenantSlug)} className="pt-2">
-                  <button type="submit" className="btn-secondary-sm">
+                  <SubmitButton
+                    icon={<XCircle className="h-3.5 w-3.5" />}
+                    pendingLabel="Cancelando…"
+                    className="btn-secondary-sm"
+                  >
                     Cancelar suscripción
-                  </button>
+                  </SubmitButton>
                 </form>
               )}
             </div>

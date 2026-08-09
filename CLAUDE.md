@@ -108,8 +108,11 @@ Diferenciadores clave frente a AgendaPro (no los rompas al implementar features)
    `Professional.commissionRate` editable inline desde la misma página
    (`updateProfessionalCommissionRateAction`, preserva el rango de fechas al
    guardar). Link "Reportes" en el dashboard solo visible para OWNER/ADMIN.
-   Fuera de esta fase: exportar a CSV/PDF, gráficos, comisión por servicio
-   individual, tracking de "comisión pagada".
+   Fuera de esta fase (en ese momento): exportar a CSV/PDF, gráficos (ambos
+   resueltos después, ver "Exportar reportes" más abajo), comisión por
+   servicio individual, tracking de "comisión pagada" (ambos resueltos
+   después, ver "Costo por insumo, comisión por servicio, reporte de
+   consumo, alertas de stock bajo por WhatsApp" más abajo).
 5. Multi-sede avanzado (parte 1/2: gestión de sedes) ✅ hecho — nuevo modelo
    `ProfessionalLocation` (espejo de `ProfessionalService`) para asignar
    profesionales a sedes específicas del mismo tenant (relación no
@@ -210,9 +213,13 @@ Diferenciadores clave frente a AgendaPro (no los rompas al implementar features)
    sede (`?locationId=`) que ya usa la agenda interna. Link "Inventario" en
    el dashboard visible para cualquier usuario con acceso (no solo
    OWNER/ADMIN).
-   Fuera de esta fase: vínculo servicio↔insumo y descuento automático por
-   cita, alertas por WhatsApp, categorías/proveedores/costos, reportes de
-   consumo, borrado de ítems o movimientos.
+   Fuera de esta fase (en ese momento): vínculo servicio↔insumo y descuento
+   automático por cita (resuelto después, ver "Vínculo servicio↔insumo con
+   descuento automático de stock"), alertas por WhatsApp, costos por insumo,
+   reportes de consumo (los tres resueltos después, ver "Costo por insumo,
+   comisión por servicio, reporte de consumo, alertas de stock bajo por
+   WhatsApp" más abajo). Categorías/proveedores y borrado de ítems o
+   movimientos siguen sin resolver.
 
 Con esto, los tres bloques de la Fase 5 (multi-sede avanzado, CRM
 predictivo de recompra, inventario) quedan completos.
@@ -510,14 +517,18 @@ suscripción/customer de prueba y devolvió el tenant demo a su estado
 original. Revisión de código independiente confirmó que cada rama coincide
 con lo verificado (sin `Tenant.status` tocado por la rama nueva del
 webhook, sin desactivaciones automáticas, `redirect()` corta la ejecución
-igual que en las acciones existentes). Dos notas menores sin resolver, no
-bloqueantes: `subscriptionItemId` asume que la suscripción siempre tiene
-exactamente un item (cierto hoy, no validado explícitamente si algún día
-dejara de serlo), y no hay test unitario para `getPlanFromStripePriceId`
-(sí existe para `planLimits.ts`).
+igual que en las acciones existentes). Dos notas menores resueltas después
+(sesión de Cowork): `changeSubscriptionPlanAction` ahora valida
+explícitamente `subscription.items.data.length !== 1` antes de asumir cuál
+es el item a actualizar (si no, redirige con un error claro en vez de
+arriesgarse a que Stripe interprete un `id` faltante como "agregar un ítem
+nuevo"), y se agregó `src/lib/subscriptionPlans.test.ts` cubriendo
+`getStripePriceId`/`getPlanFromStripePriceId` (mismo patrón de mockear
+`process.env` que ya usa `whatsapp.test.ts`).
 
-Fuera de esta fase: Wompi recurrente, cambio de cantidad/prorrateo manual,
-cualquier otro control de facturación más allá de elegir el plan destino.
+Fuera de esta fase (en ese momento): Wompi recurrente (ver más abajo, ya
+resuelto), cambio de cantidad/prorrateo manual, cualquier otro control de
+facturación más allá de elegir el plan destino.
 
 Cobro recurrente vía Wompi (Colombia) ✅ hecho y verificado en vivo de punta
 a punta — siguiendo `prompt-wompi-recurrente.md`. Arquitectura: modelo
@@ -593,10 +604,189 @@ flujo solo produce sources tipo `CARD` (`type: "CARD"` ya está hardcodeado
 al llamar a `POST /v1/payment_sources`), pero queda documentado por si
 algún día se agrega otro tipo de source.
 
-Fuera de esta fase: 3DS/3RI, Credential On File, actualizar tarjeta (solo
-configurar por primera vez y cancelar), cambio de plan self-service para
-tenants en Wompi, reactivación después de `CANCELLED`, notificaciones por
-WhatsApp/email ante un cobro rechazado.
+Fuera de esta fase (en ese momento): 3DS/3RI, Credential On File, actualizar
+tarjeta (solo configurar por primera vez y cancelar), cambio de plan
+self-service para tenants en Wompi (ver más abajo, ya resuelto),
+reactivación después de `CANCELLED` (ver más abajo, ya resuelto),
+notificaciones por WhatsApp/email ante un cobro rechazado.
+
+Cambio de plan self-service para tenants en Wompi ✅ hecho y **verificado en
+vivo** (sesión de Cowork, 6 ago 2026 — ver nota al final de esta sección; en
+su momento solo se había verificado por tsc/tests). A diferencia de Stripe, Wompi no tiene acá ningún objeto de
+"suscripción" que actualizar: `chargeTenantWompiSubscription` siempre
+calcula el monto a cobrar leyendo `getWompiPriceInCents(tenant.plan)` en el
+momento de cada cobro (no un monto fijado al momento de crear la
+suscripción). Por eso `changeWompiSubscriptionPlanAction`
+(`billing/actions.ts`) es mucho más simple que su equivalente de Stripe:
+solo actualiza `Tenant.plan` directamente — es la única fuente de verdad acá
+(no hace falta ningún webhook de por medio, a diferencia de
+`changeSubscriptionPlanAction` que espera a `customer.subscription.updated`).
+
+Decisión de producto explícita, documentada en el propio código: el cambio
+de ACCESO (feature-gating, que lee `tenant.plan` en cada request) es
+inmediato, pero **no hay prorrateo financiero** — el próximo
+`wompiNextChargeAt` cobra el monto completo del plan nuevo, sin acreditar ni
+cobrar la diferencia de lo que quedaba del ciclo actual. Wompi no ofrece acá
+un mecanismo de crédito equivalente a `proration_behavior:
+"create_prorations"` de Stripe, y construirlo a mano queda fuera de esta
+fase. `billing/page.tsx` unificó la sección "Cambiar de plan" (antes exigía
+`tenant.stripeSubscriptionId`) para mostrarse también a tenants de Wompi
+(`hasAnySubscription = hasStripeSubscription || hasWompiSubscription`,
+mutuamente excluyentes entre sí — ver el error `ya-tenes-stripe` ya
+existente), con copy distinto explicando la falta de prorrateo para Wompi,
+y el conteo de sedes/profesionales activos (para el aviso de "estás por
+encima del límite del plan nuevo") ahora se calcula para cualquiera de los
+dos proveedores en vez de solo Stripe.
+
+Verificado originalmente solo por `tsc --noEmit` (limpio) y los 62 tests
+existentes, sin tocar ninguno.
+
+**Cierre de ese pendiente (sesión de Cowork, 6 ago 2026, navegador real vía
+la extensión de Claude in Chrome contra `npm run dev`)**: como
+`changeWompiSubscriptionPlanAction` no llama a la API de Wompi en ningún
+punto — solo chequea que `tenant.wompiPaymentSourceId` no sea null y
+actualiza `Tenant.plan` directo —, se sembró un tenant QA descartable
+(`prisma/qa-wompi-change-plan.ts`) ya "configurado" con Wompi
+(`wompiPaymentSourceId` sembrado a mano, sin pasar por la tokenización real
+del widget — no hay nada del lado de Wompi que ese source_id falso pudiera
+romper, así que no es un atajo que salte ninguna verificación real), plan
+BASICO, status ACTIVE, y **2 sedes ya creadas a propósito** para poder
+probar en vivo el aviso de "por encima del límite" al bajar a INDIVIDUAL
+(que solo permite 1 sede).
+
+Con sesión real de browser (login + clicks, no scripts contra Prisma):
+confirmado que Inventario estaba bloqueado en BASICO (`/plan-required?
+feature=inventario&requiredPlan=PREMIUM`); clickear "Cambiar a Premium"
+actualizó `Plan actual: PREMIUM` de inmediato con el mensaje "sin
+prorrateo", y entrar a Inventario en la misma sesión (sin relogin) ya
+cargó la página completa — confirmando que el feature-gating lee
+`tenant.plan` fresco de la base en cada request, no del JWT. Downgrade a
+INDIVIDUAL con las 2 sedes todavía activas se permitió sin bloquear (tal
+como está diseñado — nunca se desactiva nada solo), y `/locations` mostró
+"2 de 1 sede usadas en tu plan INDIVIDUAL. Alcanzaste el máximo de tu plan
+— sube de plan para agregar más." con el link "+ Nueva sede" oculto y
+ambas sedes (`Sede QA 1`, `Sede QA 2`) intactas en la tabla — el
+enforcement de `hasReachedLocationLimit` reaccionó solo, sin código nuevo
+para eso. El aviso "Hoy tenés 2 sedes / 0 profesionales activos, más de lo
+que incluye este plan..." se vio correctamente en las tarjetas de
+Individual y Básico apenas el plan quedó por encima de ese límite.
+
+No se forzó en vivo el error `mismo-plan` (intentar cambiar al plan que ya
+está activo) — la UI ya oculta el botón para el plan actual, y el guard es
+una línea idéntica en estructura a la ya verificada en vivo para el
+equivalente de Stripe (`error=mismo-plan` sin llamar a Stripe), así que
+queda cubierto solo por revisión de código. Tenant QA borrado al terminar
+con `prisma/qa-wompi-change-plan-cleanup.ts` (cascade).
+
+Reactivación de cuenta tras `CANCELLED` ✅ hecho y **verificado en vivo**
+(sesión de Cowork, 6 ago 2026 — ver nota al final de esta sección; en su
+momento solo se había verificado por tsc/revisión de código). Hallazgo
+central que faltaba antes de esta fase: el webhook
+`customer.subscription.deleted` de Stripe solo actualiza `Tenant.status` a
+`CANCELLED`, nunca borra `stripeSubscriptionId` — así que "el tenant tiene
+`stripeSubscriptionId`" NO significaba "tiene una suscripción viva". Con la
+UI vieja, un tenant CANCELLED de Stripe caía siempre en la rama de
+"Gestionar suscripción / actualizar método de pago" (Billing Portal), que no
+sirve para resucitar una suscripción ya borrada del lado de Stripe — el
+Billing Portal está pensado para gestionar una suscripción activa, no para
+crear una nueva. La solución no fue escribir un flujo de reactivación nuevo
+para Stripe: fue notar que `createSubscriptionCheckoutAction` (la misma
+acción de "Configurar cobro automático" de siempre) ya arma un Checkout
+Session nuevo reusando `stripeCustomerId` si existe, y Stripe no tiene
+ningún problema en crear una suscripción nueva para un customer que ya tuvo
+una anterior cancelada. `billing/page.tsx` ahora calcula
+`stripeNeedsReactivation = hasStripeSubscription && tenant.status ===
+"CANCELLED"` y, en ese caso, muestra el botón de checkout de siempre con el
+label "Reactivar suscripción" en vez de mandar al Billing Portal.
+
+Para Wompi, `wompiPaymentSourceId` tampoco se borra nunca al cancelar (ya
+documentado en `cancelWompiSubscriptionAction`), y Wompi no tiene forma de
+invalidarlo del lado suyo — sigue siendo cobrable. Por eso
+`reactivateWompiSubscriptionAction` (`billing/actions.ts`) es simplemente
+reintentar un cobro con `chargeTenantWompiSubscription` (la misma función
+compartida que ya usan el primer cobro y el cron mensual), después de
+resetear `wompiRetryCount`/`wompiFirstFailedAt` — sin ese reset, un rechazo
+en este mismo intento de reactivación encontraría el contador ya en el tope
+de la cancelación anterior y recancelaría al toque en vez de darle la
+escalera completa de reintentos (+2/+4/+7 días) como a cualquier cobro
+normal (ver `handleSubscriptionChargeUpdate` en el webhook de Wompi, no
+modificado — ya maneja este caso correctamente por sí solo gracias al
+reset). `status` no se toca de forma optimista: sigue en `CANCELLED` hasta
+que el webhook confirme el resultado real del cobro.
+
+`billing/page.tsx` unificado: la sección "Cambiar de plan" ahora se oculta
+mientras el tenant esté `CANCELLED` (no tiene sentido cambiar de plan sobre
+una suscripción muerta — para Stripe directamente fallaría, para Wompi solo
+generaría confusión), priorizando el botón de reactivación. La sección de
+Wompi muestra "Reactivar suscripción" en vez de "Cancelar suscripción"
+cuando el status es `CANCELLED`.
+
+`account-locked/page.tsx` se simplificó para dejar de reimplementar lógica
+de Stripe ahí mismo: ya no calcula nada de `stripeCustomerId` ni llama a
+`createBillingPortalSessionAction` directamente — ahora es un simple router
+que manda a `/billing` (única fuente de verdad para ambos proveedores) si
+quien mira la pantalla tiene rol OWNER, o le pide que hable con el OWNER del
+tenant si no lo tiene. Este último chequeo de rol es una mejora aparte
+detectada de paso: la versión anterior mostraba el botón de Billing Portal
+a cualquier usuario del tenant sin importar su rol, y como
+`requireBillingAccess` exige OWNER, un STAFF/ADMIN que lo clickeara se
+encontraba con un 404 confuso.
+
+Verificado originalmente solo por `tsc --noEmit` (limpio) y revisión de
+código, sin tocar ningún test existente.
+
+**Cierre de ese pendiente (sesión de Cowork, 6 ago 2026, navegador real vía
+la extensión de Claude in Chrome contra `npm run dev` + Stripe test mode
+real + Wompi sandbox real)**: se armaron dos tenants QA descartables desde
+cero (`prisma/qa-billing-reactivation.ts`, plan INDIVIDUAL/TRIAL, un OWNER
+cada uno) — `qa-billing-stripe` y `qa-billing-wompi` — porque un tenant no
+puede tener ambos proveedores configurados a la vez.
+
+Lado Stripe: Checkout real completado con la tarjeta de prueba
+4242 4242 4242 4242 (`stripe listen --forward-to localhost:3000/api/webhooks/stripe`
+corriendo en paralelo) dejó el tenant en `ACTIVE`. Se descubrió en vivo que
+el botón "Cancelar suscripción" del Billing Portal de Stripe solo programa
+la cancelación para el fin del período (`cancel_at_period_end: true`), no
+dispara `customer.subscription.deleted` de inmediato — para forzar la
+cancelación inmediata y poder probar el webhook real hubo que correr
+`stripe subscriptions cancel <id>` desde la Stripe CLI. Confirmado en vivo:
+el webhook dejó `status: CANCELLED`; entrar a `/dashboard/qa-billing-stripe`
+redirigió a `/account-locked` con el mensaje esperado y el botón "Ir a
+Facturación"; en `/billing` el botón mostró "Reactivar suscripción" (no
+"Gestionar suscripción"); clickearlo abrió un Checkout Session **nuevo**
+(no el Billing Portal, que ya no sirve porque la suscripción vieja está
+muerta del lado de Stripe); completarlo con la misma tarjeta de prueba dejó
+`status: ACTIVE` de nuevo y acceso completo al dashboard restaurado sin
+relogin.
+
+Lado Wompi: tokenización real contra el widget hospedado de Wompi
+(`https://checkout.wompi.co/widget.js`, modo sandbox) con la misma tarjeta
+de prueba 4242 4242 4242 4242 — el primer cobro se disparó real contra la
+API de Wompi y se resolvió a `ACTIVE` simulando la entrega del webhook con
+`prisma/qa-wompi-webhook-simulate.ts` (mismo patrón ya usado en la
+verificación original de "Cobro recurrente vía Wompi": consulta el estado
+REAL de la transacción contra la API de Wompi antes de construir el evento,
+firmado con el `WOMPI_EVENTS_SECRET` real — no es un atajo que salte la
+verificación de firma). Clickear "Cancelar suscripción" dejó `status:
+CANCELLED` de inmediato (acción síncrona, sin depender de ningún webhook,
+tal como está diseñada) y mostró "Reactivar suscripción" en su lugar;
+entrar a `/dashboard/qa-billing-wompi` redirigió a `/account-locked` igual
+que con Stripe. Clickear "Reactivar suscripción" mostró "Reactivando..." y
+disparó un cobro real nuevo contra Wompi (reseteando `wompiRetryCount`/
+`wompiFirstFailedAt` antes, confirmado por lectura de código); resolviendo
+ese cobro con el mismo script de simulación de webhook, el tenant volvió a
+`ACTIVE` y la Agenda cargó normal (sin redirect a `account-locked`), con el
+nav completo (Facturación, Sedes, Reportes, etc.) visible de nuevo.
+
+En ambos casos la sección "Cambiar de plan" desapareció mientras el tenant
+estuvo `CANCELLED` y reapareció al volver a `ACTIVE`, tal como está
+diseñado. Los dos tenants QA se borraron al terminar con
+`prisma/qa-billing-reactivation-cleanup.ts` (cascade sobre `Location`/
+`User`/`StaffLocationRole`/`TenantWompiCharge`).
+
+Fuera de esta fase: reactivación automática (sin que el usuario tenga que
+apretar un botón), cualquier mensaje proactivo (WhatsApp/email) avisando que
+la cuenta fue cancelada o invitando a reactivarla.
 
 Recuperación y cambio de contraseña ✅ hecho y verificado en vivo — siguiendo
 `prompt-reset-password.md`. Hasta esta fase no existía forma de que un
@@ -719,10 +909,11 @@ asignada / invitar o vincular / ya vinculado con opción de desvincular) —
 no se tocó `professionals/new/page.tsx` ni `createProfessionalAction`/
 `updateProfessionalAction`.
 
-Decisión deliberada, documentada para no confundirla con un olvido: el
-acceso otorgado (`StaffLocationRole`) NO se resincroniza automáticamente si
-después cambian las sedes asignadas al profesional vía el checklist ya
-existente — eso se ajusta a mano desde Equipo. Evita lógica de
+Decisión deliberada EN ESTA FASE (revertida después — ver "Resincronización
+automática de accesos al cambiar sedes" más abajo, ya resuelto): el acceso
+otorgado (`StaffLocationRole`) NO se resincroniza automáticamente si después
+cambian las sedes asignadas al profesional vía el checklist ya existente —
+en ese momento se ajustaba a mano desde Equipo, para evitar lógica de
 sincronización bidireccional frágil y el riesgo de pisar accesos otorgados
 por otro lado.
 
@@ -744,9 +935,11 @@ plan en INDIVIDUAL) responde igual que antes.
 
 Fuera de esta fase: filtrar la agenda/clientes por profesional para que un
 login `PROFESSIONAL` vea "solo lo mío" (la fase más grande que se descartó
-explícitamente por ahora), resincronización automática de accesos al
-cambiar sedes, cualquier UI para gestionar `Service` en sí (sigue sin
-existir, fuera del alcance de esta fase también).
+explícitamente por ahora, ver más abajo, ya resuelto), resincronización
+automática de accesos al cambiar sedes (en ese momento sin resolver, ver más
+abajo, ya resuelto), cualquier UI para gestionar `Service` en sí (sigue sin
+existir en ese momento, resuelto después — ver "Gestión de servicios" más
+abajo).
 
 Gestión de servicios ✅ hecho y verificado en vivo — siguiendo
 `prompt-gestion-servicios.md`. `model Service` ya tenía todos los campos
@@ -1041,11 +1234,14 @@ vinculando un insumo a un servicio y confirmando el `ServiceInventoryItem`
 creado en la base con la cantidad correcta. Los 62 tests existentes siguen
 pasando.
 
-Fuera de esta fase: ningún campo de costo/moneda en `InventoryItem` ni
-`ServiceInventoryItem`, desvinculación automática de un `ServiceInventoryItem`
-cuando el `InventoryItem` asociado se desactiva (se puede seguir viendo y
-gestionando a mano, igual que el resto del proyecto no auto-limpia vínculos
-al desactivar algo), cualquier reporte de consumo de insumos.
+Fuera de esta fase (en ese momento): campo de costo en `InventoryItem` y
+reporte de consumo de insumos (ambos resueltos después, ver "Costo por
+insumo, comisión por servicio, reporte de consumo, alertas de stock bajo
+por WhatsApp" más abajo). `ServiceInventoryItem` sigue sin campo de
+costo/moneda propio (usa el de `InventoryItem`) y la desvinculación
+automática al desactivar un `InventoryItem` sigue sin resolver (se puede
+seguir viendo y gestionando a mano, igual que el resto del proyecto no
+auto-limpia vínculos al desactivar algo).
 
 Al pedirle trabajo a Claude Code, referencia la fase en la que estás para que
 no se adelante a construir cosas de fases posteriores sin necesidad.
@@ -1166,3 +1362,474 @@ de código — todo trámite/configuración del lado de Meta.
 
 Ver también `guia-aprobacion-whatsapp-business-meta.md` en la raíz del repo
 para el paso a paso completo del trámite.
+
+## Vista "solo lo mío" para login PROFESSIONAL (sesión de Cowork)
+
+✅ hecho y **verificado en vivo** (sesión de Cowork, 2 ago 2026 — ver nota al
+final de esta sección). Era el pendiente
+más grande documentado tras la fase de vínculo Profesional↔Usuario: hasta
+ahora, un login con rol `PROFESSIONAL` veía exactamente lo mismo que un
+`STAFF` (la agenda completa de su sede, todos los clientes del tenant). Esta
+fase restringe eso sin tocar en nada el comportamiento de `OWNER`/`ADMIN`/
+`STAFF`, que siguen viendo todo igual que siempre.
+
+Regla de negocio, en dos partes porque `Client` no tiene `locationId` propio
+(a diferencia de `Appointment`) y por lo tanto no puede evaluarse por sede:
+
+1. **Agenda** (`src/app/dashboard/[tenantSlug]/page.tsx` +
+   `updateAppointmentStatusAction`): se evalúa **por sede puntual**, con
+   `getRoleAtLocation` (nueva, en `src/lib/authorization.ts` — aprovecha que
+   `StaffLocationRole` tiene `@@unique([userId, locationId])`, así que un
+   usuario tiene a lo sumo un rol por sede). Si el rol del usuario en la sede
+   que está viendo/tocando es `PROFESSIONAL`, se filtra por su
+   `professionalId` vinculado (ver `Professional.userId`); si es cualquier
+   otro rol, cero cambios de comportamiento. Un mismo usuario puede ser
+   `PROFESSIONAL` en una sede y `STAFF`/`ADMIN` en otra (ver la fase de
+   vínculo Profesional↔Usuario) — la restricción se recalcula cada vez que
+   cambia la sede seleccionada, nunca es "todo o nada" a nivel de usuario.
+2. **Clientes** (`clients/page.tsx`, `clients/[clientId]/page.tsx`,
+   `clients/actions.ts`, `clients/new/page.tsx`): se evalúa **a nivel de
+   tenant completo**, con `isProfessionalOnlyInTenant` (nueva, misma
+   ubicación) — true solo si el usuario tiene al menos un rol en el tenant y
+   TODOS esos roles son `PROFESSIONAL` (nunca `OWNER`/`ADMIN`/`STAFF` en
+   ninguna sede). Si tiene cualquier otro rol en cualquier sede, sigue viendo
+   el CRM completo sin cambios — ese otro rol ya implica que necesita esa
+   visibilidad más amplia para su trabajo.
+
+`src/lib/professionalScope.ts` (nuevo) — `getLinkedProfessionalId(userId)`,
+un `prisma.professional.findUnique({ where: { userId } })` centralizado,
+usado en los cinco puntos de arriba. Deliberadamente NO se cachea en el JWT
+de la sesión (a diferencia de `locationRoles`): vincular/desvincular un
+profesional es poco frecuente y sumarlo al token habría creado otro caso de
+"hay que re-loguearse para ver el cambio", igual al que ya existe para
+`locationRoles` tras un cambio en Equipo.
+
+Alcance de "clientes", detallado porque tiene más matices que la agenda:
+- **Lista** (`clients/page.tsx`): filtrada a clientes con al menos una cita
+  con el profesional vinculado (`appointments: { some: { professionalId } }`).
+  El conteo de citas por cliente (columna "Citas") también se filtra con un
+  `_count` condicionalmente scoped (`_count.select.appointments.where`) —
+  si no, un profesional "solo lo mío" vería el total de citas del cliente
+  con TODOS los profesionales del negocio, filtrando indirectamente cuánto
+  lo atendieron otros colegas.
+- **Detalle** (`clients/[clientId]/page.tsx`) y **edición**
+  (`updateClientAction`): mismo filtro sobre el `findFirst` — si no hay
+  ninguna cita con el profesional (o el usuario no tiene ningún profesional
+  vinculado, usando un string-sentinel que nunca matchea un cuid real como
+  fallback), el resultado es el mismo 404 que "este cliente no existe",
+  sin filtrar que sí existe para otro profesional del negocio. El
+  "Historial de citas" en la página de detalle también se filtra a solo las
+  citas propias — el cliente puede haber tenido sesiones con otro
+  profesional del mismo negocio, y esas no son de su incumbencia.
+- **Creación** (`createClientAction`, `clients/new/page.tsx`): **bloqueada**
+  para un usuario "solo profesional", con re-chequeo tanto en la página
+  (redirige a `/clients` con un error, para no mostrar un formulario que de
+  todos modos va a ser rechazado) como en la Server Action (por si se fuerza
+  la ruta a mano). Motivo documentado en el propio código: si se permitiera
+  crear, el cliente recién creado quedaría invisible para su propio creador
+  hasta que existiera una cita entre ambos — un callejón sin salida
+  confuso. Como hoy no existe ningún flujo de "crear cita manual" dentro del
+  dashboard (las citas solo se crean vía la agenda pública de reservas),
+  crear clientes queda como tarea de recepción/administración, igual que
+  gestionar profesionales/sedes/servicios.
+- **Límite conocido, aceptado explícitamente y no resuelto en esta fase**:
+  `Client.customFields` sigue siendo un único JSON compartido por todo el
+  cliente, no por profesional — si el mismo cliente tuvo sesiones con dos
+  profesionales distintos del mismo negocio, ambos ven y pueden editar la
+  MISMA ficha (por ejemplo, el mismo campo de diagnóstico). Separar eso
+  requeriría notas por profesional (un modelo de datos nuevo, con su propia
+  migración) y queda fuera de esta fase — documentado como comentario en
+  `clients/[clientId]/page.tsx` para que no se confunda con un olvido.
+
+Dos casos límite manejados explícitamente, ambos con "fail closed" (mostrar
+menos, nunca de más) en vez de asumir lo contrario:
+- Un usuario con rol `PROFESSIONAL` en una sede pero sin ningún
+  `Professional.userId` vinculado (no debería pasar en la práctica, porque
+  ese rol siempre se crea junto con el vínculo — ver
+  `inviteProfessionalAsUserAction`/`linkExistingUserToProfessionalAction` —
+  pero por las dudas): la agenda y clientes muestran un mensaje explícito
+  ("Tu usuario todavía no tiene un profesional vinculado...") en vez de una
+  pantalla vacía sin explicación o, peor, mostrar todo por defecto.
+- La `resincronización automática de accesos al cambiar sedes` (el otro
+  pendiente que quedó documentado en la fase de vínculo Profesional↔Usuario)
+  todavía no estaba resuelta al escribir esta sección (se resolvió después,
+  ver "Resincronización automática de accesos al cambiar sedes" más abajo)
+  — mientras tanto, si un profesional dejaba de estar asignado a una sede
+  vía el checklist de Sedes/Profesionales pero conservaba su
+  `StaffLocationRole(PROFESSIONAL)` ahí, esta fase simplemente no le
+  mostraba ninguna cita en esa sede (porque ya no tenía ninguna asignada
+  ahí), sin romper ni requerir ningún cambio adicional. Con la sincronización
+  ya implementada, ese `StaffLocationRole` colgado directamente se borra al
+  desasignarlo.
+
+Cambios de código, resumen: `src/lib/authorization.ts` ganó
+`getRoleAtLocation` e `isProfessionalOnlyInTenant` (ambas puras, sin acceso a
+base de datos, con tests nuevos en `authorization.test.ts`); `src/lib/
+professionalScope.ts` es nuevo; `updateAppointmentStatusAction` en
+`dashboard/[tenantSlug]/actions.ts` suma una verificación extra (re-validada
+contra la base, no contra la sesión) que bloquea a un `PROFESSIONAL` de
+cambiar el estado de una cita que no es suya, aunque tenga permiso sobre la
+sede. Cero migraciones de Prisma — todo el schema necesario
+(`Professional.userId`, `StaffLocationRole.role`) ya existía.
+
+**Verificado en vivo (sesión del 2 ago 2026, contra la base real de Neon)**:
+se armó un tenant QA descartable con dos profesionales (A y B) vinculados a
+sus propios usuarios en la misma sede, un cliente con citas de ambos y otro
+cliente solo con B, y se ejecutaron las consultas Prisma reales de
+`page.tsx`/`clients/page.tsx`/`clients/[clientId]/page.tsx` más la lógica de
+permisos de `updateAppointmentStatusAction` contra esos datos (vía un script
+`tsx` temporal, no a través de sesiones HTTP con cookies — ver nota más
+abajo). Confirmado con 25 asserts en verde: (1) la agenda de A solo devuelve
+sus propias citas en esa sede, nunca las de B; (2) el chequeo de permisos
+bloquea a A cambiar el estado de una cita de B y permite cambiar las
+propias; (3) la lista de Clientes de A muestra al cliente compartido pero no
+al cliente solo-de-B, y el conteo de citas de ese cliente compartido queda
+scoped a las propias de A; (4) el `findFirst` del detalle de cliente
+devuelve `null` (equivalente al 404) para el cliente solo-de-B; (5) el
+"Historial de citas" del cliente compartido muestra solo las citas de A; (6)
+un usuario `OWNER` vinculado como su propio profesional (`isProfessionalOnlyInTenant`)
+sigue evaluando `false` — conserva la vista completa. Tenant QA eliminado al
+terminar (cascade), confirmado que no quedó ningún resto.
+**Seguía sin probar** (al escribir el párrafo anterior): el flujo completo
+por navegador con sesiones HTTP reales de A y B (login, clicks) — la
+verificación de esa sesión ejercitó las mismas consultas Prisma y funciones
+de autorización que usan las páginas/acciones reales, pero no pasó por la
+capa de Auth.js/Server Actions en sí.
+
+**Cierre de ese pendiente (sesión de Cowork, 2 ago 2026, navegador real vía
+la extensión de Claude in Chrome contra `npm run dev` + la base de Neon)**:
+se armó un tenant QA descartable nuevo (`qa-solo-lo-mio`, script
+`prisma/qa-professional-scope.ts` — corrido por Jonta en su máquina, ya que
+el sandbox de Cowork no tiene salida de red hacia Neon ni puede generar el
+engine de Prisma para Linux, confirmado en esta misma sesión) con un OWNER y
+dos profesionales A/B con login propio en la misma sede, más un cliente
+compartido con una cita `COMPLETED` con cada uno. Con logins reales por la
+UI (no scripts contra Prisma): (1) la Agenda de A muestra únicamente su
+columna con su cita, la de B no aparece en ningún lado de la semana; (2)
+simétrico para B; (3) Clientes de A muestra al cliente compartido con
+"Citas: 1", no 2; (4) su ficha de detalle — accedida por la misma URL que
+usa B, mismo id de cliente — muestra en "Historial de citas" solo la cita
+propia; (5) simétrico para B; (6) el login OWNER del mismo tenant ve la
+Agenda completa (ambas columnas, ambas citas), Clientes con "Citas: 2" y el
+nav completo (Profesionales, Servicios, Reportes, Equipo, Sedes,
+Facturación), sin ningún filtro. El único punto que sigue sin un intento en
+vivo es que A no pueda cambiar el estado de una cita de B vía
+`updateAppointmentStatusAction` — la UI nunca expone esa opción porque A ni
+siquiera ve la cita de B, así que forzarlo requeriría reconstruir a mano el
+protocolo `Next-Action` de Server Actions; queda cubierto solo por la
+verificación de la sesión anterior (contra la lógica real, vía script) más
+la relectura de código de esta sesión. Tenant QA borrado al terminar
+(`prisma/qa-professional-scope-cleanup.ts`, cascade confirmado).
+
+## Resincronización automática de accesos al cambiar sedes (sesión de Cowork)
+
+✅ hecho y **verificado en vivo** (sesión de Cowork, 2 ago 2026 — ver nota al
+final de esta sección, antes solo se había verificado por `tsc --noEmit` y
+llamando a las funciones directamente vía script, sin pasar por la UI real
+ni por sesiones de navegador reales). Era el segundo y último
+pendiente que había quedado documentado en la fase de vínculo
+Profesional↔Usuario: hasta ahora, el checklist de sedes de un profesional
+(editable tanto desde `professionals/[professionalId]` como desde
+`locations/[locationId]`, dos pantallas distintas que tocan la misma tabla
+`ProfessionalLocation`) no tenía ningún efecto sobre el
+`StaffLocationRole(PROFESSIONAL)` de su usuario vinculado — asignarlo a una
+sede nueva no le daba acceso real para ver su agenda ahí, y desasignarlo
+dejaba acceso viejo colgado indefinidamente.
+
+`src/lib/professionalLocationSync.ts` (nuevo) — dos funciones que reciben un
+`tx: Prisma.TransactionClient` (para correr dentro de la misma transacción
+que ya hace el set-replace de `ProfessionalLocation`, nunca aparte) y una
+lista de pares `{ professionalId, locationId }`:
+- `grantProfessionalLocationAccess`: por cada par recién agregado, si el
+  profesional tiene un usuario vinculado, hace un `upsert` de
+  `StaffLocationRole` con `create: { role: "PROFESSIONAL" }` y `update: {}`
+  — si el usuario YA tenía cualquier rol en esa sede (PROFESSIONAL de antes,
+  o incluso OWNER/ADMIN/STAFF), el `update: {}` es un no-op y ese rol
+  existente queda intacto, nunca se pisa.
+- `revokeProfessionalLocationAccess`: por cada par recién quitado, hace un
+  `deleteMany` con `where: { userId, locationId, role: "PROFESSIONAL" }` —
+  el filtro por rol en el `where` hace que el delete sea un no-op silencioso
+  si el rol actual del usuario ahí es otro. Esto es lo que protege
+  explícitamente el caso ya resuelto en la fase anterior de "el OWNER se
+  vincula a sí mismo como su propio profesional": si a ese OWNER lo
+  desasignan de una sede como profesional, su rol OWNER ahí no se toca.
+
+Ambas funciones son no-ops silenciosos para un profesional sin usuario
+vinculado (`userId: null`), que es el caso más común en la práctica (la
+mayoría de los profesionales no tienen login propio).
+
+Aplicado en los dos lugares donde se edita `ProfessionalLocation`, ambos
+reescritos para calcular el diff (agregados/quitados) ANTES de tocar la
+base, en vez del `deleteMany` + `upsert` opaco de antes:
+- `applyProfessionalLocationsUpdate` (`professionals/actions.ts`, usada por
+  `updateProfessionalAction` — checklist de sedes desde la ficha del
+  profesional).
+- `applyLocationProfessionalsUpdate` (`locations/actions.ts`, usada por
+  `updateLocationProfessionalsAction`/`updateLocationAndProfessionalsAction`
+  — checklist de profesionales desde la ficha de la sede).
+
+Ambas ahora usan `prisma.$transaction(async (tx) => {...})` en vez del
+array-form `prisma.$transaction([...])` que tenían antes, porque hace falta
+leer (`currentAssignments`) antes de decidir qué diff aplicar y las
+funciones de sync también necesitan `tx`. `createProfessionalAction`
+(alta de un profesional nuevo, con su propio checklist de sedes) NO se tocó
+a propósito: en ese momento el profesional recién se está creando, así que
+`Professional.userId` todavía es `null` siempre — el sync ya sería un no-op
+ahí, no vale la pena sumar la complejidad.
+
+Sin tests unitarios nuevos (mismo criterio que
+`deductInventoryForCompletedAppointment` en `src/lib/inventory.ts`, que
+tampoco tiene: ambas funciones dependen de un `Prisma.TransactionClient`
+real, no de lógica pura, así que en este proyecto se verifican en vivo en
+vez de con mocks).
+
+**Verificado en vivo (sesión del 2 ago 2026, contra la base real de Neon)**:
+llamando directamente a `grantProfessionalLocationAccess`/
+`revokeProfessionalLocationAccess` (mismas funciones que usan
+`applyProfessionalLocationsUpdate` y `applyLocationProfessionalsUpdate`)
+dentro de transacciones reales sobre datos QA descartables: (1) asignar a un
+profesional con usuario vinculado a una sede nueva crea su
+`StaffLocationRole(PROFESSIONAL)` ahí; (2) desasignarlo borra ese rol; (4)
+caso crítico — el OWNER vinculado a sí mismo como su propio profesional:
+desasignarlo de una sede como profesional deja su rol `OWNER` ahí intacto
+(el `where: { role: "PROFESSIONAL" }` del delete correctamente no matchea su
+fila `OWNER`). No se repitió (3) por separado (editar desde la ficha de la
+SEDE) porque ambas puntas llaman exactamente a las mismas dos funciones de
+`professionalLocationSync.ts` ya verificadas — no hay lógica adicional que
+difiera entre los dos call sites. (5) no se probó explícitamente pero es
+trivial por lectura de código: ambas funciones hacen `continue` de
+inmediato si el profesional no tiene `userId`.
+**Seguía sin probar** (al escribir el párrafo anterior): el re-login real
+para confirmar que `locationRoles` del JWT se actualiza (limitación ya
+conocida y documentada del proyecto, no específica de esta fase).
+
+**Cierre de ese pendiente (sesión de Cowork, 2 ago 2026, navegador real vía
+la extensión de Claude in Chrome contra `npm run dev` + la base de Neon)**:
+se armó un tenant QA descartable nuevo (`qa-resync-sedes`, script
+`prisma/qa-location-sync.ts` — corrido por Jonta en su máquina) con un OWNER
+(rol `OWNER` solo en Sede X, y vinculado además como su propio profesional
+"Dueño (QA)" asignado a Sede X — caso 4), un "Profesional Sync (QA)" con
+login propio asignado solo a Sede X al arrancar (casos 1/2/3), y un
+"Profesional Sin Login (QA)" sin usuario vinculado, asignado a Sede X (caso
+5). Con logins y clicks reales por la UI (no scripts contra Prisma) se
+recorrieron los 5 casos en orden:
+
+(1) Ya estaba confirmado de una verificación previa en esta misma sesión:
+asignarle Sede Y a "Profesional Sync (QA)" desde su propia ficha
+(`professionals/[id]`) y guardar hizo que su login mostrara el selector de
+sede con ambas sedes disponibles. (2) Quitarle la casilla de Sede X desde
+esa misma ficha y guardar dejó su Agenda mostrando únicamente "Sede Y (QA)",
+sin selector — perdió el acceso real, no solo la asignación de
+`ProfessionalLocation`. (3) Se repitieron ambas direcciones editando esta
+vez desde la ficha de la SEDE (`locations/[id]`) en vez de la del
+profesional: re-marcar "Profesional Sync (QA)" en el checklist de Sede X y
+guardar le devolvió el selector con ambas sedes; volver a desmarcarlo ahí
+mismo y guardar lo dejó de nuevo solo con Sede Y — confirmando que ambos
+puntos de edición (ficha de profesional y ficha de sede) disparan la misma
+sincronización con el mismo resultado. (4) Caso crítico: desde la ficha de
+"Dueño (QA)" (el profesional vinculado al propio OWNER) se le quitó la
+única sede que tenía asignada (Sede X) y se guardó — el usuario
+`owner-resync-qa@qa.test` conservó acceso completo a `/locations` (con
+"Nueva sede" habilitado, propio de OWNER) inmediatamente después, sin
+relogin: si `revokeProfessionalLocationAccess` hubiera borrado su rol
+`OWNER` en Sede X en vez de solo el `PROFESSIONAL` inexistente, esa página
+habría devuelto 404 (`requireOwnerAccess` exige el rol en alguna sede del
+tenant). (5) Se cambió el checklist de sedes de "Profesional Sin Login
+(QA)" (quitar Sede X, agregar Sede Y) desde su propia ficha — al no tener
+usuario vinculado, no hay login para verificar por UI, así que se confirmó
+por inspección directa de la base
+(`prisma/qa-location-sync-inspect.ts`, corrido por Jonta): el dump final de
+`StaffLocationRole` solo lista dos filas en todo el tenant
+(`owner-resync-qa@qa.test → OWNER` en Sede X, `profesional-sync-qa@qa.test →
+PROFESSIONAL` en Sede Y) — ninguna fila para "Profesional Sin Login (QA)"
+en ningún lado, pese a que su `ProfessionalLocation` sí cambió de Sede X a
+Sede Y, confirmando que ambas funciones de sync siguen siendo no-ops
+silenciosos para un profesional sin usuario. El mismo dump confirmó de paso
+(1)-(4): "Dueño (QA)" con cero sedes asignadas, "Profesional Sync (QA)" con
+Sede Y únicamente, y el único rol en Sede X siendo el `OWNER` del dueño —
+sin ningún `PROFESSIONAL` colgado ahí. Tenant QA borrado al terminar
+(`prisma/qa-location-sync-cleanup.ts`, cascade confirmado).
+
+## Costo por insumo, comisión por servicio, reporte de consumo, alertas de stock bajo por WhatsApp (sesión de Cowork)
+
+Cuatro pendientes de Servicios/Inventario/Reportes, elegidos juntos por Jonta
+(los cuatro a la vez, vía multiSelect) e implementados en la misma sesión.
+✅ hecho. Durante la implementación se confirmó una limitación nueva y más
+severa del sandbox de Cowork: no solo `prisma migrate`/`validate` están
+bloqueados (ya sabido), sino que `npx prisma generate` también lo está — los
+binarios de motor cacheados en `node_modules/.cache/prisma` son de Windows
+(sincronizados desde la máquina real de Jonta), pero el sandbox es Linux, y
+descargar un motor Linux nuevo da 403 contra `binaries.prisma.sh` incluso con
+`PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1`. Por eso el código de esta fase se
+escribió primero solo con revisión manual (sin poder compilar), y quedó
+pendiente de que Jonta corriera `npm run db:migrate` en su máquina real
+(mismo `node_modules`, visible después para el sandbox por ser carpeta
+montada) para aplicar las 4 migraciones y regenerar el Prisma Client.
+
+**Verificado después de que Jonta corrió `npm run db:migrate` en su
+máquina**: `npx tsc --noEmit` sale limpio (cero errores, incluidos los 4
+campos nuevos: `InventoryItem.unitCost`, `Tenant.lowStockAlertPhone`,
+`Service.commissionRate`, `Appointment.commissionPaidAt`) y `npm run test`
+corrido por Jonta en su máquina real (el sandbox de Cowork no puede correr
+vitest — le falta el binario nativo `@rolldown/binding-linux-x64-gnu`, un
+problema del entorno, no del proyecto) dio 79/79 tests pasando en 12
+archivos, incluyendo `inventory.test.ts` (4 tests, `crossedLowStockThreshold`)
+y `reports.test.ts` (6 tests) sin ninguna regresión.
+
+**Todavía sin verificar en vivo contra la base de datos real** (correr los
+tests unitarios no reemplaza probar el flujo completo end-to-end): cargar un
+costo real en un insumo, poner un % de comisión en un servicio y completar
+una cita real de ese servicio, marcar una comisión como pagada dos veces
+seguidas, y configurar un número de alerta y cruzar el umbral de stock bajo
+para confirmar que efectivamente se intenta un envío de WhatsApp — ver la
+lista detallada de casos recomendados más abajo.
+
+**Costo por insumo** — `InventoryItem.unitCost` (`Decimal? @db.Decimal(10,
+2)`, migración `20260731220000_add_inventory_item_unit_cost`). Mismo
+patrón sin moneda propia que `Service.price`. `null` = costo no cargado
+todavía, deliberadamente distinto de "cuesta 0" (importa para el reporte de
+consumo, que necesita poder decir "sin costo cargado" en vez de mostrar
+USD 0.00). Campo opcional en los forms de crear/editar ítem
+(`inventory/new/page.tsx`, `inventory/[itemId]/page.tsx`,
+`inventory/actions.ts` — `parseItemFields`/`validateItemCost`), mostrado
+también en el panel de stock del ítem cuando está cargado.
+
+**Comisión por servicio (override)** — `Service.commissionRate` (`Decimal?
+@db.Decimal(5, 2)`, migración `20260731221000_add_service_commission_rate`).
+Si es `null` (default, la gran mayoría de los servicios) se sigue usando el
+% del profesional sin ningún cambio; si tiene un valor, ESE servicio paga
+siempre ese % sin importar quién lo haga (ej. "los masajes pagan 40% fijo").
+Campo opcional (0–100 o vacío) agregado a `services/new/page.tsx`,
+`services/[serviceId]/page.tsx` y validado en `services/actions.ts`
+(`parseServiceFields`/`validateServiceFields`).
+
+**Comisión pagada (tracking)** — `Appointment.commissionPaidAt` (`DateTime?`,
+migración `20260731221500_add_appointment_commission_paid_at`). `null` =
+comisión pendiente. Se marca en LOTE desde Reportes, nunca cita por cita:
+`markCommissionAsPaidAction` (`reports/actions.ts`) hace un `updateMany`
+sobre las citas `COMPLETED` de un profesional dentro del rango de fechas
+actualmente visible en la página que todavía tengan `commissionPaidAt: null`
+— idempotente por diseño (el propio `where` excluye lo ya pagado, así que un
+segundo click no hace nada). `src/lib/reports.ts` (`computeReportData`) se
+reescribió para calcular la comisión **por cita** (no por profesional en
+bloque como antes) — por cada cita `COMPLETED` de un profesional, usa
+`appointment.service.commissionRate` si existe, si no
+`professional.commissionRate` (el de siempre), calcula
+`calculateCommissionAmount` por cita y la suma a `paidCommissionAmount` si
+`commissionPaidAt` está seteado o a `pendingCommissionAmount` si no —
+redondeando a 2 decimales solo al final para evitar arrastre de error de
+punto flotante en la suma. La tabla de comisiones en `reports/page.tsx`
+ganó columnas "Pagada"/"Pendiente" y un botón "Marcar como pagada" por fila
+(solo si `pendingCommissionAmount > 0`), preservando el rango de fechas
+actual vía inputs ocultos. El export CSV (`reports/export/csv/route.ts`,
+sección `comisiones`) y el PDF (`src/pages/api/reports/[tenantSlug]/pdf.tsx`)
+se actualizaron con las mismas dos columnas nuevas, para que los tres nunca
+puedan mostrar números distintos entre sí (mismo principio de "única fuente
+de verdad" que ya seguía `computeReportData`).
+
+**Reporte de consumo de insumos** — nueva función `computeInventoryConsumption(tenantId,
+from, to)` en `src/lib/reports.ts`: lee `InventoryMovement` tipo `OUT` en el
+rango de fechas (filtrado por `createdAt`, no por `Appointment.startsAt` —
+un movimiento de inventario no tiene fecha de cita propia), agrupa por
+`itemId`, separa `automaticQuantity` (movimientos con `appointmentId`
+seteado, ver la fase de vínculo servicio↔insumo) de `manualOutQuantity`
+(sin `appointmentId`), y valoriza (`totalValue = totalQuantity * unitCost`)
+solo si el ítem tiene `unitCost` cargado — si no, `totalValue: null` y la UI
+muestra "Sin costo cargado" en vez de USD 0.00. Sección nueva "Consumo de
+insumos" en `reports/page.tsx`, gateada por `planIncludesModule(tenant.plan,
+"inventory")` (hereda el mismo gating que el resto del módulo de
+Inventario, no uno nuevo) con su propio export CSV (`section=consumo` en
+`reports/export/csv/route.ts`). Deliberadamente NO se agregó al PDF (ver el
+límite ya documentado de "gráficos dentro del PDF: fuera de esta fase" —
+mismo motivo: requeriría más trabajo de layout con `@react-pdf/renderer`
+sin un beneficio claro sobre el CSV para esta sección tabular).
+
+**Alertas de stock bajo por WhatsApp** — reutiliza toda la infraestructura
+de WhatsApp existente (`src/lib/whatsapp.ts`), sumando un tercer par
+`buildLowStockAlertTemplatePayload`/`sendLowStockAlertWhatsAppMessage` (mismo
+patrón que recordatorios de cita y seguimiento de recompra — nunca lanza,
+plantilla nueva `alerta_stock_bajo`/`es_MX` pendiente de aprobación en Meta,
+igual que las otras dos). `Tenant.lowStockAlertPhone` (`String?`, migración
+`20260731220500_add_tenant_low_stock_alert_phone`) — un solo número por
+tenant, no por sede/usuario, configurable desde una sección nueva en
+`inventory/page.tsx` ("Alertas de stock bajo por WhatsApp", visible solo
+para OWNER/ADMIN) vía `updateLowStockAlertPhoneAction`
+(`inventory/actions.ts`, mismo guard `requireInventoryManageAccess` que
+crear/editar ítems) — campo vacío desactiva las alertas (`null`), un número
+no válido según `normalizePhoneForWhatsapp` se rechaza sin guardar.
+
+Lógica de detección centralizada en `src/lib/inventory.ts`:
+`crossedLowStockThreshold(previousQuantity, newQuantity, lowStockThreshold)`
+(pura, con tests en `inventory.test.ts`) — devuelve `true` solo si el stock
+ANTES del movimiento estaba por encima del umbral y el de DESPUÉS quedó en
+el umbral o por debajo, para que una seguidilla de salidas mientras el
+stock ya está bajo no dispare un WhatsApp por cada una, solo la primera vez
+que lo cruza de verdad. Aplicada en los dos puntos donde se genera una
+salida de inventario:
+- `deductInventoryForCompletedAppointment` (descuento automático al
+  completar una cita) ahora lee el stock ANTES del `upsert` (una consulta
+  extra por insumo, solo para poder comparar — el `upsert` en sí sigue
+  siendo el mismo decrement atómico de antes) y devuelve la lista de
+  insumos que cruzaron el umbral en vez de `void`.
+  `updateAppointmentStatusAction` (`dashboard/[tenantSlug]/actions.ts`)
+  guarda ese resultado y llama a `maybeSendLowStockAlerts` **después** de
+  que la transacción de Prisma ya confirmó, nunca adentro — un envío de red
+  no debe vivir dentro de una transacción de base de datos, y así un
+  rollback nunca podría dejar un WhatsApp ya enviado sobre un cambio que no
+  se aplicó.
+- `recordInventoryMovementAction` (`inventory/actions.ts`, movimiento
+  manual): mismo criterio — el chequeo de cruce ocurre dentro de la
+  transacción visto que ya se lee el stock actual ahí (`INSUFFICIENT_STOCK`
+  ya validaba eso desde la fase de Inventario original), pero el envío en sí
+  (`maybeSendLowStockAlerts`) se dispara después, fuera del `try/catch`, con
+  `void` (fire-and-forget, no bloquea el redirect ni la respuesta al
+  usuario). Un `IN` nunca puede cruzar el umbral hacia abajo, así que el
+  chequeo solo aplica a `type === "OUT"`.
+
+`maybeSendLowStockAlerts` (mismo archivo) es la que de verdad hace el envío:
+si `Tenant.lowStockAlertPhone` no está configurado o no normaliza a un
+número válido, es un no-op silencioso — ni siquiera intenta llamar a la API
+de Meta. Nunca lanza (mismo criterio que el resto de los envíos de WhatsApp
+del proyecto): si Meta rechaza el mensaje (sin token, plantilla no
+aprobada, etc.) el movimiento de inventario o el cambio de estado de la
+cita que lo originó ya se aplicaron igual, sin revertirse.
+
+Fuera de esta fase: ninguna de las cuatro. Específicamente sin resolver
+todavía: notificar por WhatsApp/email cuando una comisión se marca como
+pagada, edición del `type` de un campo de costo ya cargado más allá de
+sobreescribir el número, más de un número de alerta de stock bajo por
+tenant (ej. uno por sede), y — como ya se documentó arriba — la aprobación
+real de la plantilla `alerta_stock_bajo` en Meta (trámite manual, no de
+código, igual que `recordatorio_cita`/`seguimiento_recompra`).
+
+**Verificado en vivo (sesión del 2 ago 2026, contra la base real de Neon,
+tras confirmar que las 4 migraciones de esta fase ya estaban aplicadas —
+`prisma migrate status` dio "up to date")**: con un tenant QA descartable
+(insumo con `unitCost` cargado, servicio con `commissionRate` override,
+otro servicio sin override) se llamó directamente a
+`deductInventoryForCompletedAppointment`, `computeReportData` y
+`computeInventoryConsumption` (las mismas funciones que usan la página y los
+exports CSV/PDF) más un `updateMany` idéntico al de
+`markCommissionAsPaidAction`. Confirmado: (1) el reporte de consumo valoriza
+correctamente `cantidad × unitCost`; (2) la comisión de una cita de un
+servicio con override usa ese % (40%) e ignora el % default del profesional
+(20%), mientras que un servicio sin override sigue usando el % del
+profesional; (3) marcar como pagada una segunda vez sobre el mismo rango es
+idempotente — el `where: { commissionPaidAt: null }` hace que el segundo
+`updateMany` no toque nada, y el split pagado/pendiente calculado por
+`computeReportData` da el mismo número en ambas corridas; (4) el descuento
+de stock que cruza el umbral (stock previo > umbral, posterior ≤ umbral)
+devuelve el candidato para alertar exactamente una vez, y una segunda salida
+mientras el stock ya está en/bajo el umbral no lo vuelve a "cruzar"
+(`crossedLowStockThreshold`, ya cubierta también por tests unitarios); (5)
+`maybeSendLowStockAlerts` con `Tenant.lowStockAlertPhone: null` es un no-op
+inmediato, sin llegar a intentar ningún fetch.
+**Deliberadamente NO se disparó un envío real de WhatsApp**: el proyecto ya
+tiene credenciales reales de Meta cargadas en `.env` (ver la sesión de
+integración de WhatsApp más abajo), así que configurar un teléfono y dejar
+correr `maybeSendLowStockAlerts` habría hecho una llamada real a la API de
+Meta — evitado a propósito para no gastar cuota ni arriesgar un envío
+indeseado con la plantilla `alerta_stock_bajo` (todavía en revisión). El
+camino de "sí hay teléfono configurado" se validó por lectura de código
+(mismo patrón ya probado en vivo para recordatorios de cita y seguimiento de
+recompra), no por una llamada real en esta sesión.

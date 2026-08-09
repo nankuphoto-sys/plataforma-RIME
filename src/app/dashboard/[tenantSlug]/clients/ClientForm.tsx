@@ -1,4 +1,6 @@
+import { Save } from "lucide-react";
 import type { ClientFieldDefinition } from "@/lib/clientFieldTemplates";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 export interface ClientFormInitialValues {
   name?: string;
@@ -12,6 +14,7 @@ interface ClientFormProps {
   fieldTemplate: ClientFieldDefinition[];
   action: (formData: FormData) => void | Promise<void>;
   submitLabel: string;
+  submitIcon?: React.ReactNode;
   errorMessage?: string;
   initialValues?: ClientFormInitialValues;
 }
@@ -20,6 +23,7 @@ export function ClientForm({
   fieldTemplate,
   action,
   submitLabel,
+  submitIcon,
   errorMessage,
   initialValues,
 }: ClientFormProps) {
@@ -95,9 +99,9 @@ export function ClientForm({
         </div>
       )}
 
-      <button type="submit" className="btn-primary">
+      <SubmitButton icon={submitIcon ?? <Save className="h-4 w-4" />} pendingLabel="Guardando…">
         {submitLabel}
-      </button>
+      </SubmitButton>
     </form>
   );
 }

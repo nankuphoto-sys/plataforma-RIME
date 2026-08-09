@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireTeamManageAccess } from "@/lib/auth-guards";
 
@@ -21,7 +22,8 @@ export default async function TeamPage({
       <div className="flex items-center justify-between gap-4">
         <h1 className="page-title">Equipo</h1>
         <Link href={`/dashboard/${tenantSlug}/team/new`} className="btn-primary">
-          + Invitar usuario
+          <UserPlus className="h-4 w-4" />
+          Invitar usuario
         </Link>
       </div>
 

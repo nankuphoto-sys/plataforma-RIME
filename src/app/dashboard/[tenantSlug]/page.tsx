@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { ArrowLeftRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
 import { requireDashboardAccess } from "@/lib/auth-guards";
 import {
   addDays,
@@ -11,7 +13,8 @@ import {
   type CalendarDate,
 } from "@/lib/availability";
 import { getAppointmentBlockPosition } from "@/lib/appointmentGrid";
-import { hasLocationAccess } from "@/lib/authorization";
+import { getRoleAtLocation, hasLocationAccess } from "@/lib/authorization";
+import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import {
   WeeklyAgenda,
   type AgendaAppointmentBlock,
@@ -68,6 +71,29 @@ export default async function DashboardAgendaPage({
     );
   }
 
+  // Un rol PROFESSIONAL en ESTA sede puntual ve solo su propia agenda, nunca
+  // la de sus colegas — a diferencia de OWNER/ADMIN/STAFF, que siguen viendo
+  // la sede completa igual que antes. Se calcula por sede (no por tenant)
+  // porque un mismo usuario puede tener roles distintos en distintas sedes
+  // (ver StaffLocationRole, @@unique([userId, locationId])).
+  const roleAtLocation = getRoleAtLocation(session.user.locationRoles, location.id);
+  const isProfessionalOnly = roleAtLocation === "PROFESSIONAL";
+  const viewerProfessionalId = isProfessionalOnly
+    ? await getLinkedProfessionalId(session.user.id)
+    : null;
+
+  if (isProfessionalOnly && !viewerProfessionalId) {
+    return (
+      <div className="mx-auto max-w-6xl">
+        <h1 className="page-title">Agenda</h1>
+        <p className="mt-6 text-sm text-ink/40">
+          Tu usuario todavía no tiene un profesional vinculado en este negocio. Pedile a tu
+          administrador que lo revise desde Profesionales.
+        </p>
+      </div>
+    );
+  }
+
   const referenceDate = parseCalendarDateKey(week ?? "") ?? getTodayInTimezone(location.timezone);
   const weekDates = getWeekDates(referenceDate);
   const dayBounds = weekDates.map((date) => getDayBoundsUtc(date, location.timezone));
@@ -80,6 +106,7 @@ export default async function DashboardAgendaPage({
         tenantId: tenant.id,
         locationId: location.id,
         startsAt: { gte: rangeStart, lt: rangeEnd },
+        ...(isProfessionalOnly ? { professionalId: viewerProfessionalId! } : {}),
       },
       include: { client: true, service: true },
       orderBy: { startsAt: "asc" },
@@ -89,6 +116,7 @@ export default async function DashboardAgendaPage({
         tenantId: tenant.id,
         active: true,
         professionalLocations: { some: { locationId: location.id } },
+        ...(isProfessionalOnly ? { id: viewerProfessionalId! } : {}),
       },
       orderBy: { name: "asc" },
     }),
@@ -158,19 +186,27 @@ export default async function DashboardAgendaPage({
               ))}
             </select>
             <button type="submit" className="btn-secondary">
+              <ArrowLeftRight className="h-4 w-4" />
               Cambiar
             </button>
           </form>
         )}
       </div>
 
+      {/* Texto del botón oculto en mobile (queda solo el ícono) — dos
+          botones con label + el rango de fechas al medio no entran en un
+          celular angosto sin desbordar o partirse en dos líneas feo. */}
       <div className="mt-6 flex items-center justify-between">
         <Link href={`/dashboard/${tenantSlug}?week=${prevWeekKey}&locationId=${location.id}`} className="btn-secondary">
-          ← Semana anterior
+          <ChevronLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Semana anterior</span>
+          <LinkPendingSpinner />
         </Link>
         <p className="data-mono text-sm font-medium text-ink/70">{formatWeekRangeLabel(weekDates)}</p>
         <Link href={`/dashboard/${tenantSlug}?week=${nextWeekKey}&locationId=${location.id}`} className="btn-secondary">
-          Semana siguiente →
+          <LinkPendingSpinner />
+          <span className="hidden sm:inline">Semana siguiente</span>
+          <ChevronRight className="h-4 w-4" />
         </Link>
       </div>
 

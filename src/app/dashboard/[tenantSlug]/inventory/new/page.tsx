@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { ArrowLeft, PackagePlus } from "lucide-react";
 import { requireInventoryManageAccess } from "@/lib/auth-guards";
+import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { createInventoryItemAction } from "../actions";
 
 export default async function NewInventoryItemPage({
@@ -15,8 +18,10 @@ export default async function NewInventoryItemPage({
 
   return (
     <div className="mx-auto max-w-xl">
-      <Link href={`/dashboard/${tenantSlug}/inventory`} className="shell-link">
-        ← Volver a inventario
+      <Link href={`/dashboard/${tenantSlug}/inventory`} className="group inline-flex items-center gap-1 shell-link">
+        <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:-translate-x-0.5" />
+        Volver a inventario
+        <LinkPendingSpinner />
       </Link>
       <h1 className="page-title mt-3">Nuevo ítem de inventario</h1>
 
@@ -59,9 +64,25 @@ export default async function NewInventoryItemPage({
           />
         </div>
 
-        <button type="submit" className="btn-primary">
+        <div>
+          <label className="field-label" htmlFor="unitCost">
+            Costo por unidad (opcional)
+          </label>
+          <input
+            id="unitCost"
+            name="unitCost"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Sin costo cargado"
+            className="field-input"
+          />
+          <p className="mt-1 text-xs text-ink/45">Se usa para valorizar el consumo en el reporte de inventario.</p>
+        </div>
+
+        <SubmitButton icon={<PackagePlus className="h-4 w-4" />} pendingLabel="Creando…">
           Crear ítem
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

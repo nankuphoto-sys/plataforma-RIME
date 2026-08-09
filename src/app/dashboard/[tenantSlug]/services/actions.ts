@@ -11,10 +11,19 @@ function parseServiceFields(formData: FormData) {
   const durationMinutes = Number(formData.get("durationMinutes")?.toString() ?? "");
   const price = Number(formData.get("price")?.toString() ?? "");
   const active = formData.get("active") === "on";
-  return { name, durationMinutes, price, active };
+  // Override opcional del % de comisión (ver Service.commissionRate) — campo
+  // vacío = null (usa el % del profesional, comportamiento de siempre).
+  const commissionRateRaw = formData.get("commissionRate")?.toString().trim() ?? "";
+  const commissionRate = commissionRateRaw === "" ? null : Number(commissionRateRaw);
+  return { name, durationMinutes, price, active, commissionRate };
 }
 
-function validateServiceFields(name: string, durationMinutes: number, price: number): string | null {
+function validateServiceFields(
+  name: string,
+  durationMinutes: number,
+  price: number,
+  commissionRate: number | null
+): string | null {
   if (!name) return "El nombre es obligatorio.";
   if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
     return "La duración debe ser un número entero de minutos mayor a 0.";
@@ -22,20 +31,23 @@ function validateServiceFields(name: string, durationMinutes: number, price: num
   if (Number.isNaN(price) || price < 0) {
     return "El precio debe ser un número mayor o igual a 0.";
   }
+  if (commissionRate !== null && (Number.isNaN(commissionRate) || commissionRate < 0 || commissionRate > 100)) {
+    return "El % de comisión del servicio debe estar entre 0 y 100, o dejarse vacío.";
+  }
   return null;
 }
 
 export async function createServiceAction(tenantSlug: string, formData: FormData): Promise<void> {
   const { tenant } = await requireServicesManageAccess(tenantSlug);
 
-  const { name, durationMinutes, price, active } = parseServiceFields(formData);
-  const fieldError = validateServiceFields(name, durationMinutes, price);
+  const { name, durationMinutes, price, active, commissionRate } = parseServiceFields(formData);
+  const fieldError = validateServiceFields(name, durationMinutes, price, commissionRate);
   if (fieldError) {
     redirect(`/dashboard/${tenantSlug}/services/new?error=${encodeURIComponent(fieldError)}`);
   }
 
   const service = await prisma.service.create({
-    data: { tenantId: tenant.id, name, durationMinutes, price, active },
+    data: { tenantId: tenant.id, name, durationMinutes, price, active, commissionRate },
   });
 
   revalidatePath(`/dashboard/${tenantSlug}/services`);
@@ -52,8 +64,8 @@ export async function updateServiceAction(
   const service = await prisma.service.findFirst({ where: { id: serviceId, tenantId: tenant.id } });
   if (!service) notFound();
 
-  const { name, durationMinutes, price, active } = parseServiceFields(formData);
-  const fieldError = validateServiceFields(name, durationMinutes, price);
+  const { name, durationMinutes, price, active, commissionRate } = parseServiceFields(formData);
+  const fieldError = validateServiceFields(name, durationMinutes, price, commissionRate);
   if (fieldError) {
     redirect(
       `/dashboard/${tenantSlug}/services/${serviceId}?error=${encodeURIComponent(fieldError)}`
@@ -62,7 +74,7 @@ export async function updateServiceAction(
 
   await prisma.service.update({
     where: { id: service.id },
-    data: { name, durationMinutes, price, active },
+    data: { name, durationMinutes, price, active, commissionRate },
   });
 
   revalidatePath(`/dashboard/${tenantSlug}/services/${serviceId}`);

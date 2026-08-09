@@ -13,15 +13,18 @@ const VERTICAL_OPTIONS = [
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; vertical?: string; email?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, vertical, email } = await searchParams;
+  const defaultVertical = VERTICAL_OPTIONS.some((option) => option.value === vertical)
+    ? vertical
+    : "GENERAL";
 
   return (
     <main className="mx-auto max-w-xl px-6 py-12">
       <h1 className="text-2xl font-bold">Crea tu cuenta</h1>
       <p className="mt-2 text-sm text-gray-500">
-        Registra tu negocio y empieza a usar Plataforma Agenda. ¿Ya tienes cuenta?{" "}
+        Registra tu negocio y empieza a usar RIME. ¿Ya tienes cuenta?{" "}
         <Link href="/login" className="underline">
           Inicia sesión
         </Link>
@@ -52,7 +55,7 @@ export default async function SignupPage({
             <select
               id="vertical"
               name="vertical"
-              defaultValue="GENERAL"
+              defaultValue={defaultVertical}
               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             >
               {VERTICAL_OPTIONS.map((option) => (
@@ -105,6 +108,7 @@ export default async function SignupPage({
               name="email"
               type="email"
               required
+              defaultValue={email}
               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </div>

@@ -1,8 +1,24 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import {
+  BarChart3,
+  Calendar,
+  ClipboardList,
+  CreditCard,
+  LogOut,
+  MapPin,
+  Package,
+  User,
+  UserCog,
+  Users,
+  Users2,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasAnyOfRolesInTenantLocations, hasAnyRoleInTenantLocations } from "@/lib/authorization";
+import { SubmitButton } from "@/components/ui/SubmitButton";
+import { NavLink } from "@/components/ui/NavLink";
 import { logoutAction } from "./actions";
 
 // Shell puramente presentacional (sidebar + logout) para todo lo que cuelga
@@ -42,18 +58,35 @@ export default async function DashboardShellLayout({
   const hasOwnerAccess = hasAnyOfRolesInTenantLocations(session.user.locationRoles, locationIds, ["OWNER"]);
   const isLocked = tenant.status === "PAST_DUE" || tenant.status === "CANCELLED";
 
-  const navItems = [
-    { href: `/dashboard/${tenantSlug}`, label: "Agenda", show: true },
-    { href: `/dashboard/${tenantSlug}/clients`, label: "Clientes", show: true },
-    { href: `/dashboard/${tenantSlug}/inventory`, label: "Inventario", show: true },
-    { href: `/dashboard/${tenantSlug}/professionals`, label: "Profesionales", show: hasReportsAccess },
-    { href: `/dashboard/${tenantSlug}/services`, label: "Servicios", show: hasReportsAccess },
-    { href: `/dashboard/${tenantSlug}/client-fields`, label: "Campos de ficha", show: hasReportsAccess },
-    { href: `/dashboard/${tenantSlug}/reports`, label: "Reportes", show: hasReportsAccess },
-    { href: `/dashboard/${tenantSlug}/team`, label: "Equipo", show: hasReportsAccess },
-    { href: `/dashboard/${tenantSlug}/locations`, label: "Sedes", show: hasOwnerAccess },
-    { href: `/dashboard/${tenantSlug}/billing`, label: "Facturación", show: hasOwnerAccess },
-    { href: `/dashboard/${tenantSlug}/account`, label: "Mi cuenta", show: true },
+  const dashboardRoot = `/dashboard/${tenantSlug}`;
+
+  const navItems: { href: string; label: string; show: boolean; icon: LucideIcon }[] = [
+    { href: dashboardRoot, label: "Agenda", show: true, icon: Calendar },
+    { href: `${dashboardRoot}/clients`, label: "Clientes", show: true, icon: Users },
+    { href: `${dashboardRoot}/inventory`, label: "Inventario", show: true, icon: Package },
+    {
+      href: `${dashboardRoot}/professionals`,
+      label: "Profesionales",
+      show: hasReportsAccess,
+      icon: UserCog,
+    },
+    {
+      href: `${dashboardRoot}/services`,
+      label: "Servicios",
+      show: hasReportsAccess,
+      icon: Wrench,
+    },
+    {
+      href: `${dashboardRoot}/client-fields`,
+      label: "Campos de ficha",
+      show: hasReportsAccess,
+      icon: ClipboardList,
+    },
+    { href: `${dashboardRoot}/reports`, label: "Reportes", show: hasReportsAccess, icon: BarChart3 },
+    { href: `${dashboardRoot}/team`, label: "Equipo", show: hasReportsAccess, icon: Users2 },
+    { href: `${dashboardRoot}/locations`, label: "Sedes", show: hasOwnerAccess, icon: MapPin },
+    { href: `${dashboardRoot}/billing`, label: "Facturación", show: hasOwnerAccess, icon: CreditCard },
+    { href: `${dashboardRoot}/account`, label: "Mi cuenta", show: true, icon: User },
   ].filter((item) => item.show);
 
   return (
@@ -62,18 +95,21 @@ export default async function DashboardShellLayout({
         <div>
           <div className="px-5 pb-2 pt-6">
             <p className="font-display text-lg font-semibold leading-tight">{tenant.name}</p>
-            <p className="mt-1 text-[11px] uppercase tracking-wider text-paper/45">Plataforma Agenda</p>
+            <p className="mt-1 text-[11px] uppercase tracking-wider text-paper/45">RIME</p>
           </div>
           {!isLocked && (
             <nav className="flex gap-1 overflow-x-auto px-3 py-4 md:flex-col md:overflow-visible">
               {navItems.map((item) => (
-                <Link
+                <NavLink
                   key={item.href}
                   href={item.href}
-                  className="whitespace-nowrap rounded-lg px-3 py-2 text-sm text-paper/75 transition-colors hover:bg-white/10 hover:text-paper"
+                  exact={item.href === dashboardRoot}
+                  className="nav-link"
+                  activeClassName="nav-link-active"
                 >
+                  <item.icon className="h-4 w-4" strokeWidth={2} />
                   {item.label}
-                </Link>
+                </NavLink>
               ))}
             </nav>
           )}
@@ -81,12 +117,13 @@ export default async function DashboardShellLayout({
         <div className="border-t border-white/10 px-5 py-4">
           <p className="truncate text-xs text-paper/55">{session.user.email}</p>
           <form action={logoutAction} className="mt-2">
-            <button
-              type="submit"
-              className="text-xs text-paper/70 underline-offset-2 hover:text-paper hover:underline"
+            <SubmitButton
+              icon={<LogOut className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:scale-110" />}
+              pendingLabel="Cerrando sesión…"
+              className="group flex items-center gap-1.5 text-xs text-paper/70 underline-offset-2 transition-colors hover:text-paper hover:underline active:scale-[0.98]"
             >
               Cerrar sesión
-            </button>
+            </SubmitButton>
           </form>
         </div>
       </aside>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireProfessionalsManageAccess } from "@/lib/auth-guards";
 import { getPlanLimits, hasReachedProfessionalLimit } from "@/lib/planLimits";
@@ -26,7 +27,8 @@ export default async function ProfessionalsPage({
       <div className="flex items-center justify-between gap-4">
         <h1 className="page-title">Profesionales</h1>
         <Link href={`/dashboard/${tenantSlug}/professionals/new`} className="btn-primary">
-          + Nuevo profesional
+          <UserPlus className="h-4 w-4" />
+          Nuevo profesional
         </Link>
       </div>
 

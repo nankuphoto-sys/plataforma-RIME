@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { requireBillingAccess } from "@/lib/auth-guards";
+import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
 
 export default async function WompiSetupPage({
   params,
@@ -19,8 +21,10 @@ export default async function WompiSetupPage({
 
   return (
     <div className="mx-auto max-w-xl">
-      <Link href={`/dashboard/${tenantSlug}/billing`} className="shell-link">
-        ← Volver a facturación
+      <Link href={`/dashboard/${tenantSlug}/billing`} className="group inline-flex items-center gap-1 shell-link">
+        <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:-translate-x-0.5" />
+        Volver a facturación
+        <LinkPendingSpinner />
       </Link>
       <h1 className="page-title mt-3">Configurar cobro automático (Wompi)</h1>
       <p className="page-subtitle">

@@ -38,6 +38,12 @@ model Tenant {
   wompiRetryCount      Int       @default(0)
   wompiFirstFailedAt   DateTime?
 
+  // Número de WhatsApp (sin formatear, se normaliza igual que Client.phone
+  // vía normalizePhoneForWhatsapp) al que se le avisa cuando un ítem de
+  // inventario cruza su umbral de stock bajo. Un solo número por tenant —
+  // deliberadamente simple, no por sede/usuario — null = alertas desactivadas.
+  lowStockAlertPhone String?
+
   locations      Location[]
   users          User[]
   professionals  Professional[]
@@ -243,6 +249,12 @@ model Service {
   name            String
   durationMinutes Int
   price           Decimal  @db.Decimal(10, 2)
+  // Override opcional del Professional.commissionRate para ESTE servicio en
+  // particular (ej. "los masajes pagan 40% sin importar quién los haga"). Si
+  // es null (default, la gran mayoría de los servicios), se sigue usando el
+  // % del profesional sin ningún cambio — ver calculateCommissionAmount en
+  // src/lib/reports.ts.
+  commissionRate  Decimal? @db.Decimal(5, 2)
   active          Boolean  @default(true)
   createdAt       DateTime @default(now())
 
@@ -347,6 +359,13 @@ model Appointment {
   status         AppointmentStatus @default(PENDING)
   source         AppointmentSource @default(MANUAL)
   createdAt      DateTime          @default(now())
+  // Cuándo se le pagó al profesional la comisión de ESTA cita puntual — null
+  // = comisión pendiente de pago. Solo tiene sentido para citas COMPLETED
+  // (calculateCommissionAmount solo calcula comisión sobre esas), pero no se
+  // restringe a nivel de schema para no complicar la migración; la lógica de
+  // negocio en src/lib/reports.ts es la que aplica esa regla. Se marca en
+  // lote desde Reportes (markCommissionAsPaidAction), nunca cita por cita.
+  commissionPaidAt DateTime?
 
   payment            Payment?
   notifications      NotificationQueue[]
@@ -468,6 +487,10 @@ model InventoryItem {
   name              String
   unit              String // texto libre: "unidad", "ml", "g", "caja", etc. — sin catálogo fijo
   lowStockThreshold Int      @default(0)
+  // Costo unitario opcional (misma convención sin moneda propia que
+  // Service.price — ver ese comentario). Null = costo no cargado todavía,
+  // distinto de "cuesta 0" — el reporte de consumo debe poder distinguirlos.
+  unitCost          Decimal? @db.Decimal(10, 2)
   active            Boolean  @default(true)
   createdAt         DateTime @default(now())
 

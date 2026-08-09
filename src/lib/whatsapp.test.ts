@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { buildReminderTemplatePayload, normalizePhoneForWhatsapp } from "./whatsapp";
+import {
+  buildLowStockAlertTemplatePayload,
+  buildReminderTemplatePayload,
+  normalizePhoneForWhatsapp,
+} from "./whatsapp";
 
 describe("normalizePhoneForWhatsapp", () => {
   it("deja solo dígitos, quitando +, espacios y guiones", () => {
@@ -74,6 +78,67 @@ describe("buildReminderTemplatePayload", () => {
     });
 
     expect((payload.template as { name: string }).name).toBe("recordatorio_cita");
+    expect((payload.template as { language: { code: string } }).language.code).toBe("es_MX");
+  });
+});
+
+describe("buildLowStockAlertTemplatePayload", () => {
+  const originalName = process.env.WHATSAPP_LOW_STOCK_TEMPLATE_NAME;
+  const originalLang = process.env.WHATSAPP_LOW_STOCK_TEMPLATE_LANG;
+
+  afterEach(() => {
+    if (originalName === undefined) delete process.env.WHATSAPP_LOW_STOCK_TEMPLATE_NAME;
+    else process.env.WHATSAPP_LOW_STOCK_TEMPLATE_NAME = originalName;
+    if (originalLang === undefined) delete process.env.WHATSAPP_LOW_STOCK_TEMPLATE_LANG;
+    else process.env.WHATSAPP_LOW_STOCK_TEMPLATE_LANG = originalLang;
+  });
+
+  it("arma el body exacto esperado por la API de Meta", () => {
+    process.env.WHATSAPP_LOW_STOCK_TEMPLATE_NAME = "alerta_stock_bajo";
+    process.env.WHATSAPP_LOW_STOCK_TEMPLATE_LANG = "es_MX";
+
+    const payload = buildLowStockAlertTemplatePayload({
+      to: "573001234567",
+      itemName: "Guantes de nitrilo",
+      currentStock: 2,
+      unit: "caja",
+      locationName: "Sede Principal",
+    });
+
+    expect(payload).toEqual({
+      messaging_product: "whatsapp",
+      to: "573001234567",
+      type: "template",
+      template: {
+        name: "alerta_stock_bajo",
+        language: { code: "es_MX" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: "Guantes de nitrilo" },
+              { type: "text", text: "2 caja" },
+              { type: "text", text: "Sede Principal" },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it("usa los defaults si no hay variables de entorno configuradas", () => {
+    delete process.env.WHATSAPP_LOW_STOCK_TEMPLATE_NAME;
+    delete process.env.WHATSAPP_LOW_STOCK_TEMPLATE_LANG;
+
+    const payload = buildLowStockAlertTemplatePayload({
+      to: "573001234567",
+      itemName: "Guantes de nitrilo",
+      currentStock: 2,
+      unit: "caja",
+      locationName: "Sede Principal",
+    });
+
+    expect((payload.template as { name: string }).name).toBe("alerta_stock_bajo");
     expect((payload.template as { language: { code: string } }).language.code).toBe("es_MX");
   });
 });

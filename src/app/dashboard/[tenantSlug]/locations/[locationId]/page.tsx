@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, Save } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireOwnerAccess } from "@/lib/auth-guards";
+import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { updateLocationAndProfessionalsAction } from "../actions";
 
 export default async function LocationDetailPage({
@@ -29,8 +32,10 @@ export default async function LocationDetailPage({
 
   return (
     <div className="mx-auto max-w-xl">
-      <Link href={`/dashboard/${tenantSlug}/locations`} className="shell-link">
-        ← Volver a sedes
+      <Link href={`/dashboard/${tenantSlug}/locations`} className="group inline-flex items-center gap-1 shell-link">
+        <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:-translate-x-0.5" />
+        Volver a sedes
+        <LinkPendingSpinner />
       </Link>
       <h1 className="page-title mt-3">{location.name}</h1>
 
@@ -93,9 +98,9 @@ export default async function LocationDetailPage({
           )}
         </div>
 
-        <button type="submit" className="btn-primary">
+        <SubmitButton icon={<Save className="h-4 w-4" />} pendingLabel="Guardando…">
           Guardar
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

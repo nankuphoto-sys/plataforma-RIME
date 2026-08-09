@@ -13,9 +13,9 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     // página que lo usa — solo falla, silenciosamente, el envío en sí.
     const resend = new Resend(process.env.RESEND_API_KEY);
     await resend.emails.send({
-      from: process.env.EMAIL_FROM ?? "Plataforma Agenda <onboarding@resend.dev>",
+      from: process.env.EMAIL_FROM ?? "RIME <onboarding@resend.dev>",
       to,
-      subject: "Restablecé tu contraseña — Plataforma Agenda",
+      subject: "Restablecé tu contraseña — RIME",
       html: `
         <p>Recibimos un pedido para restablecer tu contraseña.</p>
         <p><a href="${resetUrl}">Hacé clic acá para elegir una nueva contraseña</a>.</p>

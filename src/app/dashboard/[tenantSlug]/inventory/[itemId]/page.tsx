@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowDownUp, ArrowLeft, ArrowLeftRight, Save } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireInventoryAccess } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations, hasLocationAccess } from "@/lib/authorization";
+import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { recordInventoryMovementAction, updateInventoryItemAction } from "../actions";
 
 function formatMovementDate(date: Date): string {
@@ -77,8 +80,10 @@ export default async function InventoryItemDetailPage({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <Link href={`/dashboard/${tenantSlug}/inventory`} className="shell-link">
-        ← Volver a inventario
+      <Link href={`/dashboard/${tenantSlug}/inventory`} className="group inline-flex items-center gap-1 shell-link">
+        <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:-translate-x-0.5" />
+        Volver a inventario
+        <LinkPendingSpinner />
       </Link>
       <h1 className="page-title mt-3">{item.name}</h1>
 
@@ -95,6 +100,7 @@ export default async function InventoryItemDetailPage({
             ))}
           </select>
           <button type="submit" className="btn-secondary">
+            <ArrowLeftRight className="h-4 w-4" />
             Cambiar
           </button>
         </form>
@@ -108,6 +114,9 @@ export default async function InventoryItemDetailPage({
         {isNegative && <span className="badge badge-berry mt-2">Stock negativo</span>}
         {isLowStock && (
           <span className="badge badge-berry mt-2">Stock bajo (umbral: {item.lowStockThreshold})</span>
+        )}
+        {item.unitCost !== null && (
+          <p className="mt-2 text-xs text-ink/45">Costo: {Number(item.unitCost).toFixed(2)} / {item.unit}</p>
         )}
       </section>
 
@@ -144,13 +153,31 @@ export default async function InventoryItemDetailPage({
                 className="field-input"
               />
             </div>
+            <div>
+              <label className="field-label" htmlFor="unitCost">
+                Costo por unidad (opcional)
+              </label>
+              <input
+                id="unitCost"
+                name="unitCost"
+                type="number"
+                min="0"
+                step="0.01"
+                defaultValue={item.unitCost !== null ? item.unitCost.toString() : ""}
+                placeholder="Sin costo cargado"
+                className="field-input"
+              />
+              <p className="mt-1 text-xs text-ink/45">
+                Se usa para valorizar el consumo en el reporte de inventario.
+              </p>
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="active" defaultChecked={item.active} className="field-checkbox" />
               Activo
             </label>
-            <button type="submit" className="btn-primary">
+            <SubmitButton icon={<Save className="h-4 w-4" />} pendingLabel="Guardando…">
               Guardar
-            </button>
+            </SubmitButton>
           </form>
         </section>
       )}
@@ -191,9 +218,9 @@ export default async function InventoryItemDetailPage({
             </label>
             <input id="note" name="note" type="text" className="field-input" />
           </div>
-          <button type="submit" className="btn-primary">
+          <SubmitButton icon={<ArrowDownUp className="h-4 w-4" />} pendingLabel="Registrando…">
             Registrar
-          </button>
+          </SubmitButton>
         </form>
       </section>
 

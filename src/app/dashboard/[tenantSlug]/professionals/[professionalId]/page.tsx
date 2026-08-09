@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { ArrowLeft, Link2, Save, Unlink, UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireProfessionalsManageAccess } from "@/lib/auth-guards";
+import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import {
   inviteProfessionalAsUserAction,
   linkExistingUserToProfessionalAction,
@@ -58,8 +61,10 @@ export default async function ProfessionalDetailPage({
 
   return (
     <div className="mx-auto max-w-xl">
-      <Link href={`/dashboard/${tenantSlug}/professionals`} className="shell-link">
-        ← Volver a profesionales
+      <Link href={`/dashboard/${tenantSlug}/professionals`} className="group inline-flex items-center gap-1 shell-link">
+        <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:-translate-x-0.5" />
+        Volver a profesionales
+        <LinkPendingSpinner />
       </Link>
       <h1 className="page-title mt-3">{professional.name}</h1>
 
@@ -161,9 +166,9 @@ export default async function ProfessionalDetailPage({
           )}
         </div>
 
-        <button type="submit" className="btn-primary">
+        <SubmitButton icon={<Save className="h-4 w-4" />} pendingLabel="Guardando…">
           Guardar
-        </button>
+        </SubmitButton>
       </form>
 
       <div className="mt-6 border-t border-sage-dark/30 pt-4">
@@ -185,9 +190,13 @@ export default async function ProfessionalDetailPage({
               Vinculado a <span className="font-medium">{linkedUser.name}</span> ({linkedUser.email})
             </p>
             <form action={unlinkProfessionalUserAction.bind(null, tenantSlug, professionalId)}>
-              <button type="submit" className="btn-secondary">
+              <SubmitButton
+                icon={<Unlink className="h-4 w-4" />}
+                pendingLabel="Quitando…"
+                className="btn-secondary"
+              >
                 Quitar vínculo
-              </button>
+              </SubmitButton>
             </form>
           </div>
         ) : !hasAssignedLocations ? (
@@ -220,9 +229,9 @@ export default async function ProfessionalDetailPage({
                 </label>
                 <input id="inviteEmail" name="email" type="email" required className="field-input" />
               </div>
-              <button type="submit" className="btn-primary">
+              <SubmitButton icon={<UserPlus className="h-4 w-4" />} pendingLabel="Invitando…">
                 Invitar
-              </button>
+              </SubmitButton>
             </form>
 
             <form
@@ -247,9 +256,9 @@ export default async function ProfessionalDetailPage({
                       </option>
                     ))}
                   </select>
-                  <button type="submit" className="btn-primary">
+                  <SubmitButton icon={<Link2 className="h-4 w-4" />} pendingLabel="Vinculando…">
                     Vincular
-                  </button>
+                  </SubmitButton>
                 </>
               )}
             </form>

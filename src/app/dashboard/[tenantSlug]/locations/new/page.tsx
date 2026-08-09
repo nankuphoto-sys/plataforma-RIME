@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { ArrowLeft, MapPinPlus } from "lucide-react";
 import { requireOwnerAccess } from "@/lib/auth-guards";
+import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { createLocationAction } from "../actions";
 
 export default async function NewLocationPage({
@@ -15,8 +18,10 @@ export default async function NewLocationPage({
 
   return (
     <div className="mx-auto max-w-xl">
-      <Link href={`/dashboard/${tenantSlug}/locations`} className="shell-link">
-        ← Volver a sedes
+      <Link href={`/dashboard/${tenantSlug}/locations`} className="group inline-flex items-center gap-1 shell-link">
+        <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:-translate-x-0.5" />
+        Volver a sedes
+        <LinkPendingSpinner />
       </Link>
       <h1 className="page-title mt-3">Nueva sede</h1>
 
@@ -50,9 +55,9 @@ export default async function NewLocationPage({
           />
         </div>
 
-        <button type="submit" className="btn-primary">
+        <SubmitButton icon={<MapPinPlus className="h-4 w-4" />} pendingLabel="Creando…">
           Crear sede
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

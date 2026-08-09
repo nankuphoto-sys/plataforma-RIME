@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ClipboardPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireServicesManageAccess } from "@/lib/auth-guards";
 
@@ -20,7 +21,8 @@ export default async function ServicesPage({
       <div className="flex items-center justify-between gap-4">
         <h1 className="page-title">Servicios</h1>
         <Link href={`/dashboard/${tenantSlug}/services/new`} className="btn-primary">
-          + Nuevo servicio
+          <ClipboardPlus className="h-4 w-4" />
+          Nuevo servicio
         </Link>
       </div>
 

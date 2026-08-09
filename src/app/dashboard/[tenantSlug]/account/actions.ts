@@ -4,6 +4,65 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireDashboardAccess } from "@/lib/auth-guards";
+import {
+  ALLOWED_PROFILE_IMAGE_TYPES,
+  MAX_PROFILE_IMAGE_BYTES,
+  MAX_PROFILE_IMAGE_LABEL,
+} from "@/lib/profileImage";
+
+// Sin servicio de almacenamiento de archivos en el proyecto (sin S3/Vercel
+// Blob/Cloudinary configurado todavía) — se guarda como data URI en
+// `User.image` (campo ya existente en el schema, heredado del adapter de
+// Auth.js para providers OAuth, sin uso hasta ahora). Válido para una foto de
+// perfil chica; si el proyecto necesita fotos más pesadas o servidas por CDN
+// más adelante, ahí sí conviene sumar un servicio de blobs real.
+export async function updateProfilePhotoAction(tenantSlug: string, formData: FormData): Promise<void> {
+  const { session } = await requireDashboardAccess(tenantSlug);
+
+  const file = formData.get("profileImage");
+  if (!(file instanceof File) || file.size === 0) {
+    redirect(
+      `/dashboard/${tenantSlug}/account?photoError=${encodeURIComponent("Elegí una imagen para subir.")}`
+    );
+  }
+
+  if (!ALLOWED_PROFILE_IMAGE_TYPES.has(file.type)) {
+    redirect(
+      `/dashboard/${tenantSlug}/account?photoError=${encodeURIComponent(
+        "Formato no soportado. Usá JPG, PNG o WEBP."
+      )}`
+    );
+  }
+
+  if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+    redirect(
+      `/dashboard/${tenantSlug}/account?photoError=${encodeURIComponent(
+        `La imagen no puede pesar más de ${MAX_PROFILE_IMAGE_LABEL}.`
+      )}`
+    );
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const dataUrl = `data:${file.type};base64,${buffer.toString("base64")}`;
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { image: dataUrl },
+  });
+
+  redirect(`/dashboard/${tenantSlug}/account?savedPhoto=1`);
+}
+
+export async function removeProfilePhotoAction(tenantSlug: string): Promise<void> {
+  const { session } = await requireDashboardAccess(tenantSlug);
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { image: null },
+  });
+
+  redirect(`/dashboard/${tenantSlug}/account?savedPhoto=1`);
+}
 
 export async function changePasswordAction(tenantSlug: string, formData: FormData): Promise<void> {
   const { session } = await requireDashboardAccess(tenantSlug);
