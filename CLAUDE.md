@@ -2366,3 +2366,94 @@ Con esto, los 8 módulos de nicho del roadmap de producto quedan resueltos
 en el código — 7 verificados en vivo contra datos reales, 1 (este) sin
 verificar contra el servicio externo real por no tener la cuenta creada
 todavía.
+
+## Deploy a producción (Vercel) — primera vez
+
+✅ hecho y verificado en vivo. El proyecto nunca había estado vinculado a
+Vercel (sin `.vercel/`, sin remoto de git) — primer deploy real de
+`plataforma-agenda`.
+
+**URL de producción**: `https://plataforma-agenda.vercel.app` (dominio
+gratuito de Vercel — sin dominio propio configurado todavía). Proyecto
+`rime2/plataforma-agenda` en la cuenta de Vercel de Jonta
+(`nankuphoto-7399`). Deploy hecho por CLI directo (`vercel deploy --prod`),
+sin conectar un repositorio de GitHub — decisión explícita para arrancar
+rápido; implica que no hay auto-deploy en cada push, cada deploy nuevo
+requiere correr el comando a mano (o conectar Git más adelante).
+
+**Base de datos**: se usa la misma base de Neon que ya usaba desarrollo
+(decisión explícita, no una separada) — ya tenía todas las migraciones al
+día, así que no hizo falta ningún paso de migración aparte para el deploy.
+Confirmado en vivo que `/api/health` en producción responde
+`{"status":"ok","db":"connected"}`. Implica que el tenant demo
+(`consultorio-demo`, login `owner@demo.com`) y su agenda pública de
+reservas ya son alcanzables en la URL real de producción, no solo en local.
+
+**Bug real encontrado y corregido durante el primer intento de deploy**: el
+build falló en Vercel (`PrismaClientInitializationError`) aunque compilaba
+limpio en local — motivo conocido de Prisma: Vercel cachea `node_modules`
+entre builds, así que el postinstall que genera el Prisma Client no corre
+si se restaura desde caché, dejando un cliente desactualizado/ausente en
+runtime. Fix estándar de Prisma: se agregó `"postinstall": "prisma generate"`
+a `package.json` (no existía). Confirmado en vivo: sin el fix, deploy con
+`readyState: "ERROR"`; con el fix, `readyState: "READY"` y el build completo
+sin errores.
+
+**Cron jobs ajustados al plan Hobby (gratis)**: Vercel Hobby solo permite
+cron jobs con cadencia de una vez por día — el proyecto tenía
+`send-reminders` corriendo cada hora (`0 * * * *`), pensado para procesar
+recordatorios de cita dentro de la hora en que vencen. Cambiado a
+`0 5 * * *` (una corrida diaria, 5am). Decisión de producto aceptada
+explícitamente por Jonta al elegir el plan Hobby: los recordatorios de cita
+pierden precisión horaria (se procesan una vez al día en vez de dentro de
+la hora que corresponde) — si el proyecto pasa a plan Pro más adelante,
+revertir a cadencia horaria en `vercel.json` para recuperar la precisión
+original. Los otros 5 crons ya eran diarios, sin cambios. Confirmado en
+vivo con `vercel crons ls` que los 6 quedaron registrados con la cadencia
+esperada, y que `/api/cron/send-reminders` sin el header de autorización
+correcto responde 401 (el guard de `CRON_SECRET` sigue funcionando en
+producción, no solo en local).
+
+**Variables de entorno**: las 23 variables no vacías de `.env` local se
+cargaron a Vercel (entorno Production) vía `vercel env add` con el valor
+por stdin — nunca se imprimió ningún valor en la salida de ningún comando
+(aprendido de un incidente real en esta misma sesión: un `sed` mal armado
+al chequear el modo de `STRIPE_SECRET_KEY` imprimió la llave completa en la
+conversación; Jonta la rotó al toque). `RESEND_API_KEY` se saltó (vacía
+también en local — sigue sin configurar, el envío de emails de "olvidé mi
+contraseña" sigue fallando en silencio en producción igual que en local).
+`NEXT_PUBLIC_APP_URL` se seteó aparte, después de conocer la URL real
+asignada por Vercel (es una variable `NEXT_PUBLIC_` — se inyecta al bundle
+en build time, no en runtime, así que hizo falta un segundo
+`vercel deploy --prod` después de cargarla para que quedara horneada
+correctamente).
+
+**Verificado en vivo contra la URL real de producción** (no localhost):
+`/api/health` → `200 {"status":"ok","db":"connected"}`; `/login` → `200`;
+`/consultorio-demo` (agenda pública del tenant demo) → `200`;
+`/api/cron/send-reminders` sin `Authorization` → `401`. Los 6 cron jobs
+confirmados registrados vía `vercel crons ls` con la cadencia correcta.
+
+**Pendiente real, no de código — requiere acceso a paneles externos que
+este entorno no tiene**:
+1. **Webhooks de Stripe y Wompi** siguen apuntando a donde estuvieran
+   configurados antes (probablemente `stripe listen` local o ninguno real
+   todavía) — hay que registrar los endpoints de producción
+   (`https://plataforma-agenda.vercel.app/api/webhooks/stripe` y
+   `/api/webhooks/wompi`) en sus paneles respectivos. Si se crea un webhook
+   *nuevo* en Stripe, su signing secret es distinto al que ya está cargado
+   en Vercel (`STRIPE_WEBHOOK_SECRET`) — hay que actualizarlo con
+   `vercel env add STRIPE_WEBHOOK_SECRET production --force` si cambia.
+2. **RESEND_API_KEY** sigue sin configurar — crear la cuenta de Resend y
+   cargar la key (mismo pendiente que ya existía en local, ver la fase de
+   "Recuperación y cambio de contraseña" más arriba en este archivo).
+3. **Plantillas de WhatsApp** (`recordatorio_cita`, `seguimiento_recompra`,
+   `alerta_stock_bajo`, `alerta_paquete_vencimiento`, `cupo_lista_espera`)
+   siguen sin aprobación de Meta — ya documentado en fases anteriores, no
+   es nuevo de este deploy.
+4. **Sin dominio propio** — la URL sigue siendo `*.vercel.app`; conectar un
+   dominio real es un paso aparte en el dashboard de Vercel (Settings →
+   Domains) cuando Jonta tenga uno listo.
+5. **Sin repo de Git conectado** — cada deploy nuevo requiere correr
+   `vercel deploy --prod` a mano desde esta carpeta; no hay auto-deploy en
+   cada push todavía.
