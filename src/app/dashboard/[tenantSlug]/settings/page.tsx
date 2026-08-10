@@ -1,9 +1,9 @@
-import { ShieldCheck, Star } from "lucide-react";
+import { Store, ShieldCheck, Star } from "lucide-react";
 import { requireSettingsAccess } from "@/lib/auth-guards";
 import { planIncludesModule } from "@/lib/planLimits";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { CopyButton } from "@/components/ui/CopyButton";
-import { updateDepositPolicyAction, updateLoyaltyPolicyAction } from "./actions";
+import { updateDepositPolicyAction, updateLoyaltyPolicyAction, updateMarketplaceListingAction } from "./actions";
 import { DepositPolicyFields } from "./DepositPolicyFields";
 
 export default async function SettingsPage({
@@ -11,10 +11,17 @@ export default async function SettingsPage({
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ error?: string; saved?: string; loyaltyError?: string; loyaltySaved?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    saved?: string;
+    loyaltyError?: string;
+    loyaltySaved?: string;
+    marketplaceError?: string;
+    marketplaceSaved?: string;
+  }>;
 }) {
   const { tenantSlug } = await params;
-  const { error, saved, loyaltyError, loyaltySaved } = await searchParams;
+  const { error, saved, loyaltyError, loyaltySaved, marketplaceError, marketplaceSaved } = await searchParams;
   const { tenant } = await requireSettingsAccess(tenantSlug);
   const loyaltyModuleEnabled = planIncludesModule(tenant.plan, "loyalty");
 
@@ -106,6 +113,51 @@ export default async function SettingsPage({
           </form>
         </div>
       )}
+
+      <div className="mt-6 border-t border-sage-dark/30 pt-4">
+        <p className="section-title text-sm">Marketplace</p>
+        <p className="mt-1 text-xs text-ink/50">
+          Si activás esto, tu negocio aparece en{" "}
+          <a href="/explorar" target="_blank" rel="noreferrer" className="text-pine underline-offset-2 hover:underline">
+            el directorio público de RIME
+          </a>{" "}
+          — cualquiera puede encontrarte y reservar desde ahí, además de tu link directo.
+        </p>
+
+        {marketplaceError && <p className="msg-error mt-3">{marketplaceError}</p>}
+        {marketplaceSaved && !marketplaceError && <p className="msg-success mt-3">Cambios guardados.</p>}
+
+        <form action={updateMarketplaceListingAction.bind(null, tenantSlug)} className="mt-4 space-y-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="marketplaceListed"
+              defaultChecked={tenant.marketplaceListed}
+              className="field-checkbox"
+            />
+            Listar mi negocio en el marketplace de RIME
+          </label>
+
+          <div>
+            <label className="field-label" htmlFor="marketplaceDescription">
+              Descripción corta (opcional)
+            </label>
+            <textarea
+              id="marketplaceDescription"
+              name="marketplaceDescription"
+              rows={2}
+              maxLength={160}
+              placeholder="Ej: Consultas de psicología online y presenciales."
+              defaultValue={tenant.marketplaceDescription ?? ""}
+              className="field-input"
+            />
+          </div>
+
+          <SubmitButton icon={<Store className="h-4 w-4" />} pendingLabel="Guardando…">
+            Guardar
+          </SubmitButton>
+        </form>
+      </div>
 
       <div className="mt-6 border-t border-sage-dark/30 pt-4">
         <p className="section-title text-sm">Widget / enlace para compartir</p>

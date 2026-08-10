@@ -12,10 +12,11 @@ export default async function PublicBookingPage({
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ appointment?: string; payment?: string; wompi?: string; id?: string }>;
+  searchParams: Promise<{ appointment?: string; payment?: string; wompi?: string; id?: string; from?: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { appointment: appointmentId, payment, wompi, id: wompiTransactionId } = await searchParams;
+  const { appointment: appointmentId, payment, wompi, id: wompiTransactionId, from } = await searchParams;
+  const bookingSource = from === "marketplace" ? "MARKETPLACE" : "WEBSITE";
 
   const tenant = await prisma.tenant.findUnique({
     where: { slug: tenantSlug },
@@ -146,6 +147,7 @@ export default async function PublicBookingPage({
                   type: tenant.depositType,
                   value: tenant.depositValue?.toString() ?? null,
                 }}
+                source={bookingSource}
               />
             ) : (
               <p className="mt-8 text-sm text-ink/40">

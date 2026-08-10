@@ -30,9 +30,9 @@ export function MarketingHeader() {
         </nav>
 
         <div className="flex items-center gap-1.5">
-          <a href="#pacientes" className="hidden sm:inline-flex btn-secondary-sm">
-            Buscar especialista
-          </a>
+          <Link href="/explorar" className="hidden sm:inline-flex btn-secondary-sm">
+            Explorar negocios
+          </Link>
           <Link
             href="/login"
             aria-label="Iniciar sesión"

@@ -74,6 +74,10 @@ interface BookingWizardProps {
   services: BookingService[];
   professionals: BookingProfessional[];
   depositPolicy: BookingDepositPolicy;
+  // De dónde llegó el visitante — /explorar (marketplace) o el link directo
+  // del negocio. Se guarda tal cual en Appointment.source (AppointmentSource
+  // ya tenía el valor MARKETPLACE en el enum, sin conectar hasta esta fase).
+  source: "WEBSITE" | "MARKETPLACE";
 }
 
 type Step = "location" | "service" | "professional" | "datetime" | "client" | "confirmation";
@@ -136,6 +140,7 @@ export function BookingWizard({
   services,
   professionals,
   depositPolicy,
+  source,
 }: BookingWizardProps) {
   const hasLocationStep = locations.length > 1;
   const defaultLocationId = locations.length === 1 ? locations[0].id : null;
@@ -282,6 +287,7 @@ export function BookingWizard({
         serviceId: selectedServiceId,
         startsAtIso: selectedSlotIso,
         client: clientForm,
+        source,
       });
 
       if (!result.ok) {

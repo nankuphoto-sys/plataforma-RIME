@@ -84,3 +84,30 @@ export async function updateLoyaltyPolicyAction(tenantSlug: string, formData: Fo
 
   redirect(`/dashboard/${tenantSlug}/settings?loyaltySaved=1`);
 }
+
+const MAX_MARKETPLACE_DESCRIPTION_LENGTH = 160;
+
+export async function updateMarketplaceListingAction(tenantSlug: string, formData: FormData): Promise<void> {
+  const { tenant } = await requireSettingsAccess(tenantSlug);
+
+  const listed = formData.get("marketplaceListed") === "on";
+  const description = formData.get("marketplaceDescription")?.toString().trim() ?? "";
+
+  if (description.length > MAX_MARKETPLACE_DESCRIPTION_LENGTH) {
+    redirect(
+      `/dashboard/${tenantSlug}/settings?marketplaceError=${encodeURIComponent(
+        `La descripción no puede superar los ${MAX_MARKETPLACE_DESCRIPTION_LENGTH} caracteres.`
+      )}`
+    );
+  }
+
+  await prisma.tenant.update({
+    where: { id: tenant.id },
+    data: {
+      marketplaceListed: listed,
+      marketplaceDescription: description || null,
+    },
+  });
+
+  redirect(`/dashboard/${tenantSlug}/settings?marketplaceSaved=1`);
+}

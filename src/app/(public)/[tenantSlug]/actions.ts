@@ -98,6 +98,7 @@ export interface CreateAppointmentInput {
   serviceId: string;
   startsAtIso: string;
   client: { name: string; email: string; phone: string };
+  source?: "WEBSITE" | "MARKETPLACE";
 }
 
 export interface CreatedAppointment {
@@ -204,7 +205,7 @@ export async function createAppointmentAction(
             startsAt,
             endsAt,
             status: "PENDING",
-            source: "WEBSITE",
+            source: input.source ?? "WEBSITE",
           },
         });
       },

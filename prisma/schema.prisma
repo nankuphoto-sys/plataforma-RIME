@@ -24,6 +24,13 @@ model Tenant {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
+  // Marketplace público (/explorar) — opt-in explícito, por defecto ningún
+  // negocio aparece: algunos rubros (ej. psicología) prefieren no ser
+  // descubribles públicamente. marketplaceDescription es una tagline corta
+  // opcional que se muestra en la card del listado.
+  marketplaceListed      Boolean @default(false)
+  marketplaceDescription String?
+
   // Suscripción del SaaS (cobro recurrente vía Stripe Billing) — no confundir
   // con los pagos de citas de clientes finales (model Payment).
   stripeCustomerId     String? @unique
