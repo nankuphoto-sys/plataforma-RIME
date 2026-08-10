@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Clock, Download, FileText, Package, Save } from "lucide-react";
+import { ArrowLeft, Clock, Download, FileText, Gift, Package, Save, Star } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import type { SessionPackageStatus, WaitlistEntryStatus } from "@prisma/client";
 import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
@@ -12,6 +12,7 @@ import { getEffectiveClientFieldTemplate } from "@/lib/clientFieldTemplates";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
 import { planIncludesModule } from "@/lib/planLimits";
 import { canRedeemSession, remainingSessions } from "@/lib/packages";
+import { computeAvailableRewards, computeStampProgress } from "@/lib/loyalty";
 import { computeWeeklySessionStreak } from "@/lib/streak";
 import {
   cancelPackageAction,
@@ -19,6 +20,7 @@ import {
   createPackageAction,
   createPrescriptionAction,
   createWaitlistEntryAction,
+  redeemLoyaltyRewardAction,
   redeemPackageSessionAction,
   updateClientAction,
 } from "../actions";
@@ -112,6 +114,20 @@ export default async function ClientDetailPage({
     session.user.locationRoles,
     tenant.locations.map((location) => location.id),
     ["OWNER", "ADMIN"]
+  );
+
+  // Fidelidad con sellos: mismo criterio que Paquetes — sección propia,
+  // gateada por plan Y por si el negocio la activó en Configuración.
+  const loyaltyEnabled = planIncludesModule(tenant.plan, "loyalty") && tenant.loyaltyEnabled;
+  const availableRewards = computeAvailableRewards(
+    client.loyaltyStamps,
+    tenant.loyaltyStampsRequired,
+    client.loyaltyRewardsRedeemed
+  );
+  const stampProgress = computeStampProgress(
+    client.loyaltyStamps,
+    tenant.loyaltyStampsRequired,
+    client.loyaltyRewardsRedeemed
   );
 
   const [packages, activeServices] = packagesEnabled
@@ -364,6 +380,39 @@ export default async function ClientDetailPage({
                 Vender paquete
               </SubmitButton>
             </form>
+          )}
+        </section>
+      )}
+
+      {loyaltyEnabled && (
+        <section className="mt-6 border-t border-sage-dark/30 pt-6">
+          <h2 className="section-title">Fidelidad con sellos</h2>
+          <p className="mt-1 text-sm text-ink/60">
+            {stampProgress} de {tenant.loyaltyStampsRequired} sellos
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5" aria-hidden>
+            {Array.from({ length: tenant.loyaltyStampsRequired }).map((_, i) => (
+              <span
+                key={i}
+                className={`h-3 w-3 rounded-full ${
+                  i < stampProgress ? "bg-gold" : "border border-sage-dark/50 bg-transparent"
+                }`}
+              />
+            ))}
+          </div>
+
+          {availableRewards > 0 && (
+            <div className="mt-4 rounded-xl border border-gold/40 bg-gold/10 p-3">
+              <p className="text-sm font-medium text-ink">
+                🎁 {tenant.loyaltyRewardDescription} disponible
+                {availableRewards > 1 ? ` (x${availableRewards})` : ""}
+              </p>
+              <form action={redeemLoyaltyRewardAction.bind(null, tenantSlug, clientId)} className="mt-2">
+                <SubmitButton icon={<Gift className="h-4 w-4" />} pendingLabel="Canjeando…" className="btn-secondary">
+                  Canjear premio
+                </SubmitButton>
+              </form>
+            </div>
           )}
         </section>
       )}

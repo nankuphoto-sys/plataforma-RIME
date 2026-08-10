@@ -116,6 +116,23 @@ export async function requirePackagesAccess(tenantSlug: string) {
   return { session, tenant };
 }
 
+// Guard de acceso a fidelidad con sellos (ver el progreso, canjear un
+// premio desde la ficha de un cliente): exige que el plan del tenant
+// incluya "loyalty" (si no, manda a /plan-required), mismo patrón que
+// requirePackagesAccess. Sin split de manage-access: canjear un premio ya
+// ganado es trabajo de mostrador del día a día, igual que redimir una
+// sesión de paquete — activar/configurar la política sí exige OWNER, pero
+// eso se resuelve con requireSettingsAccess (ver settings/actions.ts), no acá.
+export async function requireLoyaltyAccess(tenantSlug: string) {
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  if (!planIncludesModule(tenant.plan, "loyalty")) {
+    redirect(`/dashboard/${tenantSlug}/plan-required?feature=fidelidad&requiredPlan=PREMIUM`);
+  }
+
+  return { session, tenant };
+}
+
 // Guard de acceso a la lista de espera (unirse, ver la propia, cancelar):
 // exige que el plan del tenant incluya "waitlist", mismo patrón que
 // requirePackagesAccess. Sin split de manage-access — a diferencia de

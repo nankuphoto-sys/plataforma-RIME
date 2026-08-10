@@ -1,8 +1,9 @@
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Star } from "lucide-react";
 import { requireSettingsAccess } from "@/lib/auth-guards";
+import { planIncludesModule } from "@/lib/planLimits";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { CopyButton } from "@/components/ui/CopyButton";
-import { updateDepositPolicyAction } from "./actions";
+import { updateDepositPolicyAction, updateLoyaltyPolicyAction } from "./actions";
 import { DepositPolicyFields } from "./DepositPolicyFields";
 
 export default async function SettingsPage({
@@ -10,11 +11,12 @@ export default async function SettingsPage({
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; loyaltyError?: string; loyaltySaved?: string }>;
 }) {
   const { tenantSlug } = await params;
-  const { error, saved } = await searchParams;
+  const { error, saved, loyaltyError, loyaltySaved } = await searchParams;
   const { tenant } = await requireSettingsAccess(tenantSlug);
+  const loyaltyModuleEnabled = planIncludesModule(tenant.plan, "loyalty");
 
   const shareUrl = `${process.env.NEXT_PUBLIC_APP_URL}/${tenant.slug}`;
   const embedSnippet = `<iframe src="${shareUrl}" width="100%" height="720" style="border:0;" title="Reservar cita — ${tenant.name}"></iframe>`;
@@ -46,6 +48,64 @@ export default async function SettingsPage({
           </SubmitButton>
         </form>
       </div>
+
+      {loyaltyModuleEnabled && (
+        <div className="mt-6 border-t border-sage-dark/30 pt-4">
+          <p className="section-title text-sm">Fidelidad con sellos</p>
+          <p className="mt-1 text-xs text-ink/50">
+            Cada cita completada suma un sello. Al llegar al total, el cliente gana el premio —
+            vos se lo canjeás desde su ficha.
+          </p>
+
+          {loyaltyError && <p className="msg-error mt-3">{loyaltyError}</p>}
+          {loyaltySaved && !loyaltyError && <p className="msg-success mt-3">Política actualizada.</p>}
+
+          <form action={updateLoyaltyPolicyAction.bind(null, tenantSlug)} className="mt-4 space-y-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="loyaltyEnabled"
+                defaultChecked={tenant.loyaltyEnabled}
+                className="field-checkbox"
+              />
+              Activar fidelidad con sellos
+            </label>
+
+            <div>
+              <label className="field-label" htmlFor="loyaltyStampsRequired">
+                Sellos para el premio
+              </label>
+              <input
+                id="loyaltyStampsRequired"
+                name="loyaltyStampsRequired"
+                type="number"
+                min={1}
+                step={1}
+                defaultValue={tenant.loyaltyStampsRequired}
+                className="field-input"
+              />
+            </div>
+
+            <div>
+              <label className="field-label" htmlFor="loyaltyRewardDescription">
+                Premio
+              </label>
+              <input
+                id="loyaltyRewardDescription"
+                name="loyaltyRewardDescription"
+                type="text"
+                placeholder="Ej: 1 sesión gratis"
+                defaultValue={tenant.loyaltyRewardDescription ?? ""}
+                className="field-input"
+              />
+            </div>
+
+            <SubmitButton icon={<Star className="h-4 w-4" />} pendingLabel="Guardando…">
+              Guardar política
+            </SubmitButton>
+          </form>
+        </div>
+      )}
 
       <div className="mt-6 border-t border-sage-dark/30 pt-4">
         <p className="section-title text-sm">Widget / enlace para compartir</p>

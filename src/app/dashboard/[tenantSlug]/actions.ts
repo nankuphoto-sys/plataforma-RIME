@@ -164,6 +164,22 @@ export async function updateAppointmentStatusAction(
       }
     }
 
+    // Fidelidad con sellos: 100% automático a diferencia de paquetes de
+    // sesiones (ver comentario en schema.prisma) porque acá no hay
+    // ambigüedad — un solo contador corriendo por cliente/negocio, sin
+    // selector de "a cuál aplicar". Sin aviso al cliente a propósito (el
+    // conteo vive solo en el dashboard, decisión explícita del usuario).
+    if (
+      nextStatus === "COMPLETED" &&
+      tenant.loyaltyEnabled &&
+      planIncludesModule(tenant.plan, "loyalty")
+    ) {
+      await tx.client.update({
+        where: { id: appointment.clientId },
+        data: { loyaltyStamps: { increment: 1 } },
+      });
+    }
+
     // Lista de espera inteligente: al cancelar, se libera un cupo — se le
     // ofrece al candidato que matchea y espera hace más tiempo (nunca a
     // todos a la vez). Solo se consideran candidatos con teléfono válido —

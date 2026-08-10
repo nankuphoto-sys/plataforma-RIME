@@ -47,3 +47,40 @@ export async function updateDepositPolicyAction(tenantSlug: string, formData: Fo
 
   redirect(`/dashboard/${tenantSlug}/settings?saved=1`);
 }
+
+export async function updateLoyaltyPolicyAction(tenantSlug: string, formData: FormData): Promise<void> {
+  const { tenant } = await requireSettingsAccess(tenantSlug);
+
+  const enabled = formData.get("loyaltyEnabled") === "on";
+  const rawStampsRequired = formData.get("loyaltyStampsRequired")?.toString() ?? "";
+  const stampsRequired = Number(rawStampsRequired);
+  const rewardDescription = formData.get("loyaltyRewardDescription")?.toString().trim() ?? "";
+
+  if (enabled) {
+    if (!Number.isInteger(stampsRequired) || stampsRequired < 1) {
+      redirect(
+        `/dashboard/${tenantSlug}/settings?loyaltyError=${encodeURIComponent(
+          "La cantidad de sellos debe ser un número entero mayor a 0."
+        )}`
+      );
+    }
+    if (!rewardDescription) {
+      redirect(
+        `/dashboard/${tenantSlug}/settings?loyaltyError=${encodeURIComponent("Describí el premio.")}`
+      );
+    }
+  }
+
+  await prisma.tenant.update({
+    where: { id: tenant.id },
+    data: {
+      loyaltyEnabled: enabled,
+      // Se guardan igual aunque enabled sea false, para no perder la
+      // configuración si el negocio la desactiva y la vuelve a activar.
+      loyaltyStampsRequired: Number.isInteger(stampsRequired) && stampsRequired >= 1 ? stampsRequired : tenant.loyaltyStampsRequired,
+      loyaltyRewardDescription: rewardDescription || tenant.loyaltyRewardDescription,
+    },
+  });
+
+  redirect(`/dashboard/${tenantSlug}/settings?loyaltySaved=1`);
+}

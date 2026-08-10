@@ -53,6 +53,15 @@ model Tenant {
   depositType   DepositType?
   depositValue  Decimal?      @db.Decimal(10, 2)
 
+  // Fidelidad con sellos (módulo "loyalty", PREMIUM/PRO — ver planLimits.ts):
+  // cada cita completada suma un sello (Client.loyaltyStamps); al llegar a
+  // loyaltyStampsRequired el cliente gana un premio que el negocio canjea a
+  // mano desde su ficha. Sin aviso al cliente — el conteo vive solo en el
+  // dashboard, decisión explícita del usuario.
+  loyaltyEnabled           Boolean @default(false)
+  loyaltyStampsRequired    Int     @default(10)
+  loyaltyRewardDescription String?
+
   locations       Location[]
   users           User[]
   professionals   Professional[]
@@ -333,6 +342,13 @@ model Client {
   // sin tener que migrar el esquema cada vez que cambian los campos.
   customFields Json      @default("{}")
   createdAt    DateTime  @default(now())
+
+  // Fidelidad con sellos — ver el comentario en Tenant.loyaltyEnabled.
+  // loyaltyStamps nunca se resetea (acumulado de por vida); los premios
+  // disponibles se calculan como floor(loyaltyStamps / stampsRequired) -
+  // loyaltyRewardsRedeemed, nunca se guardan (ver src/lib/loyalty.ts).
+  loyaltyStamps          Int @default(0)
+  loyaltyRewardsRedeemed Int @default(0)
 
   appointments    Appointment[]
   notifications   NotificationQueue[]

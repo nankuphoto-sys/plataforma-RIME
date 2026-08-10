@@ -6,6 +6,7 @@ import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import {
   requireDashboardAccess,
+  requireLoyaltyAccess,
   requirePackagesAccess,
   requirePackagesManageAccess,
   requirePhotosAccess,
@@ -16,6 +17,7 @@ import { isProfessionalOnlyInTenant } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { getEffectiveClientFieldTemplate, type ClientFieldDefinition } from "@/lib/clientFieldTemplates";
 import { canRedeemSession } from "@/lib/packages";
+import { computeAvailableRewards } from "@/lib/loyalty";
 import { ALLOWED_CLIENT_PHOTO_TYPES, MAX_CLIENT_PHOTO_BYTES, MAX_CLIENT_PHOTO_LABEL } from "@/lib/clientPhotos";
 
 // Arma customFields solo a partir de las keys de la plantilla del tenant —
@@ -302,6 +304,37 @@ export async function cancelPackageAction(
   }
 
   await prisma.sessionPackage.update({ where: { id: pkg.id }, data: { status: "CANCELLED" } });
+
+  revalidatePath(`/dashboard/${tenantSlug}/clients/${clientId}`);
+  redirect(`/dashboard/${tenantSlug}/clients/${clientId}?saved=1`);
+}
+
+// Canjear un premio de fidelidad ya ganado — solo incrementa el contador de
+// canjeados, nunca toca loyaltyStamps (que es acumulado de por vida, ver
+// src/lib/loyalty.ts). Re-valida server-side que de verdad haya un premio
+// disponible: nunca confiar en que el botón solo aparece en la UI cuando
+// corresponde.
+export async function redeemLoyaltyRewardAction(tenantSlug: string, clientId: string): Promise<void> {
+  const { tenant } = await requireLoyaltyAccess(tenantSlug);
+
+  const client = await prisma.client.findFirst({ where: { id: clientId, tenantId: tenant.id } });
+  if (!client) notFound();
+
+  const availableRewards = computeAvailableRewards(
+    client.loyaltyStamps,
+    tenant.loyaltyStampsRequired,
+    client.loyaltyRewardsRedeemed
+  );
+  if (availableRewards <= 0) {
+    redirect(
+      `/dashboard/${tenantSlug}/clients/${clientId}?error=${encodeURIComponent("Este cliente todavía no tiene un premio disponible.")}`
+    );
+  }
+
+  await prisma.client.update({
+    where: { id: client.id },
+    data: { loyaltyRewardsRedeemed: { increment: 1 } },
+  });
 
   revalidatePath(`/dashboard/${tenantSlug}/clients/${clientId}`);
   redirect(`/dashboard/${tenantSlug}/clients/${clientId}?saved=1`);
