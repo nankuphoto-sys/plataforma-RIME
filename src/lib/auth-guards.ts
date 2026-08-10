@@ -201,6 +201,29 @@ export async function requirePackagesManageAccess(tenantSlug: string) {
   return { session, tenant };
 }
 
+// Guard de acceso a marketing masivo (crear y mandar una campaña): exige
+// que el plan del tenant incluya "reengagement" — se reusa el mismo módulo
+// que ya gatea el cron de clientes inactivos, es la misma categoría de
+// negocio, no hace falta uno nuevo — y OWNER o ADMIN, sin split de
+// manage-access: mandarle un email a toda la base de clientes es una
+// decisión de negocio seria, no hay un caso de "solo ver" para nadie más.
+export async function requireMarketingAccess(tenantSlug: string) {
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  if (!planIncludesModule(tenant.plan, "reengagement")) {
+    redirect(`/dashboard/${tenantSlug}/plan-required?feature=marketing&requiredPlan=PREMIUM`);
+  }
+
+  const hasMarketingAccess = hasAnyOfRolesInTenantLocations(
+    session.user.locationRoles,
+    tenant.locations.map((location) => location.id),
+    ["OWNER", "ADMIN"]
+  );
+  if (!hasMarketingAccess) notFound();
+
+  return { session, tenant };
+}
+
 // Guard de acceso a gift cards (ver el listado, aplicar una al reservar):
 // exige que el plan del tenant incluya "giftCards" (si no, manda a
 // /plan-required), mismo patrón que requirePackagesAccess.

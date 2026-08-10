@@ -57,3 +57,48 @@ export async function sendReviewInviteEmail(
     return { ok: false, error: error instanceof Error ? error.message : "Error desconocido" };
   }
 }
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// Campaña de marketing masivo, enviada por el cron
+// send-marketing-campaign-emails. `body` es texto plano (lo escribió el
+// dueño del negocio en el formulario de la campaña, ver
+// dashboard/[tenantSlug]/marketing/new) — se escapa y se convierte cada
+// salto de línea en un párrafo antes de mandar. Siempre lleva el pie de
+// baja: es requisito básico de cualquier envío masivo de email, no opcional.
+export async function sendMarketingCampaignEmail(
+  to: string,
+  subject: string,
+  body: string,
+  unsubscribeUrl: string
+): Promise<{ ok: true; messageId: null } | { ok: false; error: string }> {
+  try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const bodyHtml = body
+      .split(/\n{2,}/)
+      .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
+      .join("\n");
+
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM ?? "RIME <onboarding@resend.dev>",
+      to,
+      subject,
+      html: `
+        ${bodyHtml}
+        <hr style="margin-top: 24px; border: none; border-top: 1px solid #E5E7EB;" />
+        <p style="font-size: 12px; color: #6B7280;">
+          <a href="${unsubscribeUrl}">Darte de baja</a> de estas novedades.
+        </p>
+      `,
+    });
+    return { ok: true, messageId: null };
+  } catch (error) {
+    console.error("Error enviando email de campaña de marketing", error);
+    return { ok: false, error: error instanceof Error ? error.message : "Error desconocido" };
+  }
+}

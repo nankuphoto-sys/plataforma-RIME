@@ -6,6 +6,7 @@
     { "path": "/api/cron/charge-wompi-subscriptions", "schedule": "0 9 * * *" },
     { "path": "/api/cron/detect-expiring-packages", "schedule": "0 7 * * *" },
     { "path": "/api/cron/send-package-expiration-alerts", "schedule": "0 10 * * *" },
-    { "path": "/api/cron/send-review-requests", "schedule": "0 11 * * *" }
+    { "path": "/api/cron/send-review-requests", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/send-marketing-campaign-emails", "schedule": "0 12 * * *" }
   ]
 }

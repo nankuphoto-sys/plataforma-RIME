@@ -78,6 +78,7 @@ model Tenant {
   clientPhotos    ClientPhoto[]
   reviews         Review[]
   giftCards       GiftCard[]
+  marketingCampaigns MarketingCampaign[]
 }
 
 enum Plan {
@@ -351,6 +352,13 @@ model Client {
   loyaltyStamps          Int @default(0)
   loyaltyRewardsRedeemed Int @default(0)
 
+  // Baja de marketing masivo (ver src/app/darse-de-baja) — se respeta para
+  // siempre una vez activada, ninguna campaña vuelve a incluir a este
+  // cliente. No hay opt-in explícito: el consentimiento es implícito por ser
+  // cliente del negocio (decisión de producto explícita, ver Marketing
+  // masivo en el roadmap), esto es solo la salida.
+  marketingOptOut Boolean @default(false)
+
   appointments    Appointment[]
   notifications   NotificationQueue[]
   sessionPackages SessionPackage[]
@@ -585,6 +593,11 @@ model NotificationQueue {
   // que son 1:1 con su cita/cliente).
   packageId     String?
   package       SessionPackage?     @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  // Solo seteado para kind: MARKETING_CAMPAIGN — permite contar
+  // enviados/fallidos por campaña en vivo (ver src/lib/marketing.ts), sin
+  // guardar un estado agregado aparte que se pueda desincronizar.
+  campaignId    String?
+  campaign      MarketingCampaign?  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   channel       NotificationChannel
   kind          NotificationKind
   status        NotificationStatus  @default(SCHEDULED)
@@ -607,6 +620,32 @@ enum NotificationKind {
   PACKAGE_EXPIRATION
   WAITLIST_SLOT_OPENED
   REVIEW_REQUEST
+  MARKETING_CAMPAIGN
+}
+
+// Una campaña ya enviada es inmutable — sin edición ni reenvío en esta fase.
+// El desglose de enviados/fallidos/pendientes se deriva contando
+// NotificationQueue por campaignId+status en el momento de mostrarla, nunca
+// se guarda como campo aparte.
+model MarketingCampaign {
+  id              String                   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subject         String
+  body            String // texto plano; se envuelve en el layout de email al mandar
+  segment         MarketingCampaignSegment
+  recipientCount  Int
+  createdByUserId String?
+  createdAt       DateTime                 @default(now())
+
+  notifications NotificationQueue[]
+
+  @@index([tenantId])
+}
+
+enum MarketingCampaignSegment {
+  ALL_CLIENTS
+  INACTIVE_60_DAYS
 }
 
 enum NotificationStatus {
