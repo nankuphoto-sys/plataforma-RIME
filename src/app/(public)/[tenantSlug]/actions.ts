@@ -8,11 +8,23 @@ import { generateWompiIntegritySignature } from "@/lib/wompi";
 import { normalizePhoneForWhatsapp } from "@/lib/whatsapp";
 import { computeReminderScheduledFor, formatAppointmentDateTimeLabel } from "@/lib/reminderScheduling";
 import { computeChargeAmount } from "@/lib/depositPolicy";
+import { computeRedemptionAmount, isGiftCardRedeemable } from "@/lib/giftCards";
+import { ALLOWED_STATUS_TRANSITIONS } from "@/lib/appointmentStatus";
 import {
   generateAvailableSlots,
   getDayBoundsUtc,
   type CalendarDate,
 } from "@/lib/availability";
+
+// Cuánto queda por cobrar de verdad después de restar lo que ya cubrió una
+// gift card aplicada a esta cita (ver applyGiftCardAction) — el checkout de
+// Stripe/Wompi siempre debe cobrar el remanente, nunca el precio completo.
+async function getRemainingAmountAfterGiftCard(appointmentId: string, baseAmount: string): Promise<string> {
+  const redemption = await prisma.giftCardRedemption.findUnique({ where: { appointmentId } });
+  if (!redemption) return baseAmount;
+  const remaining = Math.max(0, Number(baseAmount) - Number(redemption.amountApplied));
+  return remaining.toFixed(2);
+}
 
 // TODO: esto es una conversión de referencia fija, no una tasa de cambio real.
 // Cuando el modelo de precios soporte multi-moneda por tenant, reemplazar esto.
@@ -274,6 +286,11 @@ export async function createCheckoutSessionAction(
     return { ok: false, error: "Este negocio no requiere pago anticipado para reservar." };
   }
 
+  const remainingAmount = await getRemainingAmountAfterGiftCard(appointment.id, charge.amount);
+  if (Number(remainingAmount) <= 0) {
+    return { ok: false, error: "Esta cita ya está cubierta por completo con una gift card." };
+  }
+
   const payment =
     appointment.payment ??
     (await prisma.payment.create({
@@ -281,7 +298,7 @@ export async function createCheckoutSessionAction(
         appointmentId: appointment.id,
         provider: "STRIPE",
         status: "PENDING",
-        amount: charge.amount,
+        amount: remainingAmount,
         kind: charge.kind,
         // Fijo en USD por ahora: Mercado Pago se encargará de moneda local
         // (CLP, etc.) en una fase posterior.
@@ -290,7 +307,7 @@ export async function createCheckoutSessionAction(
     }));
 
   const baseUrl = await getBaseUrl();
-  const amountInCents = Math.round(Number(charge.amount) * 100);
+  const amountInCents = Math.round(Number(remainingAmount) * 100);
   const productName =
     charge.kind === "DEPOSIT" ? `Seña — ${appointment.service.name}` : appointment.service.name;
 
@@ -351,10 +368,15 @@ export async function createWompiCheckoutAction(
     return { ok: false, error: "Este negocio no requiere pago anticipado para reservar." };
   }
 
+  const remainingAmount = await getRemainingAmountAfterGiftCard(appointment.id, charge.amount);
+  if (Number(remainingAmount) <= 0) {
+    return { ok: false, error: "Esta cita ya está cubierta por completo con una gift card." };
+  }
+
   // Wompi no permite reutilizar una referencia ya usada: generamos una nueva
   // en cada intento de pago.
   const reference = `${appointment.id}-${Date.now()}`;
-  const amountInCents = Math.round(Number(charge.amount) * MOCK_USD_TO_COP_RATE * 100);
+  const amountInCents = Math.round(Number(remainingAmount) * MOCK_USD_TO_COP_RATE * 100);
 
   if (appointment.payment) {
     await prisma.payment.update({
@@ -362,7 +384,7 @@ export async function createWompiCheckoutAction(
       data: {
         provider: "WOMPI",
         status: "PENDING",
-        amount: charge.amount,
+        amount: remainingAmount,
         kind: charge.kind,
         currency: "COP",
         providerRef: reference,
@@ -374,7 +396,7 @@ export async function createWompiCheckoutAction(
         appointmentId: appointment.id,
         provider: "WOMPI",
         status: "PENDING",
-        amount: charge.amount,
+        amount: remainingAmount,
         kind: charge.kind,
         currency: "COP",
         providerRef: reference,
@@ -399,4 +421,95 @@ export async function createWompiCheckoutAction(
   });
 
   return { ok: true, data: { checkoutUrl: `https://checkout.wompi.co/p/?${params.toString()}` } };
+}
+
+export interface GiftCardApplied {
+  amountApplied: string;
+  remainingAmount: string;
+  fullyCovered: boolean;
+}
+
+// Aplica una gift card a una cita antes de que el cliente elija cómo pagar
+// el resto. Una sola vez por cita (GiftCardRedemption.appointmentId es
+// @unique). Si cubre el 100%, confirma la cita ahí mismo — no hay checkout
+// externo que dispare un webhook, así que replica a mano el mismo patrón de
+// "Payment PAID → si la transición lo permite, confirmar" que usan los
+// webhooks de Stripe/Wompi (ver ALLOWED_STATUS_TRANSITIONS).
+export async function applyGiftCardAction(
+  tenantSlug: string,
+  appointmentId: string,
+  rawCode: string
+): Promise<ActionResult<GiftCardApplied>> {
+  const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+  if (!tenant) return { ok: false, error: "Negocio no encontrado." };
+
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: appointmentId, tenantId: tenant.id },
+    include: { service: true, payment: true, giftCardRedemption: true },
+  });
+  if (!appointment) return { ok: false, error: "Cita no encontrada." };
+
+  if (appointment.payment?.status === "PAID") {
+    return { ok: false, error: "Esta cita ya fue pagada." };
+  }
+  if (appointment.giftCardRedemption) {
+    return { ok: false, error: "Ya aplicaste una gift card a esta cita." };
+  }
+
+  const charge = computeChargeAmount(tenant, appointment.service.price);
+  if (!charge) {
+    return { ok: false, error: "Este negocio no requiere pago anticipado para reservar." };
+  }
+
+  const code = rawCode.trim().toUpperCase();
+  if (!code) return { ok: false, error: "Ingresá un código." };
+
+  const giftCard = await prisma.giftCard.findUnique({
+    where: { tenantId_code: { tenantId: tenant.id, code } },
+  });
+  if (!giftCard || !isGiftCardRedeemable(giftCard, new Date())) {
+    return { ok: false, error: "Ese código de gift card no es válido." };
+  }
+
+  const amountApplied = computeRedemptionAmount(Number(giftCard.balance), Number(charge.amount));
+  const remainingAmount = Math.max(0, Number(charge.amount) - amountApplied);
+  const newBalance = Number(giftCard.balance) - amountApplied;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.giftCard.update({
+      where: { id: giftCard.id },
+      data: { balance: newBalance, status: newBalance <= 0 ? "DEPLETED" : giftCard.status },
+    });
+
+    await tx.giftCardRedemption.create({
+      data: { giftCardId: giftCard.id, appointmentId: appointment.id, amountApplied },
+    });
+
+    if (remainingAmount <= 0) {
+      await tx.payment.create({
+        data: {
+          appointmentId: appointment.id,
+          provider: "GIFT_CARD",
+          status: "PAID",
+          amount: charge.amount,
+          kind: charge.kind,
+          currency: "usd",
+          confirmedAt: new Date(),
+        },
+      });
+
+      if (ALLOWED_STATUS_TRANSITIONS[appointment.status].includes("CONFIRMED")) {
+        await tx.appointment.update({ where: { id: appointment.id }, data: { status: "CONFIRMED" } });
+      }
+    }
+  });
+
+  return {
+    ok: true,
+    data: {
+      amountApplied: amountApplied.toFixed(2),
+      remainingAmount: remainingAmount.toFixed(2),
+      fullyCovered: remainingAmount <= 0,
+    },
+  };
 }

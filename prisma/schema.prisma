@@ -77,6 +77,7 @@ model Tenant {
   prescriptions   Prescription[]
   clientPhotos    ClientPhoto[]
   reviews         Review[]
+  giftCards       GiftCard[]
 }
 
 enum Plan {
@@ -425,6 +426,7 @@ model Appointment {
   packageRedemption  PackageRedemption?
   prescriptions      Prescription[]
   review             Review?
+  giftCardRedemption GiftCardRedemption?
 
   @@index([tenantId, startsAt])
   @@index([locationId, startsAt])
@@ -468,6 +470,60 @@ model Payment {
 enum PaymentProvider {
   STRIPE
   WOMPI
+  // Solo cuando una gift card cubre el 100% del monto — no hay checkout
+  // externo, el Payment se crea PAID directo (ver applyGiftCardAction en
+  // src/app/(public)/[tenantSlug]/actions.ts).
+  GIFT_CARD
+}
+
+// La gift card la emite el negocio a mano desde el dashboard (código +
+// monto) — el cobro real (efectivo, transferencia, en persona) queda fuera
+// de la app a propósito, no hay checkout de Stripe/Wompi para comprarla.
+// `code` no se hashea (a diferencia de los tokens de reseña/reset de
+// contraseña): el negocio necesita poder leerlo y compartirlo con quien
+// compró la tarjeta.
+model GiftCard {
+  id               String         @id @default(cuid())
+  tenantId         String
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code             String
+  initialAmount    Decimal        @db.Decimal(10, 2)
+  balance          Decimal        @db.Decimal(10, 2)
+  purchaserName    String?
+  purchaserContact String?
+  recipientName    String?
+  note             String?
+  status           GiftCardStatus @default(ACTIVE)
+  expiresAt        DateTime?
+  createdByUserId  String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  redemptions GiftCardRedemption[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+enum GiftCardStatus {
+  ACTIVE
+  DEPLETED // el saldo llegó a 0
+  CANCELLED // el negocio la anuló a mano
+}
+
+// Una gift card se aplica una sola vez por cita (appointmentId @unique) —
+// si el saldo no alcanza para cubrir el precio completo, el resto se paga
+// por Stripe/Wompi como siempre; ver createCheckoutSessionAction/
+// createWompiCheckoutAction, que restan amountApplied antes de armar el
+// checkout.
+model GiftCardRedemption {
+  id            String      @id @default(cuid())
+  giftCardId    String
+  giftCard      GiftCard    @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  amountApplied Decimal     @db.Decimal(10, 2)
+  redeemedAt    DateTime    @default(now())
 }
 
 enum PaymentKind {

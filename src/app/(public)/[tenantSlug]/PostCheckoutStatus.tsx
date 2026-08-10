@@ -14,7 +14,7 @@ export interface PostCheckoutAppointment {
   locationName: string;
   locationTimezone: string;
   paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED" | null;
-  paymentProvider: "STRIPE" | "WOMPI" | null;
+  paymentProvider: "STRIPE" | "WOMPI" | "GIFT_CARD" | null;
 }
 
 interface PostCheckoutStatusProps {
@@ -117,7 +117,9 @@ export function PostCheckoutStatus({
           <div className="flex flex-wrap items-center gap-4">
             <button
               type="button"
-              onClick={() => handleRetryPayment(appointment.paymentProvider ?? "STRIPE")}
+              onClick={() =>
+                handleRetryPayment(appointment.paymentProvider === "WOMPI" ? "WOMPI" : "STRIPE")
+              }
               disabled={isPending}
               className="btn-primary"
             >

@@ -12,11 +12,13 @@ import { OptionCard } from "@/components/ui/OptionCard";
 import { ServiceCard } from "@/components/ui/ServiceCard";
 import { AppointmentTicket } from "./AppointmentTicket";
 import {
+  applyGiftCardAction,
   createAppointmentAction,
   createCheckoutSessionAction,
   createWompiCheckoutAction,
   getAvailableSlotsAction,
   type CreatedAppointment,
+  type GiftCardApplied,
 } from "./actions";
 
 // Agrupa los horarios sueltos bajo un segmentado Mañana/Tarde/Noche antes de
@@ -158,6 +160,10 @@ export function BookingWizard({
   const [noProfessionalsServiceId, setNoProfessionalsServiceId] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  const [giftCardCode, setGiftCardCode] = useState("");
+  const [giftCardApplied, setGiftCardApplied] = useState<GiftCardApplied | null>(null);
+  const [giftCardError, setGiftCardError] = useState<string | null>(null);
+
   const selectedLocation = locations.find((l) => l.id === selectedLocationId) ?? null;
   const locationTimezone = selectedLocation?.timezone ?? "UTC";
 
@@ -186,6 +192,9 @@ export function BookingWizard({
     setConfirmation(null);
     setNoProfessionalsServiceId(null);
     setCheckoutError(null);
+    setGiftCardCode("");
+    setGiftCardApplied(null);
+    setGiftCardError(null);
   }
 
   function handleSelectLocation(locationId: string) {
@@ -309,6 +318,20 @@ export function BookingWizard({
     });
   }
 
+  function handleApplyGiftCard() {
+    if (!confirmation || !giftCardCode.trim()) return;
+    setGiftCardError(null);
+
+    startTransition(async () => {
+      const result = await applyGiftCardAction(tenantSlug, confirmation.id, giftCardCode);
+      if (!result.ok) {
+        setGiftCardError(result.error);
+        return;
+      }
+      setGiftCardApplied(result.data);
+    });
+  }
+
   // Breadcrumb: un chip por paso ya resuelto, en el orden en que el flujo
   // real los pidió (la sede solo aparece si el negocio tiene más de una).
   const crumbs: { label: string; done: boolean }[] = [
@@ -333,31 +356,69 @@ export function BookingWizard({
         )
       : null;
 
+    const remainingAmount = giftCardApplied ? Number(giftCardApplied.remainingAmount) : charge ? Number(charge.amount) : 0;
+    const fullyCoveredByGiftCard = giftCardApplied?.fullyCovered ?? false;
+
     return (
       <div className="mt-8">
         <AppointmentTicket
-          variant={charge ? "pending" : "awaiting-confirmation"}
+          variant={!charge || fullyCoveredByGiftCard ? (fullyCoveredByGiftCard ? "confirmed" : "awaiting-confirmation") : "pending"}
           serviceName={confirmation.serviceName}
           professionalName={confirmation.professionalName}
           locationName={confirmation.locationName}
           dateTimeLabel={formatFullDateTime(confirmation.startsAtIso, confirmation.locationTimezone)}
           message={
-            charge
-              ? "Tu cita quedó registrada como pendiente de confirmación. Elige cómo pagar para confirmarla."
-              : "Tu cita quedó reservada. El negocio te confirmará por WhatsApp o email a la brevedad."
+            fullyCoveredByGiftCard
+              ? "Tu gift card cubrió el costo completo — tu cita ya está confirmada."
+              : charge
+                ? "Tu cita quedó registrada como pendiente de confirmación. Elige cómo pagar para confirmarla."
+                : "Tu cita quedó reservada. El negocio te confirmará por WhatsApp o email a la brevedad."
           }
         >
-          {charge && (
+          {charge && !fullyCoveredByGiftCard && (
             <>
+              {!giftCardApplied && (
+                <div className="mb-4 border-b border-sage-dark/25 pb-4">
+                  <label className="field-label" htmlFor="giftCardCode">
+                    ¿Tenés una gift card?
+                  </label>
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      id="giftCardCode"
+                      type="text"
+                      value={giftCardCode}
+                      onChange={(e) => setGiftCardCode(e.target.value)}
+                      placeholder="RIME-XXXX-XXXX"
+                      className="field-input mt-0 font-mono uppercase"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyGiftCard}
+                      disabled={isPending || !giftCardCode.trim()}
+                      className="btn-secondary shrink-0"
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                  {giftCardError && <p className="msg-error mt-2">{giftCardError}</p>}
+                </div>
+              )}
+
+              {giftCardApplied && (
+                <p className="mb-3 text-sm font-medium text-success">
+                  🎁 Gift card aplicada: -${Number(giftCardApplied.amountApplied).toLocaleString("es-CO")}
+                </p>
+              )}
+
               <p className="text-xs font-semibold uppercase tracking-wide text-ink/40">
                 {charge.kind === "DEPOSIT" ? "Paga tu seña para confirmar" : "Elige cómo pagar"}
               </p>
-              {charge.kind === "DEPOSIT" && (
-                <p className="mt-1 data-mono text-lg font-semibold text-ink">
-                  ${Number(charge.amount).toLocaleString("es-CO")}{" "}
-                  <span className="text-sm font-normal text-ink/50">ahora · el resto se paga en el local</span>
-                </p>
-              )}
+              <p className="mt-1 data-mono text-lg font-semibold text-ink">
+                ${remainingAmount.toLocaleString("es-CO")}{" "}
+                <span className="text-sm font-normal text-ink/50">
+                  {charge.kind === "DEPOSIT" ? "ahora · el resto se paga en el local" : "a pagar"}
+                </span>
+              </p>
               <div className="mt-3 flex flex-col gap-3 sm:flex-row">
                 <button type="button" onClick={() => handlePay("stripe")} disabled={isPending} className="btn-primary">
                   {isPending ? "Redirigiendo…" : "Tarjeta internacional (Stripe)"}

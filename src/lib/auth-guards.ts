@@ -201,6 +201,36 @@ export async function requirePackagesManageAccess(tenantSlug: string) {
   return { session, tenant };
 }
 
+// Guard de acceso a gift cards (ver el listado, aplicar una al reservar):
+// exige que el plan del tenant incluya "giftCards" (si no, manda a
+// /plan-required), mismo patrón que requirePackagesAccess.
+export async function requireGiftCardsAccess(tenantSlug: string) {
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  if (!planIncludesModule(tenant.plan, "giftCards")) {
+    redirect(`/dashboard/${tenantSlug}/plan-required?feature=gift-cards&requiredPlan=PREMIUM`);
+  }
+
+  return { session, tenant };
+}
+
+// Guard de acceso para gestionar gift cards (emitir una nueva, cancelarla):
+// además del chequeo de plan de requireGiftCardsAccess, exige OWNER o ADMIN
+// — mismo criterio que requirePackagesManageAccess, porque emitir una gift
+// card mueve un monto de plata real.
+export async function requireGiftCardsManageAccess(tenantSlug: string) {
+  const { session, tenant } = await requireGiftCardsAccess(tenantSlug);
+
+  const hasGiftCardsManageAccess = hasAnyOfRolesInTenantLocations(
+    session.user.locationRoles,
+    tenant.locations.map((location) => location.id),
+    ["OWNER", "ADMIN"]
+  );
+  if (!hasGiftCardsManageAccess) notFound();
+
+  return { session, tenant };
+}
+
 // Guard de acceso para gestionar profesionales (crear/editar, activar/
 // desactivar, asignar servicios y sedes): OWNER o ADMIN, mismo criterio que
 // reportes/inventario. No necesita chequeo de plan/módulo — gestionar
