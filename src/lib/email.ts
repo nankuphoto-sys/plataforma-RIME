@@ -29,3 +29,31 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     console.error("Error enviando email de reseteo de contraseña", error);
   }
 }
+
+// Invitación a dejar reseña (Reseñas verificadas), enviada por el cron
+// send-review-requests. A diferencia de sendPasswordResetEmail, sí devuelve
+// {ok}: el cron necesita saber si marcar la fila de NotificationQueue como
+// SENT o FAILED, igual que ya hace sendXWhatsAppMessage en src/lib/whatsapp.ts.
+export async function sendReviewInviteEmail(
+  to: string,
+  reviewUrl: string,
+  tenantName: string
+): Promise<{ ok: true; messageId: null } | { ok: false; error: string }> {
+  try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM ?? "RIME <onboarding@resend.dev>",
+      to,
+      subject: `¿Cómo te fue en ${tenantName}?`,
+      html: `
+        <p>Gracias por tu visita a ${tenantName}.</p>
+        <p><a href="${reviewUrl}">Contanos cómo te fue</a> — te toma menos de un minuto.</p>
+        <p>Este link es personal y vence en 30 días.</p>
+      `,
+    });
+    return { ok: true, messageId: null };
+  } catch (error) {
+    console.error("Error enviando email de invitación a reseña", error);
+    return { ok: false, error: error instanceof Error ? error.message : "Error desconocido" };
+  }
+}

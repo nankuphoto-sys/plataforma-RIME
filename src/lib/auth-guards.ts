@@ -220,6 +220,23 @@ export async function requireServicesManageAccess(tenantSlug: string) {
   return { session, tenant };
 }
 
+// Guard de acceso para gestionar reseñas (ver el listado, ocultar/mostrar
+// una): OWNER o ADMIN, mismo criterio que servicios/profesionales. Sin
+// gating de plan — igual que depósito/no-show, es un feature de confianza
+// del booking público, no un upsell operativo. 404 en vez de 403.
+export async function requireReviewsAccess(tenantSlug: string) {
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
+
+  const hasReviewsAccess = hasAnyOfRolesInTenantLocations(
+    session.user.locationRoles,
+    tenant.locations.map((location) => location.id),
+    ["OWNER", "ADMIN"]
+  );
+  if (!hasReviewsAccess) notFound();
+
+  return { session, tenant };
+}
+
 // Guard de acceso para gestionar campos personalizados de la ficha de
 // cliente (src/app/dashboard/[tenantSlug]/client-fields): OWNER o ADMIN,
 // mismo criterio que servicios/profesionales. Sin gating de plan — esta

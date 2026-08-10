@@ -220,6 +220,49 @@ export async function sendPackageExpirationWhatsAppMessage(params: {
   return sendWhatsAppMessage(buildPackageExpirationTemplatePayload(params));
 }
 
+// Invitación a dejar reseña (Reseñas verificadas): se manda al completar una
+// cita, cuando el cliente no tiene email cargado (si lo tiene, se prefiere
+// mandarla por email — ver sendReviewInviteEmail). Pasa por NotificationQueue
+// (kind: REVIEW_REQUEST) igual que vencimiento de paquete, no es urgente.
+export function buildReviewInviteTemplatePayload(params: {
+  to: string; // ya normalizado
+  clientName: string;
+  tenantName: string;
+  reviewUrl: string;
+}): Record<string, unknown> {
+  const templateName = process.env.WHATSAPP_REVIEW_INVITE_TEMPLATE_NAME ?? "invitacion_resena";
+  const templateLang = process.env.WHATSAPP_REVIEW_INVITE_TEMPLATE_LANG ?? "es_MX";
+
+  return {
+    messaging_product: "whatsapp",
+    to: params.to,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: templateLang },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: params.clientName },
+            { type: "text", text: params.tenantName },
+            { type: "text", text: params.reviewUrl },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+export async function sendReviewInviteWhatsAppMessage(params: {
+  to: string;
+  clientName: string;
+  tenantName: string;
+  reviewUrl: string;
+}): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
+  return sendWhatsAppMessage(buildReviewInviteTemplatePayload(params));
+}
+
 // Aviso de cupo liberado (Lista de espera inteligente): avisa a un cliente
 // en espera que se liberó un cupo del servicio que quería. A diferencia de
 // recordatorio/recompra/vencimiento de paquete, NO pasa por NotificationQueue

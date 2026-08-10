@@ -12,6 +12,7 @@ import { planIncludesModule } from "@/lib/planLimits";
 import { findBestWaitlistMatch } from "@/lib/waitlist";
 import { normalizePhoneForWhatsapp, sendWaitlistSlotOpenedWhatsAppMessage } from "@/lib/whatsapp";
 import { computeFollowUpSlot, isAutoFollowUpVertical, isFollowUpSlotFree } from "@/lib/followUpScheduling";
+import { generateRawReviewToken, hashReviewToken, REVIEW_TOKEN_TTL_DAYS } from "@/lib/reviewToken";
 
 export interface UpdateAppointmentStatusResult {
   ok: boolean;
@@ -34,7 +35,7 @@ export async function updateAppointmentStatusAction(
 
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId: tenant.id },
-    include: { service: true },
+    include: { service: true, client: true },
   });
   if (!appointment) return { ok: false, error: "Cita no encontrada." };
 
@@ -116,6 +117,48 @@ export async function updateAppointmentStatusAction(
             endsAt: candidate.endsAt,
             status: "PENDING",
             source: "AUTO_FOLLOWUP",
+          },
+        });
+      }
+    }
+
+    // Invitación a dejar reseña: solo si el cliente tiene un canal por el
+    // que contactarlo (email tiene prioridad — evita mandar los dos por la
+    // misma cita) y solo si no se creó ya una para esta cita (una persona
+    // puede pasar por COMPLETED más de una vez si el estado se corrige a
+    // mano). El token crudo viaja en NotificationQueue.payload para que el
+    // cron arme el link recién al enviar de verdad — ver src/lib/reviewToken.ts.
+    if (nextStatus === "COMPLETED" && (appointment.client.email || appointment.client.phone)) {
+      const existingReview = await tx.review.findUnique({ where: { appointmentId: appointment.id } });
+      if (!existingReview) {
+        const rawToken = generateRawReviewToken();
+        const reviewUrl = `${process.env.NEXT_PUBLIC_APP_URL}/resena?token=${rawToken}`;
+        const channel = appointment.client.email ? "EMAIL" : "WHATSAPP";
+
+        await tx.review.create({
+          data: {
+            tenantId: tenant.id,
+            appointmentId: appointment.id,
+            clientId: appointment.clientId,
+            tokenHash: hashReviewToken(rawToken),
+            expiresAt: new Date(Date.now() + REVIEW_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000),
+          },
+        });
+
+        await tx.notificationQueue.create({
+          data: {
+            tenantId: tenant.id,
+            appointmentId: appointment.id,
+            clientId: appointment.clientId,
+            channel,
+            kind: "REVIEW_REQUEST",
+            scheduledFor: new Date(),
+            payload: {
+              reviewUrl,
+              clientName: appointment.client.name,
+              tenantName: tenant.name,
+              to: channel === "EMAIL" ? appointment.client.email : normalizePhoneForWhatsapp(appointment.client.phone!),
+            },
           },
         });
       }

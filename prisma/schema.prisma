@@ -67,6 +67,7 @@ model Tenant {
   waitlistEntries WaitlistEntry[]
   prescriptions   Prescription[]
   clientPhotos    ClientPhoto[]
+  reviews         Review[]
 }
 
 enum Plan {
@@ -339,6 +340,7 @@ model Client {
   waitlistEntries WaitlistEntry[]
   prescriptions   Prescription[]
   clientPhotos    ClientPhoto[]
+  reviews         Review[]
 
   @@index([tenantId])
 }
@@ -406,6 +408,7 @@ model Appointment {
   inventoryMovements InventoryMovement[]
   packageRedemption  PackageRedemption?
   prescriptions      Prescription[]
+  review             Review?
 
   @@index([tenantId, startsAt])
   @@index([locationId, startsAt])
@@ -531,12 +534,40 @@ enum NotificationKind {
   REENGAGEMENT_FOLLOWUP
   PACKAGE_EXPIRATION
   WAITLIST_SLOT_OPENED
+  REVIEW_REQUEST
 }
 
 enum NotificationStatus {
   SCHEDULED
   SENT
   FAILED
+}
+
+// La fila ES la invitación hasta que se responde: se crea (con tokenHash +
+// expiresAt) al completar la cita, y rating/comment/submittedAt quedan en
+// null hasta que el cliente la responde desde /resena?token=... — evita un
+// modelo aparte solo para "invitación pendiente". `visible` se publica en
+// true automáticamente al enviarse (la verificación viene de estar atada a
+// una cita real, no de una aprobación manual previa); el dueño puede
+// ocultarla después desde el dashboard.
+model Review {
+  id            String      @id @default(cuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  rating      Int?
+  comment     String?
+  visible     Boolean   @default(true)
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, submittedAt])
 }
 
 // ------------------------------
