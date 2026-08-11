@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowLeftRight, PackagePlus, Save } from "lucide-react";
+import { ArrowLeftRight, Package, PackagePlus, Save, TriangleAlert } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireInventoryAccess } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations, hasLocationAccess } from "@/lib/authorization";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { updateLowStockAlertPhoneAction } from "./actions";
+
 
 export default async function InventoryPage({
   params,
@@ -46,12 +47,15 @@ export default async function InventoryPage({
 
   const items = await prisma.inventoryItem.findMany({
     where: { tenantId: tenant.id, active: true },
-    include: { stockLevels: { where: { locationId: location.id } } },
+    include: {
+      stockLevels: { where: { locationId: location.id } },
+      serviceLinks: { include: { service: { select: { name: true } } } },
+    },
     orderBy: { name: "asc" },
   });
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="page-title">Inventario</h1>
@@ -109,49 +113,87 @@ export default async function InventoryPage({
         </form>
       )}
 
-      <div className="table-shell mt-6">
-        <table className="w-full text-sm">
-          <thead className="table-head">
-            <tr>
-              <th className="table-head-cell">Nombre</th>
-              <th className="table-head-cell">Unidad</th>
-              <th className="table-head-cell">Stock en {location.name}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => {
-              const quantity = item.stockLevels[0]?.quantity ?? 0;
-              const isLowStock = quantity <= item.lowStockThreshold;
-              return (
-                <tr key={item.id} className="table-row">
-                  <td className="table-cell">
-                    <Link
-                      href={`/dashboard/${tenantSlug}/inventory/${item.id}?locationId=${location.id}`}
-                      className="font-medium text-ink hover:text-pine hover:underline"
+      {items.length === 0 ? (
+        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
+          Este negocio todavía no tiene ítems de inventario.
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => {
+            const quantity = item.stockLevels[0]?.quantity ?? 0;
+            const isLowStock = quantity <= item.lowStockThreshold;
+            // Escala relativa al propio umbral del ítem (no un tope fijo
+            // compartido) — así "24 litros" y "2 cajas" son comparables
+            // como % de qué tan lejos están de su propia zona de alerta,
+            // no como cantidades absolutas que no tienen la misma escala.
+            const gaugeScale = Math.max(quantity, item.lowStockThreshold * 3, 1);
+            const gaugePercent = Math.min(100, Math.round((quantity / gaugeScale) * 100));
+            const services = item.serviceLinks.map((link) => link.service.name);
+
+            return (
+              <Link
+                key={item.id}
+                href={`/dashboard/${tenantSlug}/inventory/${item.id}?locationId=${location.id}`}
+                className={`group flex flex-col gap-4 rounded-xl border border-l-4 bg-white p-5 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg ${
+                  isLowStock ? "border-berry/25 border-l-berry bg-berry/[0.03]" : "border-sage-dark/40 border-l-pine"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span
+                      className={`flex h-10 w-10 flex-none items-center justify-center rounded-full ${
+                        isLowStock ? "bg-berry/10 text-berry-dark" : "bg-pine/10 text-pine-dark"
+                      }`}
+                      aria-hidden
                     >
-                      {item.name}
-                    </Link>
-                  </td>
-                  <td className="table-cell-muted">{item.unit}</td>
-                  <td className="table-cell">
-                    <span className={`data-mono ${isLowStock ? "font-medium text-berry-dark" : "text-ink"}`}>
-                      {quantity}
+                      <Package className="h-5 w-5" />
                     </span>
-                    {isLowStock && <span className="badge badge-berry ml-2">Stock bajo</span>}
-                  </td>
-                </tr>
-              );
-            })}
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={3} className="empty-row">
-                  Este negocio todavía no tiene ítems de inventario.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                    <p className="truncate text-base font-semibold text-ink group-hover:text-pine">{item.name}</p>
+                  </div>
+                  {isLowStock ? (
+                    <span className="badge badge-berry flex-none">
+                      <TriangleAlert className="mr-1 h-3 w-3" aria-hidden />
+                      Stock bajo
+                    </span>
+                  ) : (
+                    <span className="badge badge-pine flex-none">Con stock</span>
+                  )}
+                </div>
+
+                <div>
+                  <p className={`data-mono text-3xl font-semibold ${isLowStock ? "text-berry-dark" : "text-ink"}`}>
+                    {quantity}
+                    <span className="ml-1.5 text-sm font-normal text-ink/40">{item.unit}</span>
+                  </p>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-sage">
+                    <div
+                      className={`h-full rounded-full ${isLowStock ? "bg-berry" : "bg-pine"}`}
+                      style={{ width: `${gaugePercent}%` }}
+                    />
+                  </div>
+                  <p className="mt-1.5 text-xs text-ink/40">Alerta bajo {item.lowStockThreshold}</p>
+                </div>
+
+                {services.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 border-t border-sage-dark/25 pt-3">
+                    {services.map((name) => (
+                      <span key={name} className="badge badge-sage">
+                        {name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {item.unitCost !== null && (
+                  <p className="data-mono -mt-1 text-xs text-ink/50">
+                    ${Number(item.unitCost).toLocaleString("es-CO")} / {item.unit}
+                  </p>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
