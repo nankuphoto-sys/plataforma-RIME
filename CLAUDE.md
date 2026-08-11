@@ -2520,9 +2520,53 @@ solo sin depender de que Stripe pueda alcanzar `localhost`. Confirmado en
 la base de datos: `Tenant.status` pasó de `TRIAL` a `ACTIVE` con el
 `stripeSubscriptionId` real guardado tras el primer evento, y
 `Tenant.plan` pasó de `INDIVIDUAL` a `BASICO` tras cambiar de plan y
-entregar el segundo evento. **Pendiente, no probado todavía:** los flujos
-de Wompi (cambiar de plan, cancelar, reactivar) y los eventos
-`invoice.payment_failed`/`customer.subscription.deleted`.
+entregar el segundo evento.
+
+**Corrección a la nota "pendiente" de arriba (11 ago 2026, más tarde el
+mismo día):** al escribir esa nota no se revisó el resto de `CLAUDE.md` —
+los flujos de Wompi (cambiar de plan, cancelar, reactivar) y
+`customer.subscription.deleted` de Stripe ya estaban ✅ hechos y
+verificados en vivo desde una sesión anterior (Cowork, 6 ago 2026, ver
+sección "Reactivación de cuenta tras `CANCELLED`" más arriba). El único
+gap real que quedaba era `invoice.payment_failed`, nunca disparado en
+vivo hasta ahora.
+
+**Cierre de ese gap (11 ago 2026, misma sesión que la corrección de
+arriba)**: se disparó un cobro real fallido sobre la suscripción viva de
+`test-individual`. El Billing Portal de Stripe (`billing.stripe.com`)
+resultó no automatizable con Playwright en modo headless — el botón
+"Add"/"Guardar" nunca completaba el submit, aparentemente bloqueado por
+la protección anti-bot (hCaptcha invisible) del Portal; no vale la pena
+insistir ahí para este tipo de verificación. En su lugar se usó un
+Checkout Session real en `mode: "setup"` (mismo dominio
+`checkout.stripe.com` que ya se sabía automatizable de sesiones
+anteriores) para guardar la tarjeta de prueba 4000 0000 0000 0341 (se
+guarda bien, rechaza al cobrar) como método de pago del customer. Nota
+técnica: la API de PaymentMethods/Tokens rechaza números de tarjeta
+crudos server-side en este modo de cuenta ("raw card data APIs"
+deshabilitado) — por eso hizo falta el Checkout hospedado en vez de
+crearla directo con el SDK. Para forzar el cobro se creó un
+`invoiceItem` pendiente + `invoices.create`/`finalizeInvoice` sobre esa
+misma suscripción (con `default_payment_method` de la suscripción
+apuntando a la tarjeta de rechazo) — la propia API de Stripe respondió
+`card_declined` al finalizar. El evento real `invoice.payment_failed`
+resultante se tomó con `stripe.events.list()` y se entregó a mano al
+webhook local, mismo patrón de firma real que las demás verificaciones
+de esta sección. Confirmado en la base de datos: `Tenant.status` pasó de
+`ACTIVE` a `PAST_DUE`. Confirmado además en navegador real que el
+bloqueo funciona con este estado específico (no solo con `CANCELLED`):
+entrar a `/dashboard/test-individual` redirige a `account-locked` con el
+mensaje "Tu cuenta está con un pago pendiente...". Al terminar, se
+restauró `test-individual` a su estado limpio: tarjeta buena
+(4242 4242 4242 4242) de nuevo como `default_payment_method` de la
+suscripción y del customer, tarjeta de rechazo desasociada, factura de
+prueba anulada (`voidInvoice`), `Tenant.status` de vuelta a `ACTIVE`.
+
+Con esto, los tres proveedores/eventos de facturación del SaaS
+(Stripe: checkout, cambio de plan, `invoice.payment_failed`,
+`customer.subscription.deleted`; Wompi: setup, cambio de plan, cancelar,
+reactivar) quedan verificados en vivo de punta a punta — no queda ningún
+flujo de facturación conocido sin probar contra las APIs reales.
 
 **Bug real encontrado y corregido en el camino** (no relacionado a lo de
 arriba — apareció mientras se probaban los topes de capacidad): el
