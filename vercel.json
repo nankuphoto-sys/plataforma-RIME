@@ -1,4 +1,5 @@
 {
+  "buildCommand": "rm -rf .next/cache && next build",
   "crons": [
     { "path": "/api/cron/send-reminders", "schedule": "0 5 * * *" },
     { "path": "/api/cron/send-followup-reminders", "schedule": "0 8 * * *" },
