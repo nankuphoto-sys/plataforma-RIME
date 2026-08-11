@@ -1,9 +1,16 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  // src/lib incluido a propósito: helpers compartidos como avatarTone()
+  // (src/lib/avatar.ts) arman nombres de clase de Tailwind como strings de
+  // JS puro — sin este glob, esas clases nunca aparecen en ningún archivo
+  // que Tailwind escanee y el CSS correspondiente no se genera (el
+  // elemento queda con fondo transparente en vez del color esperado, un
+  // bug real que encontramos así: avatares de Equipo invisibles).
   content: [
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/lib/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
