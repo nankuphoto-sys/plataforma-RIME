@@ -5,6 +5,7 @@ import { requireDashboardAccess } from "@/lib/auth-guards";
 import { isProfessionalOnlyInTenant } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { avatarTone, initials } from "@/lib/avatar";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export default async function ClientsPage({
   params,
@@ -102,9 +103,10 @@ export default async function ClientsPage({
       </form>
 
       {clients.length === 0 ? (
-        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
-          {query ? "No se encontraron clientes." : "Todavía no hay clientes."}
-        </div>
+        <EmptyState
+          icon={UserPlus}
+          message={query ? "No se encontraron clientes." : "Todavía no hay clientes."}
+        />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {clients.map((client) => (

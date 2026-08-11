@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Megaphone } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireMarketingAccess } from "@/lib/auth-guards";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const SEGMENT_LABELS = {
   ALL_CLIENTS: "Todos los clientes",
@@ -42,9 +43,7 @@ export default async function MarketingPage({
       </div>
 
       {campaigns.length === 0 ? (
-        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
-          Todavía no mandaste ninguna campaña.
-        </div>
+        <EmptyState icon={Megaphone} message="Todavía no mandaste ninguna campaña." />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {campaigns.map((campaign) => {

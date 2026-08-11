@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { Star } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireReviewsAccess } from "@/lib/auth-guards";
 import { StarRating } from "@/components/ui/StarRating";
 import { avatarTone, initials } from "@/lib/avatar";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export default async function ReviewsPage({
   params,
@@ -26,9 +28,7 @@ export default async function ReviewsPage({
       <p className="page-subtitle">Solo de clientes que realmente tuvieron la cita.</p>
 
       {reviews.length === 0 ? (
-        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
-          Todavía no hay reseñas respondidas.
-        </div>
+        <EmptyState icon={Star} message="Todavía no hay reseñas respondidas." />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {reviews.map((review) => (

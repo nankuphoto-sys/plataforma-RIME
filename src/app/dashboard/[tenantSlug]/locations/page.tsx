@@ -3,6 +3,7 @@ import { Briefcase, Clock, MapPin, MapPinPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireOwnerAccess } from "@/lib/auth-guards";
 import { getPlanLimits, hasReachedLocationLimit } from "@/lib/planLimits";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export default async function LocationsPage({
   params,
@@ -41,9 +42,7 @@ export default async function LocationsPage({
       </p>
 
       {locations.length === 0 ? (
-        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
-          Este negocio todavía no tiene sedes.
-        </div>
+        <EmptyState icon={MapPin} message="Este negocio todavía no tiene sedes." />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {locations.map((location) => (

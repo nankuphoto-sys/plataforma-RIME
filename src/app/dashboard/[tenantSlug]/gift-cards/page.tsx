@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Gift } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireGiftCardsAccess } from "@/lib/auth-guards";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type { GiftCardStatus } from "@prisma/client";
 
 const STATUS_LABELS: Record<GiftCardStatus, string> = {
@@ -40,9 +41,7 @@ export default async function GiftCardsPage({
       </div>
 
       {giftCards.length === 0 ? (
-        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
-          Todavía no emitiste ninguna gift card.
-        </div>
+        <EmptyState icon={Gift} message="Todavía no emitiste ninguna gift card." />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {giftCards.map((card) => (

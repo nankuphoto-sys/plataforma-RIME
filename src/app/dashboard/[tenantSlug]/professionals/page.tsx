@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireProfessionalsManageAccess } from "@/lib/auth-guards";
 import { getPlanLimits, hasReachedProfessionalLimit } from "@/lib/planLimits";
 import { initials } from "@/lib/avatar";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export default async function ProfessionalsPage({
   params,
@@ -42,9 +43,7 @@ export default async function ProfessionalsPage({
       </p>
 
       {professionals.length === 0 ? (
-        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
-          Este negocio todavía no tiene profesionales.
-        </div>
+        <EmptyState icon={UserPlus} message="Este negocio todavía no tiene profesionales." />
       ) : (
         // Tarjeta a todo color en vez de fila de tabla — mismo lenguaje que
         // "Hecho para tu especialidad" de la landing (SpecialtyGrid.tsx):

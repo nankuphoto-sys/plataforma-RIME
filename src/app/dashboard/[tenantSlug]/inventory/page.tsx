@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireInventoryAccess } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations, hasLocationAccess } from "@/lib/authorization";
 import { SubmitButton } from "@/components/ui/SubmitButton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { updateLowStockAlertPhoneAction } from "./actions";
 
 
@@ -137,9 +138,7 @@ export default async function InventoryPage({
       )}
 
       {items.length === 0 ? (
-        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
-          Este negocio todavía no tiene ítems de inventario.
-        </div>
+        <EmptyState icon={Package} message="Este negocio todavía no tiene ítems de inventario." />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => {

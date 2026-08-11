@@ -4,6 +4,7 @@ import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireTeamManageAccess } from "@/lib/auth-guards";
 import { avatarTone, initials } from "@/lib/avatar";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // OWNER se destaca en gold (el único rol que ve todo, sin restricción de
 // sede) — el resto de los roles comparten pine, la jerarquía real que
@@ -40,9 +41,7 @@ export default async function TeamPage({
       </div>
 
       {users.length === 0 ? (
-        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
-          Este negocio todavía no tiene usuarios.
-        </div>
+        <EmptyState icon={UserPlus} message="Este negocio todavía no tiene usuarios." />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {users.map((user) => (

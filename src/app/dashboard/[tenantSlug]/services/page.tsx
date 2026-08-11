@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Clock, ClipboardPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireServicesManageAccess } from "@/lib/auth-guards";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // Mismo lenguaje "tarjeta de portada" que Profesionales — el color es la
 // tarjeta completa, no una franja. Tres variantes en vez de un solo tono
@@ -33,9 +34,7 @@ export default async function ServicesPage({
       </div>
 
       {services.length === 0 ? (
-        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
-          Este negocio todavía no tiene servicios.
-        </div>
+        <EmptyState icon={ClipboardPlus} message="Este negocio todavía no tiene servicios." />
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {services.map((service, index) => (
