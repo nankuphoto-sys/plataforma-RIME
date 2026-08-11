@@ -1,8 +1,28 @@
+import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasAnyOfRolesInTenantLocations, hasAnyRoleInTenantLocations } from "@/lib/authorization";
 import { planIncludesModule } from "@/lib/planLimits";
+
+// El layout del dashboard (src/app/dashboard/[tenantSlug]/layout.tsx) Y la
+// página que renderiza adentro llaman cada uno a un guard que necesita
+// sesión + tenant — sin memoizar, eso eran dos auth() y dos
+// prisma.tenant.findUnique por navegación, la misma consulta dos veces.
+// cache() de React memoiza por argumentos dentro del mismo request (Next.js
+// lo resetea entre requests), así que el layout y el guard de la página
+// terminan compartiendo la misma promesa en vez de duplicar el roundtrip.
+export const getSessionAndTenant = cache(async (tenantSlug: string) => {
+  const session = await auth();
+  const tenant = await prisma.tenant.findUnique({
+    where: { slug: tenantSlug },
+    include: {
+      locations: true,
+      professionals: { where: { active: true }, orderBy: { name: "asc" } },
+    },
+  });
+  return { session, tenant };
+});
 
 // Guard de acceso para la agenda interna (src/app/dashboard/[tenantSlug]).
 // Reglas, en orden:
@@ -19,16 +39,8 @@ import { planIncludesModule } from "@/lib/planLimits";
 // y profesionales activos) para que la página no tenga que volver a
 // consultarlo.
 export async function requireDashboardAccess(tenantSlug: string) {
-  const session = await auth();
+  const { session, tenant } = await getSessionAndTenant(tenantSlug);
   if (!session?.user) redirect("/login");
-
-  const tenant = await prisma.tenant.findUnique({
-    where: { slug: tenantSlug },
-    include: {
-      locations: true,
-      professionals: { where: { active: true }, orderBy: { name: "asc" } },
-    },
-  });
   if (!tenant) notFound();
 
   if (session.user.tenantId !== tenant.id) notFound();

@@ -18,8 +18,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { getSessionAndTenant } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations, hasAnyRoleInTenantLocations } from "@/lib/authorization";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { NavLink } from "@/components/ui/NavLink";
@@ -41,13 +40,8 @@ export default async function DashboardShellLayout({
 }) {
   const { tenantSlug } = await params;
 
-  const session = await auth();
+  const { session, tenant } = await getSessionAndTenant(tenantSlug);
   if (!session?.user) redirect("/login");
-
-  const tenant = await prisma.tenant.findUnique({
-    where: { slug: tenantSlug },
-    include: { locations: true },
-  });
   if (!tenant) notFound();
   if (session.user.tenantId !== tenant.id) notFound();
 
