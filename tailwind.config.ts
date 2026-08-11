@@ -15,52 +15,50 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Paleta "Booksy" (turquesa + Inter) — reemplaza a "cronógrafo".
-        // Mismos NOMBRES de token de siempre (ink, paper, pine, sage,
-        // berry, gold) para que todo el código que ya usa
+        // Identidad RIME — mismos NOMBRES de token de siempre (ink, paper,
+        // pine, sage, berry, gold) para que todo el código que ya usa
         // bg-pine/text-ink/border-sage-dark en toda la app (dashboard,
-        // reserva pública, tickets, auth) herede el nuevo look sin tocar
-        // archivo por archivo — ver CLAUDE.md para el detalle.
-        ink: "#17181A",
-        paper: "#F5F6F7",
-        // Turquesa-petróleo — sigue siendo el color de acción primaria
-        // (botones, focus ring, links) en toda la app.
+        // reserva pública, tickets, auth) herede el look sin tocar archivo
+        // por archivo. Valores calcados de RIME Escritorio.dc.html (el
+        // prototipo de diseño de referencia) — ver CLAUDE.md para el detalle.
+        ink: "#1E2A24",
+        paper: "#F6F4EE",
+        // Verde pino — color de acción primaria (botones, focus ring,
+        // links) en toda la app.
         pine: {
-          DEFAULT: "#1E7F95",
-          dark: "#145D6E",
-          light: "#E6F3F5",
+          DEFAULT: "#2F5D50",
+          dark: "#22443A",
+          light: "#3E7566",
         },
-        // Neutro para bordes/fondos sutiles.
+        // Neutro (con sesgo verde) para bordes/fondos sutiles.
         sage: {
-          DEFAULT: "#EEF0F1",
-          dark: "#E5E7EB",
+          DEFAULT: "#E4EBE2",
+          dark: "#B7C9BB",
         },
-        // Rojo — alertas/errores, igual que antes.
+        // Rojo — alertas/errores.
         berry: {
-          DEFAULT: "#E0455C",
-          dark: "#B8394C",
+          DEFAULT: "#A23E4C",
+          dark: "#7E2F3A",
         },
         // Ámbar — pendiente/warning.
         gold: {
-          DEFAULT: "#F2A93B",
+          DEFAULT: "#C08A2E",
         },
-        // Nuevo: verde de estado ("cobrado"/confirmado positivo), pedido
-        // explícito del spec de Booksy — no existía como token propio
-        // antes (compartía color con pine). Se agrega ahora porque las
-        // próximas fases (depósito, reseñas) lo van a necesitar.
-        success: "#1FA855",
-        // Caja del sidebar (riel de íconos, agregado en la fase
-        // cronógrafo) — se conserva la estructura, se recolorea a negro
-        // casi puro: es el color real de la nav bar de Booksy Biz.
+        // Verde de estado ("cobrado"/confirmado positivo) — distinto de
+        // pine para que un badge de estado no se confunda con la acción
+        // primaria, pero dentro de la misma familia verde.
+        success: "#3E8F63",
+        // Caja del sidebar (riel de íconos) — verde pino oscuro, no negro:
+        // es el mismo tratamiento que la barra lateral de RIME Escritorio.
         case: {
-          DEFAULT: "#24262B",
-          deep: "#1F2126",
+          DEFAULT: "#22443A",
+          deep: "#1B372F",
         },
       },
       fontFamily: {
-        // Inter reemplaza a Plus Jakarta Sans — ver src/app/layout.tsx.
-        // display apunta a la misma variable que sans (sin serif aparte).
-        display: ["var(--font-sans)"],
+        // Fraunces (serif) para títulos, Plus Jakarta Sans para texto — ver
+        // src/app/layout.tsx.
+        display: ["var(--font-display)"],
         sans: ["var(--font-sans)"],
         mono: ["var(--font-mono)"],
       },
