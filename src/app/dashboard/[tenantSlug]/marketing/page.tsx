@@ -41,51 +41,47 @@ export default async function MarketingPage({
         </Link>
       </div>
 
-      <div className="table-shell mt-6">
-        <table className="w-full text-sm">
-          <thead className="table-head">
-            <tr>
-              <th className="table-head-cell">Asunto</th>
-              <th className="table-head-cell">Segmento</th>
-              <th className="table-head-cell">Destinatarios</th>
-              <th className="table-head-cell">Enviados</th>
-              <th className="table-head-cell">Fecha</th>
-            </tr>
-          </thead>
-          <tbody>
-            {campaigns.map((campaign) => (
-              <tr key={campaign.id} className="table-row">
-                <td className="table-cell">
-                  <Link
-                    href={`/dashboard/${tenantSlug}/marketing/${campaign.id}`}
-                    className="font-medium text-ink hover:text-pine hover:underline"
+      {campaigns.length === 0 ? (
+        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
+          Todavía no mandaste ninguna campaña.
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {campaigns.map((campaign) => {
+            const failed = countFor(campaign.id, "FAILED");
+            return (
+              <Link
+                key={campaign.id}
+                href={`/dashboard/${tenantSlug}/marketing/${campaign.id}`}
+                className="panel group flex flex-col gap-3 hover:-translate-y-0.5 hover:border-pine/30"
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-pine/10 text-pine"
+                    aria-hidden
                   >
-                    {campaign.subject}
-                  </Link>
-                </td>
-                <td className="table-cell-muted">{SEGMENT_LABELS[campaign.segment]}</td>
-                <td className="table-cell-muted data-mono">{campaign.recipientCount}</td>
-                <td className="table-cell-muted data-mono">
-                  {countFor(campaign.id, "SENT")}
-                  {countFor(campaign.id, "FAILED") > 0 && (
-                    <span className="text-berry-dark"> · {countFor(campaign.id, "FAILED")} fallidos</span>
-                  )}
-                </td>
-                <td className="table-cell-muted data-mono">
-                  {campaign.createdAt.toLocaleDateString("es-CO", { dateStyle: "medium" })}
-                </td>
-              </tr>
-            ))}
-            {campaigns.length === 0 && (
-              <tr>
-                <td colSpan={5} className="empty-row">
-                  Todavía no mandaste ninguna campaña.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                    <Megaphone className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-ink group-hover:text-pine">{campaign.subject}</p>
+                    <p className="truncate text-xs text-ink/50">{SEGMENT_LABELS[campaign.segment]}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-sage-dark/25 pt-3 text-xs">
+                  <span className="data-mono text-ink/60">
+                    {countFor(campaign.id, "SENT")} / {campaign.recipientCount} enviados
+                    {failed > 0 && <span className="text-berry-dark"> · {failed} fallidos</span>}
+                  </span>
+                  <span className="data-mono text-ink/45">
+                    {campaign.createdAt.toLocaleDateString("es-CO", { dateStyle: "medium" })}
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

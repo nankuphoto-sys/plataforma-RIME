@@ -2,11 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireReviewsAccess } from "@/lib/auth-guards";
 import { StarRating } from "@/components/ui/StarRating";
-
-function excerpt(text: string | null, max = 80): string {
-  if (!text) return "—";
-  return text.length > max ? `${text.slice(0, max)}…` : text;
-}
+import { avatarTone, initials } from "@/lib/avatar";
 
 export default async function ReviewsPage({
   params,
@@ -29,54 +25,45 @@ export default async function ReviewsPage({
       <h1 className="page-title">Reseñas</h1>
       <p className="page-subtitle">Solo de clientes que realmente tuvieron la cita.</p>
 
-      <div className="table-shell mt-6">
-        <table className="w-full text-sm">
-          <thead className="table-head">
-            <tr>
-              <th className="table-head-cell">Cliente</th>
-              <th className="table-head-cell">Calificación</th>
-              <th className="table-head-cell">Comentario</th>
-              <th className="table-head-cell">Fecha</th>
-              <th className="table-head-cell">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reviews.map((review) => (
-              <tr key={review.id} className="table-row">
-                <td className="table-cell">
-                  <Link
-                    href={`/dashboard/${tenantSlug}/reviews/${review.id}`}
-                    className="font-medium text-ink hover:text-pine hover:underline"
-                  >
-                    {review.client.name}
-                  </Link>
-                </td>
-                <td className="table-cell">
+      {reviews.length === 0 ? (
+        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
+          Todavía no hay reseñas respondidas.
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {reviews.map((review) => (
+            <Link
+              key={review.id}
+              href={`/dashboard/${tenantSlug}/reviews/${review.id}`}
+              className="panel group flex flex-col gap-3 hover:-translate-y-0.5 hover:border-pine/30"
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className={`flex h-11 w-11 flex-none items-center justify-center rounded-full text-sm font-semibold text-paper ${avatarTone(review.client.id)}`}
+                  aria-hidden
+                >
+                  {initials(review.client.name)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-ink group-hover:text-pine">{review.client.name}</p>
                   <StarRating value={review.rating ?? 0} size="sm" />
-                </td>
-                <td className="table-cell-muted">{excerpt(review.comment)}</td>
-                <td className="table-cell-muted data-mono">
-                  {review.submittedAt?.toLocaleDateString("es-CL", { dateStyle: "medium" })}
-                </td>
-                <td className="table-cell">
-                  {review.visible ? (
-                    <span className="badge badge-pine">Visible</span>
-                  ) : (
-                    <span className="badge badge-sage">Oculta</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {reviews.length === 0 && (
-              <tr>
-                <td colSpan={5} className="empty-row">
-                  Todavía no hay reseñas respondidas.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                </div>
+                {review.visible ? (
+                  <span className="badge badge-pine">Visible</span>
+                ) : (
+                  <span className="badge badge-sage">Oculta</span>
+                )}
+              </div>
+
+              <p className="line-clamp-2 text-sm text-ink/65">{review.comment ?? "Sin comentario."}</p>
+
+              <p className="data-mono border-t border-sage-dark/25 pt-3 text-xs text-ink/45">
+                {review.submittedAt?.toLocaleDateString("es-CL", { dateStyle: "medium" })}
+              </p>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

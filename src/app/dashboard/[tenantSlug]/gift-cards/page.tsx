@@ -39,46 +39,41 @@ export default async function GiftCardsPage({
         </Link>
       </div>
 
-      <div className="table-shell mt-6">
-        <table className="w-full text-sm">
-          <thead className="table-head">
-            <tr>
-              <th className="table-head-cell">Código</th>
-              <th className="table-head-cell">Destinatario</th>
-              <th className="table-head-cell">Saldo</th>
-              <th className="table-head-cell">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {giftCards.map((card) => (
-              <tr key={card.id} className="table-row">
-                <td className="table-cell">
-                  <Link
-                    href={`/dashboard/${tenantSlug}/gift-cards/${card.id}`}
-                    className="data-mono font-medium text-ink hover:text-pine hover:underline"
-                  >
-                    {card.code}
-                  </Link>
-                </td>
-                <td className="table-cell-muted">{card.recipientName ?? "—"}</td>
-                <td className="table-cell-muted data-mono">
+      {giftCards.length === 0 ? (
+        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
+          Todavía no emitiste ninguna gift card.
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {giftCards.map((card) => (
+            <Link
+              key={card.id}
+              href={`/dashboard/${tenantSlug}/gift-cards/${card.id}`}
+              className="panel group flex flex-col gap-4 hover:-translate-y-0.5 hover:border-pine/30"
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-pine/10 text-pine"
+                  aria-hidden
+                >
+                  <Gift className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="data-mono truncate font-medium text-ink group-hover:text-pine">{card.code}</p>
+                  <p className="truncate text-xs text-ink/50">{card.recipientName ?? "Sin destinatario"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-sage-dark/25 pt-3 text-xs">
+                <span className="data-mono text-ink/60">
                   {Number(card.balance).toLocaleString("es-CO")} / {Number(card.initialAmount).toLocaleString("es-CO")}
-                </td>
-                <td className="table-cell">
-                  <span className={`badge ${STATUS_BADGE[card.status]}`}>{STATUS_LABELS[card.status]}</span>
-                </td>
-              </tr>
-            ))}
-            {giftCards.length === 0 && (
-              <tr>
-                <td colSpan={4} className="empty-row">
-                  Todavía no emitiste ninguna gift card.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                </span>
+                <span className={`badge ${STATUS_BADGE[card.status]}`}>{STATUS_LABELS[card.status]}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
