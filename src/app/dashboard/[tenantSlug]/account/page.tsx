@@ -1,4 +1,4 @@
-import { KeyRound, Trash2 } from "lucide-react";
+import { Camera, KeyRound, Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireDashboardAccess } from "@/lib/auth-guards";
 import { SubmitButton } from "@/components/ui/SubmitButton";
@@ -32,12 +32,20 @@ export default async function AccountPage({
   });
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-2xl">
       <h1 className="page-title">Mi cuenta</h1>
       <p className="page-subtitle">{session.user.email}</p>
 
-      <div className="mt-6 border-t border-sage-dark/30 pt-4">
-        <p className="section-title text-sm">Foto de perfil</p>
+      <div className="panel mt-6">
+        <div className="flex items-center gap-2.5">
+          <span
+            className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-pine/10 text-pine-dark"
+            aria-hidden
+          >
+            <Camera className="h-4 w-4" />
+          </span>
+          <p className="section-title text-sm">Foto de perfil</p>
+        </div>
 
         {photoError && <p className="msg-error mt-3">{photoError}</p>}
         {savedPhoto && !photoError && <p className="msg-success mt-3">Foto actualizada.</p>}
@@ -74,8 +82,16 @@ export default async function AccountPage({
         <p className="mt-2 text-xs text-ink/40">JPG, PNG o WEBP. Máximo {MAX_PROFILE_IMAGE_LABEL}.</p>
       </div>
 
-      <div className="mt-6 border-t border-sage-dark/30 pt-4">
-        <p className="section-title text-sm">Cambiar contraseña</p>
+      <div className="panel mt-4">
+        <div className="flex items-center gap-2.5">
+          <span
+            className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-pine/10 text-pine-dark"
+            aria-hidden
+          >
+            <KeyRound className="h-4 w-4" />
+          </span>
+          <p className="section-title text-sm">Cambiar contraseña</p>
+        </div>
 
         {error && <p className="msg-error mt-3">{error}</p>}
         {saved && !error && <p className="msg-success mt-3">Contraseña actualizada.</p>}
