@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { loginAction } from "./actions";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -47,15 +49,25 @@ export function LoginForm() {
         <label htmlFor="password" className="field-label">
           Contraseña
         </label>
-        <input
-          id="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="field-input"
-        />
+        <div className="relative">
+          <input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="field-input pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+            className="absolute inset-y-0 right-0 flex items-center px-3 text-ink/40 hover:text-ink/70"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       {error && <p className="msg-error">{error}</p>}
