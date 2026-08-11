@@ -12,6 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:test-plans": "tsx prisma/seed-test-plans.ts",
     "db:studio": "prisma studio",
     "test": "vitest run"
   },

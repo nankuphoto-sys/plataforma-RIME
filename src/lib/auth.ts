@@ -74,10 +74,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const userId = token.userId as string | undefined;
       if (!userId) return null; // token sin este campo (formato viejo/corrupto) -> forzar re-login
 
-      const currentUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { passwordChangedAt: true },
-      });
+      // Esta consulta corre en TODO auth() de todo request, incluidas las
+      // Server Actions — un hipo transitorio de conexión acá (encontrado en
+      // sesión de verificación: Neon cerrando la conexión bajo carga) no
+      // debe destruir una sesión por lo demás válida. Fail-open: si la
+      // consulta falla, se confía en el token tal cual está en vez de
+      // devolver null (que Auth.js interpreta como sesión inválida y
+      // desloguea al usuario sin aviso). El costo es la misma ventana que ya
+      // existe entre requests (la contraseña pudo cambiar hace un instante),
+      // no una ventana nueva — comparado con deslogar gente al azar por
+      // errores de red, es el trade-off correcto.
+      let currentUser: { passwordChangedAt: Date } | null;
+      try {
+        currentUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { passwordChangedAt: true },
+        });
+      } catch (error) {
+        console.error("[auth.jwt] No se pudo revalidar passwordChangedAt, se conserva la sesión:", error);
+        return token;
+      }
       if (!currentUser) return null; // usuario borrado/desactivado entre requests
 
       const passwordCheckedAt = (token.passwordCheckedAt as number | undefined) ?? 0;
