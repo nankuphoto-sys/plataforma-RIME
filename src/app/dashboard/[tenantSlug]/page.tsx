@@ -20,6 +20,7 @@ import {
   type AgendaAppointmentBlock,
   type AgendaProfessional,
 } from "./WeeklyAgenda";
+import type { AgendaClientOption, AgendaServiceOption } from "./NewAppointmentPanel";
 
 function formatWeekRangeLabel(weekDates: CalendarDate[]): string {
   if (weekDates.length === 0) return "";
@@ -100,7 +101,7 @@ export default async function DashboardAgendaPage({
   const rangeStart = dayBounds[0].start;
   const rangeEnd = dayBounds[dayBounds.length - 1].end;
 
-  const [appointments, locationProfessionals] = await Promise.all([
+  const [appointments, locationProfessionals, activeServices, tenantClients] = await Promise.all([
     prisma.appointment.findMany({
       where: {
         tenantId: tenant.id,
@@ -118,6 +119,18 @@ export default async function DashboardAgendaPage({
         professionalLocations: { some: { locationId: location.id } },
         ...(isProfessionalOnly ? { id: viewerProfessionalId! } : {}),
       },
+      orderBy: { name: "asc" },
+    }),
+    // Para el formulario de "Nueva cita": servicios activos + qué
+    // profesionales de ESTA sede los ofrecen, para filtrar el selector de
+    // profesional en cuanto se elige un servicio.
+    prisma.service.findMany({
+      where: { tenantId: tenant.id, active: true },
+      include: { professionals: { select: { professionalId: true } } },
+      orderBy: { name: "asc" },
+    }),
+    prisma.client.findMany({
+      where: { tenantId: tenant.id },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -160,6 +173,23 @@ export default async function DashboardAgendaPage({
   const professionals: AgendaProfessional[] = locationProfessionals.map((professional) => ({
     id: professional.id,
     name: professional.name,
+  }));
+
+  const professionalIdsInLocation = new Set(professionals.map((p) => p.id));
+  const services: AgendaServiceOption[] = activeServices.map((service) => ({
+    id: service.id,
+    name: service.name,
+    durationMinutes: service.durationMinutes,
+    professionalIds: service.professionals
+      .map((link) => link.professionalId)
+      .filter((id) => professionalIdsInLocation.has(id)),
+  }));
+
+  const clients: AgendaClientOption[] = tenantClients.map((client) => ({
+    id: client.id,
+    name: client.name,
+    email: client.email,
+    phone: client.phone,
   }));
 
   const prevWeekKey = formatCalendarDateKey(addDays(referenceDate, -7));
@@ -214,10 +244,13 @@ export default async function DashboardAgendaPage({
       <div className="mt-6">
         <WeeklyAgenda
           tenantSlug={tenantSlug}
+          locationId={location.id}
           locationTimezone={location.timezone}
           weekDates={weekDates}
           professionals={professionals}
           blocks={blocks}
+          services={services}
+          clients={clients}
         />
       </div>
     </div>

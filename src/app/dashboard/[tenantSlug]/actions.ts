@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { AppointmentStatus } from "@prisma/client";
+import { Prisma, type AppointmentStatus } from "@prisma/client";
 import { auth, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ALLOWED_STATUS_TRANSITIONS } from "@/lib/appointmentStatus";
@@ -13,6 +13,7 @@ import { findBestWaitlistMatch } from "@/lib/waitlist";
 import { normalizePhoneForWhatsapp, sendWaitlistSlotOpenedWhatsAppMessage } from "@/lib/whatsapp";
 import { computeFollowUpSlot, isAutoFollowUpVertical, isFollowUpSlotFree } from "@/lib/followUpScheduling";
 import { generateRawReviewToken, hashReviewToken, REVIEW_TOKEN_TTL_DAYS } from "@/lib/reviewToken";
+import { parseCalendarDateKey, zonedTimeToUtc } from "@/lib/availability";
 
 export interface UpdateAppointmentStatusResult {
   ok: boolean;
@@ -255,6 +256,177 @@ export async function updateAppointmentStatusAction(
   }
 
   return { ok: true };
+}
+
+export interface CreateManualAppointmentInput {
+  locationId: string;
+  professionalId: string;
+  serviceId: string;
+  dateKey: string; // yyyy-mm-dd, ver formatCalendarDateKey/parseCalendarDateKey
+  time: string; // HH:mm, hora de pared en la timezone de la sede
+  clientId?: string;
+  newClient?: { name: string; email: string; phone: string };
+}
+
+export interface CreateManualAppointmentResult {
+  ok: boolean;
+  error?: string;
+  appointmentId?: string;
+}
+
+// Agendamiento manual desde el dashboard (walk-in, llamada telefónica,
+// alguien sin WhatsApp) — hasta ahora la ÚNICA forma de crear una cita era
+// la reserva pública (BookingWizard) o el auto-agendamiento de seguimiento;
+// no había ningún camino para que el propio negocio cargue una cita a mano.
+// A diferencia de una reserva pública (que arranca PENDING, a la espera de
+// que el negocio la confirme), una cita cargada acá ya se confirma sola:
+// quien la carga es el propio negocio, ya habló con el cliente. Tampoco
+// genera un Payment — el cobro de citas manuales se asume que pasa por
+// fuera del sistema (efectivo, datáfono), igual que con AppointmentSource.MANUAL.
+export async function createManualAppointmentAction(
+  tenantSlug: string,
+  input: CreateManualAppointmentInput
+): Promise<CreateManualAppointmentResult> {
+  const session = await auth();
+  if (!session?.user) return { ok: false, error: "Debes iniciar sesión." };
+
+  const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+  if (!tenant) return { ok: false, error: "Negocio no encontrado." };
+  if (session.user.tenantId !== tenant.id) {
+    return { ok: false, error: "No tienes acceso a este negocio." };
+  }
+
+  const roles = await prisma.staffLocationRole.findMany({
+    where: { userId: session.user.id },
+    select: { locationId: true, role: true },
+  });
+  if (!hasLocationAccess(roles, input.locationId)) {
+    return { ok: false, error: "No tienes permisos sobre esta sede." };
+  }
+
+  // Mismo criterio que "solo lo mío" en Clientes/Agenda: un rol PROFESSIONAL
+  // en esta sede solo puede cargarse citas a sí mismo, nunca a un colega.
+  if (getRoleAtLocation(roles, input.locationId) === "PROFESSIONAL") {
+    const viewerProfessionalId = await getLinkedProfessionalId(session.user.id);
+    if (input.professionalId !== viewerProfessionalId) {
+      return { ok: false, error: "Solo puedes agendarte citas a ti mismo." };
+    }
+  }
+
+  const date = parseCalendarDateKey(input.dateKey);
+  const timeMatch = /^(\d{1,2}):(\d{2})$/.exec(input.time);
+  if (!date || !timeMatch) {
+    return { ok: false, error: "Fecha u hora inválida." };
+  }
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return { ok: false, error: "Fecha u hora inválida." };
+  }
+
+  const location = await prisma.location.findFirst({
+    where: { id: input.locationId, tenantId: tenant.id },
+  });
+  if (!location) return { ok: false, error: "Sede no válida." };
+
+  const service = await prisma.service.findFirst({
+    where: { id: input.serviceId, tenantId: tenant.id, active: true },
+  });
+  if (!service) return { ok: false, error: "El servicio seleccionado no es válido." };
+
+  const professionalService = await prisma.professionalService.findUnique({
+    where: {
+      professionalId_serviceId: { professionalId: input.professionalId, serviceId: input.serviceId },
+    },
+  });
+  const professional = await prisma.professional.findFirst({
+    where: { id: input.professionalId, tenantId: tenant.id, active: true },
+  });
+  if (!professionalService || !professional) {
+    return { ok: false, error: "El profesional seleccionado no ofrece este servicio." };
+  }
+
+  const professionalLocation = await prisma.professionalLocation.findUnique({
+    where: {
+      professionalId_locationId: { professionalId: input.professionalId, locationId: input.locationId },
+    },
+  });
+  if (!professionalLocation) {
+    return { ok: false, error: "El profesional seleccionado no atiende en esa sede." };
+  }
+
+  if (!input.clientId && !input.newClient?.name.trim()) {
+    return { ok: false, error: "Selecciona un cliente o carga uno nuevo." };
+  }
+
+  const startsAt = zonedTimeToUtc(date, hour, minute, location.timezone);
+  const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
+
+  try {
+    const appointment = await prisma.$transaction(
+      async (tx) => {
+        // Revalida disponibilidad dentro de la transacción — dos personas
+        // (o la agenda pública y el propio negocio) podrían intentar tomar
+        // el mismo horario al mismo tiempo.
+        const overlapping = await tx.appointment.findFirst({
+          where: {
+            professionalId: input.professionalId,
+            status: { not: "CANCELLED" },
+            startsAt: { lt: endsAt },
+            endsAt: { gt: startsAt },
+          },
+        });
+        if (overlapping) throw new Error("SLOT_TAKEN");
+
+        let clientId = input.clientId;
+        if (!clientId) {
+          const name = input.newClient!.name.trim();
+          const email = input.newClient!.email.trim();
+          const phone = input.newClient!.phone.trim();
+          const client = await tx.client.create({
+            data: {
+              tenantId: tenant.id,
+              name,
+              email: email || null,
+              phone: phone || null,
+            },
+          });
+          clientId = client.id;
+        } else {
+          const existingClient = await tx.client.findFirst({
+            where: { id: clientId, tenantId: tenant.id },
+          });
+          if (!existingClient) throw new Error("CLIENT_NOT_FOUND");
+        }
+
+        return tx.appointment.create({
+          data: {
+            tenantId: tenant.id,
+            locationId: location.id,
+            professionalId: input.professionalId,
+            serviceId: input.serviceId,
+            clientId,
+            startsAt,
+            endsAt,
+            status: "CONFIRMED",
+            source: "MANUAL",
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+
+    revalidatePath(`/dashboard/${tenantSlug}`);
+    return { ok: true, appointmentId: appointment.id };
+  } catch (err) {
+    if (err instanceof Error && err.message === "SLOT_TAKEN") {
+      return { ok: false, error: "Ese profesional ya tiene una cita en ese horario." };
+    }
+    if (err instanceof Error && err.message === "CLIENT_NOT_FOUND") {
+      return { ok: false, error: "Cliente no encontrado." };
+    }
+    throw err;
+  }
 }
 
 export async function logoutAction(): Promise<void> {

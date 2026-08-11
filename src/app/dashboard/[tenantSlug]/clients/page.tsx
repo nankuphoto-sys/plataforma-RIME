@@ -4,24 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireDashboardAccess } from "@/lib/auth-guards";
 import { isProfessionalOnlyInTenant } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
-
-// Tres tonos sólidos de marca (nunca berry/gold — esos ya significan
-// "alerta"/"pendiente" en los badges de estado) para que el avatar de
-// iniciales tenga variedad sin inventar semántica de color nueva.
-const AVATAR_TONES = ["bg-pine", "bg-pine-dark", "bg-ink"] as const;
-
-function avatarTone(seed: string) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  return AVATAR_TONES[hash % AVATAR_TONES.length];
-}
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (first + last).toUpperCase() || "?";
-}
+import { avatarTone, initials } from "@/lib/avatar";
 
 export default async function ClientsPage({
   params,

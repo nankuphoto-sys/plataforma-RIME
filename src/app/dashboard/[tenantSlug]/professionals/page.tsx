@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { UserPlus } from "lucide-react";
+import { Briefcase, MapPin, Percent, UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireProfessionalsManageAccess } from "@/lib/auth-guards";
 import { getPlanLimits, hasReachedProfessionalLimit } from "@/lib/planLimits";
+import { initials } from "@/lib/avatar";
 
 export default async function ProfessionalsPage({
   params,
@@ -23,7 +24,7 @@ export default async function ProfessionalsPage({
   const atProfessionalLimit = hasReachedProfessionalLimit(tenant.plan, activeCount);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-6xl">
       <div className="flex items-center justify-between gap-4">
         <h1 className="page-title">Profesionales</h1>
         <Link href={`/dashboard/${tenantSlug}/professionals/new`} className="btn-primary">
@@ -40,50 +41,68 @@ export default async function ProfessionalsPage({
           " Alcanzaste el máximo de tu plan — desactiva otro profesional o sube de plan para activar más."}
       </p>
 
-      <div className="table-shell mt-6">
-        <table className="w-full text-sm">
-          <thead className="table-head">
-            <tr>
-              <th className="table-head-cell">Nombre</th>
-              <th className="table-head-cell">Estado</th>
-              <th className="table-head-cell">Comisión</th>
-              <th className="table-head-cell">Sedes</th>
-              <th className="table-head-cell">Servicios</th>
-            </tr>
-          </thead>
-          <tbody>
-            {professionals.map((professional) => (
-              <tr key={professional.id} className="table-row">
-                <td className="table-cell">
-                  <Link
-                    href={`/dashboard/${tenantSlug}/professionals/${professional.id}`}
-                    className="font-medium text-ink hover:text-pine hover:underline"
+      {professionals.length === 0 ? (
+        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
+          Este negocio todavía no tiene profesionales.
+        </div>
+      ) : (
+        // Tarjeta a todo color en vez de fila de tabla — mismo lenguaje que
+        // "Hecho para tu especialidad" de la landing (SpecialtyGrid.tsx):
+        // el color ES la tarjeta, con el nombre superpuesto sobre un scrim.
+        // El activo se ve vívido en pine; el inactivo se apaga a un gris
+        // desaturado (no un color de "alerta" — simplemente "no está
+        // trabajando ahora mismo") para que el estado se lea de un vistazo
+        // sin tener que leer el badge.
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {professionals.map((professional) => (
+            <Link
+              key={professional.id}
+              href={`/dashboard/${tenantSlug}/professionals/${professional.id}`}
+              className={`group relative block h-52 overflow-hidden rounded-2xl bg-gradient-to-br transition duration-200 ease-out hover:-translate-y-1 hover:shadow-xl hover:shadow-ink/10 ${
+                professional.active ? "from-pine to-pine-dark" : "from-ink/50 to-ink/70"
+              }`}
+            >
+              <div
+                aria-hidden
+                className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-ink/80 via-ink/15 to-transparent"
+              />
+              <div className="relative flex h-full flex-col justify-between p-5">
+                <div className="flex items-start justify-between gap-2">
+                  <span
+                    className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-white/15 text-lg font-bold text-paper backdrop-blur-sm"
+                    aria-hidden
                   >
-                    {professional.name}
-                  </Link>
-                </td>
-                <td className="table-cell">
-                  {professional.active ? (
-                    <span className="badge badge-pine">Activo</span>
-                  ) : (
-                    <span className="badge badge-sage">Inactivo</span>
-                  )}
-                </td>
-                <td className="table-cell-muted data-mono">{Number(professional.commissionRate)}%</td>
-                <td className="table-cell-muted data-mono">{professional._count.professionalLocations}</td>
-                <td className="table-cell-muted data-mono">{professional._count.services}</td>
-              </tr>
-            ))}
-            {professionals.length === 0 && (
-              <tr>
-                <td colSpan={5} className="empty-row">
-                  Este negocio todavía no tiene profesionales.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                    {initials(professional.name)}
+                  </span>
+                  <span
+                    className={`badge flex-none ${professional.active ? "bg-white/20 text-paper" : "bg-white/10 text-paper/70"}`}
+                  >
+                    {professional.active ? "Activo" : "Inactivo"}
+                  </span>
+                </div>
+
+                <div>
+                  <p className="text-lg font-semibold text-paper drop-shadow-sm">{professional.name}</p>
+                  <div className="mt-2 flex items-center gap-3.5 text-xs text-paper/80">
+                    <span className="flex items-center gap-1">
+                      <Percent className="h-3.5 w-3.5" aria-hidden />
+                      {Number(professional.commissionRate)}%
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Briefcase className="h-3.5 w-3.5" aria-hidden />
+                      {professional._count.services}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5" aria-hidden />
+                      {professional._count.professionalLocations}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

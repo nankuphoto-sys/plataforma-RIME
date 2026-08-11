@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AppointmentStatus, PaymentKind, PaymentStatus } from "@prisma/client";
-import { CheckCheck, CheckCircle2, Clock, Loader2, UserX, X, XCircle } from "lucide-react";
-import { getTodayInTimezone, type CalendarDate } from "@/lib/availability";
+import { CalendarPlus, CheckCheck, CheckCircle2, Clock, Loader2, UserX, X, XCircle } from "lucide-react";
+import { formatCalendarDateKey, getTodayInTimezone, type CalendarDate } from "@/lib/availability";
 import { getAppointmentBlockPosition, getHourMarks } from "@/lib/appointmentGrid";
 import { ALLOWED_STATUS_TRANSITIONS, APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
+import { avatarTone, initials } from "@/lib/avatar";
 import { updateAppointmentStatusAction } from "./actions";
+import { NewAppointmentPanel, type AgendaClientOption, type AgendaServiceOption } from "./NewAppointmentPanel";
 
 export interface AgendaProfessional {
   id: string;
@@ -31,24 +33,29 @@ export interface AgendaAppointmentBlock {
 
 interface WeeklyAgendaProps {
   tenantSlug: string;
+  locationId: string;
   locationTimezone: string;
   weekDates: CalendarDate[];
   professionals: AgendaProfessional[];
   blocks: AgendaAppointmentBlock[];
+  services: AgendaServiceOption[];
+  clients: AgendaClientOption[];
 }
 
 const GRID_HEIGHT_PX = 720;
 
-// Un borde izquierdo marcado + relleno suave por estado, en vez de colores
-// de semáforo genéricos — usa la misma paleta que el resto del dashboard.
-// Se reutiliza tal cual tanto en los bloques de la grilla semanal (desktop)
-// como en las tarjetas de la vista de un día (mobile).
+// Un borde izquierdo marcado + relleno más saturado por estado, en vez de
+// colores de semáforo genéricos ni tintes tan pálidos que cuesta distinguir
+// un estado de otro de un vistazo — usa la misma paleta que el resto del
+// dashboard, solo con más peso. Se reutiliza tal cual tanto en los bloques
+// de la grilla semanal (desktop) como en las tarjetas de la vista de un día
+// (mobile).
 const STATUS_STYLES: Record<AppointmentStatus, string> = {
-  PENDING: "border-l-gold bg-gold/10 text-ink",
-  CONFIRMED: "border-l-pine bg-pine/10 text-ink",
-  COMPLETED: "border-l-pine-dark bg-pine-dark/15 text-ink",
+  PENDING: "border-l-gold bg-gold/20 text-ink",
+  CONFIRMED: "border-l-pine bg-pine/20 text-ink",
+  COMPLETED: "border-l-pine-dark bg-pine-dark/25 text-ink",
   CANCELLED: "border-l-ink/20 bg-ink/5 text-ink/40 line-through",
-  NO_SHOW: "border-l-berry bg-berry/10 text-ink",
+  NO_SHOW: "border-l-berry bg-berry/20 text-ink",
 };
 
 const STATUS_BADGE_STYLES: Record<AppointmentStatus, string> = {
@@ -114,12 +121,20 @@ function isSameCalendarDate(a: CalendarDate, b: CalendarDate): boolean {
 
 export function WeeklyAgenda({
   tenantSlug,
+  locationId,
   locationTimezone,
   weekDates,
   professionals,
   blocks,
+  services,
+  clients,
 }: WeeklyAgendaProps) {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [newApptContext, setNewApptContext] = useState<{
+    professionalId: string;
+    dateKey: string;
+    time: string;
+  } | null>(null);
   const [statusOverrides, setStatusOverrides] = useState<Record<string, AppointmentStatus>>({});
   const [statusError, setStatusError] = useState<string | null>(null);
   const [pendingNextStatus, setPendingNextStatus] = useState<AppointmentStatus | null>(null);
@@ -201,16 +216,84 @@ export function WeeklyAgenda({
     });
   }
 
-  if (blocks.length === 0) {
-    return (
-      <div className="panel border-dashed py-16 text-center">
-        <p className="text-sm text-ink/45">No hay citas agendadas para esta semana.</p>
-      </div>
-    );
+  const defaultProfessionalId = professionals[0]?.id ?? "";
+
+  // Hora "de pared" por defecto para el botón genérico "Nueva cita" (sin
+  // clic sobre una celda puntual): la hora actual redondeada a los próximos
+  // 15 min si hoy es uno de los días de esta semana, si no el inicio de la
+  // grilla (primera marca de hora).
+  function getDefaultTime(): string {
+    if (now) {
+      const todayInLocation = getTodayInTimezone(locationTimezone, now);
+      if (weekDates.some((date) => isSameCalendarDate(date, todayInLocation))) {
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: locationTimezone,
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).formatToParts(now);
+        const hour = Number(parts.find((p) => p.type === "hour")?.value ?? hourMarks[0]);
+        const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+        const snappedMinute = Math.min(45, Math.round(minute / 15) * 15);
+        return `${String(hour).padStart(2, "0")}:${String(snappedMinute).padStart(2, "0")}`;
+      }
+    }
+    return `${String(hourMarks[0]).padStart(2, "0")}:00`;
+  }
+
+  function getDefaultDateKey(): string {
+    if (now) {
+      const todayInLocation = getTodayInTimezone(locationTimezone, now);
+      const match = weekDates.find((date) => isSameCalendarDate(date, todayInLocation));
+      if (match) return formatCalendarDateKey(match);
+    }
+    return formatCalendarDateKey(weekDates[0]);
+  }
+
+  // Convierte el clic sobre una celda vacía de la grilla en un horario "de
+  // pared" redondeado a los 15 min más cercanos — mismo snap que la
+  // reprogramación por arrastre del prototipo original.
+  function openNewAppointmentFromClick(
+    event: React.MouseEvent<HTMLDivElement>,
+    professionalId: string,
+    dayIndex: number
+  ) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const clickFraction = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+    const startHour = hourMarks[0];
+    const endHour = hourMarks[hourMarks.length - 1];
+    const totalMinutes = (endHour - startHour) * 60;
+    const minutesFromOpen = Math.round((clickFraction * totalMinutes) / 15) * 15;
+    const hour = startHour + Math.floor(minutesFromOpen / 60);
+    const minute = minutesFromOpen % 60;
+
+    setNewApptContext({
+      professionalId,
+      dateKey: formatCalendarDateKey(weekDates[dayIndex]),
+      time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+    });
   }
 
   return (
     <div>
+      <div className="mb-4 flex justify-end">
+        <button
+          type="button"
+          onClick={() =>
+            setNewApptContext({
+              professionalId: defaultProfessionalId,
+              dateKey: getDefaultDateKey(),
+              time: getDefaultTime(),
+            })
+          }
+          disabled={!defaultProfessionalId || services.length === 0}
+          className="btn-primary"
+        >
+          <CalendarPlus className="h-4 w-4" />
+          Nueva cita
+        </button>
+      </div>
+
       {/* Vista mobile: un día a la vez, con selector de día — la grilla de
           7 columnas de la vista de escritorio no entra en un celular sin
           scroll horizontal Y vertical a la vez, así que abajo de `md` se
@@ -319,10 +402,16 @@ export function WeeklyAgenda({
                   {professionals.map((professional) => (
                     <div
                       key={professional.id}
-                      className="flex-1 truncate px-1 text-center text-[11px] text-ink/40"
+                      className="flex flex-1 items-center justify-center gap-1 truncate px-1"
                       title={professional.name}
                     >
-                      {professional.name}
+                      <span
+                        className={`flex h-4 w-4 flex-none items-center justify-center rounded-full text-[8px] font-semibold text-paper ${avatarTone(professional.id)}`}
+                        aria-hidden
+                      >
+                        {initials(professional.name)}
+                      </span>
+                      <span className="truncate text-[11px] text-ink/50">{professional.name}</span>
                     </div>
                   ))}
                 </div>
@@ -352,7 +441,9 @@ export function WeeklyAgenda({
                     {professionals.map((professional) => (
                       <div
                         key={professional.id}
-                        className="relative flex-1 border-l border-sage/60 first:border-l-0"
+                        onClick={(e) => openNewAppointmentFromClick(e, professional.id, dayIndex)}
+                        title="Agendar cita"
+                        className="relative flex-1 cursor-pointer border-l border-sage/60 transition-colors first:border-l-0 hover:bg-pine/[0.04]"
                       >
                         {dayBlocks
                           .filter((b) => b.professionalId === professional.id)
@@ -360,7 +451,10 @@ export function WeeklyAgenda({
                             <button
                               key={block.id}
                               type="button"
-                              onClick={() => setSelectedBlockId(block.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedBlockId(block.id);
+                              }}
                               className={`absolute left-0.5 right-0.5 overflow-hidden rounded-md border-l-[3px] px-1.5 py-1 text-left text-[11px] leading-tight transition-[filter] hover:brightness-95 ${
                                 STATUS_STYLES[getEffectiveStatus(block)]
                               }`}
@@ -474,6 +568,24 @@ export function WeeklyAgenda({
             </div>
           </div>
         </div>
+      )}
+
+      {newApptContext && (
+        <NewAppointmentPanel
+          tenantSlug={tenantSlug}
+          locationId={locationId}
+          professionals={professionals}
+          services={services}
+          clients={clients}
+          initialProfessionalId={newApptContext.professionalId}
+          initialDateKey={newApptContext.dateKey}
+          initialTime={newApptContext.time}
+          onClose={() => setNewApptContext(null)}
+          onCreated={() => {
+            setNewApptContext(null);
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );
