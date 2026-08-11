@@ -14,7 +14,7 @@ export default async function ResetPasswordPage({
         <div className="w-full max-w-sm">
           <div className="auth-brand">
             <span className="auth-brand-mark">R</span>
-            <span className="font-display text-lg font-semibold text-ink">RIME</span>
+            <span className="font-display text-lg font-semibold text-paper">RIME</span>
           </div>
           <div className="auth-card">
             <h1 className="page-title text-2xl">Link inválido</h1>
@@ -41,7 +41,7 @@ export default async function ResetPasswordPage({
       <div className="w-full max-w-sm">
         <div className="auth-brand">
           <span className="auth-brand-mark">R</span>
-          <span className="font-display text-lg font-semibold text-ink">RIME</span>
+          <span className="font-display text-lg font-semibold text-paper">RIME</span>
         </div>
 
         <div className="auth-card">

@@ -440,14 +440,21 @@
      desconocido en su celular sin contexto previo — acá en cambio ya sabe
      que está entrando a RIME). Reutilizan `.field-label`/`.field-input`/
      `.btn-primary` tal cual para no crear un segundo lenguaje de formulario. */
-  /* Fondo: dos blobs de degradado radial (turquesa pine) difuminados en
-     esquinas opuestas + grano sutil (SVG feTurbulence inline, sin pedir
-     ninguna imagen) sobre el bg-paper sólido. `isolate` crea un contexto de
-     apilamiento propio para que los pseudo-elementos con z-index:-1 queden
-     detrás de la tarjeta sin filtrarse por debajo del fondo de la página. */
+  /* Fondo: mismo tratamiento oscuro que Hero.tsx/FinalCta.tsx (bg-ink +
+     resplandor pine) — no un estilo nuevo, es la energía con la que ya
+     arranca y cierra la landing, extendida al momento de login. Tres focos
+     de luz asimétricos (pine grande arriba-izq., pine-dark chico
+     centro-abajo, gold chico abajo-der. de acento cálido) en vez de blobs
+     gemelos, más un resplandor central detrás de la tarjeta (el
+     radial-gradient del background-image, sin blur porque ya nace suave)
+     para que la tarjeta blanca quede "iluminada" en vez de flotando sobre
+     un fondo parejo. Grano igual que antes. `isolate` contiene los
+     pseudo-elementos con z-index:-1 dentro del propio stacking context. */
   .auth-shell {
-    @apply relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-paper px-6 py-12;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+    @apply relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-ink px-6 py-12;
+    background-image:
+      radial-gradient(ellipse 70% 55% at 50% 38%, rgba(30, 127, 149, 0.35), transparent 100%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
   }
 
   .auth-shell::before,
@@ -456,23 +463,24 @@
     position: absolute;
     z-index: -1;
     border-radius: 9999px;
-    filter: blur(80px);
   }
 
   .auth-shell::before {
-    top: -15%;
-    left: -12%;
-    width: 34rem;
-    height: 34rem;
+    top: -20%;
+    left: -16%;
+    width: 40rem;
+    height: 40rem;
     background: radial-gradient(circle, rgba(30, 127, 149, 0.55), transparent 70%);
+    filter: blur(90px);
   }
 
   .auth-shell::after {
-    bottom: -18%;
-    right: -12%;
-    width: 30rem;
-    height: 30rem;
-    background: radial-gradient(circle, rgba(20, 93, 110, 0.45), transparent 70%);
+    bottom: -22%;
+    right: -14%;
+    width: 26rem;
+    height: 26rem;
+    background: radial-gradient(circle, rgba(242, 169, 59, 0.28), transparent 70%);
+    filter: blur(100px);
   }
 
   .auth-brand {
@@ -487,7 +495,7 @@
      que el frame final no se quede pisando el cascade para siempre y
      bloqueando algo interactivo dentro de la tarjeta después. */
   .auth-card {
-    @apply w-full max-w-sm rounded-2xl border border-sage-dark/40 bg-white p-8 shadow-lg shadow-ink/5;
+    @apply w-full max-w-sm rounded-2xl border border-white/10 bg-white p-8 shadow-2xl shadow-pine/20;
     animation: rise-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   }
 }

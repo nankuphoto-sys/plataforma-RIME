@@ -10,7 +10,7 @@ function InvalidLinkShell({ children }: { children: React.ReactNode }) {
       <div className="w-full max-w-sm">
         <div className="auth-brand">
           <span className="auth-brand-mark">R</span>
-          <span className="font-display text-lg font-semibold text-ink">RIME</span>
+          <span className="font-display text-lg font-semibold text-paper">RIME</span>
         </div>
         <div className="auth-card">{children}</div>
       </div>
