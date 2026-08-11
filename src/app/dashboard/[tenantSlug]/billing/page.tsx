@@ -4,6 +4,20 @@ import { prisma } from "@/lib/prisma";
 import { requireBillingAccess } from "@/lib/auth-guards";
 import { getPlanLimits } from "@/lib/planLimits";
 import { PLAN_OPTIONS, describePlan } from "@/lib/planDisplay";
+
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE: "Activa",
+  TRIAL: "Prueba gratis",
+  PAST_DUE: "Pago pendiente",
+  CANCELLED: "Cancelada",
+};
+
+const STATUS_BADGE: Record<string, string> = {
+  ACTIVE: "badge-pine",
+  TRIAL: "badge-gold",
+  PAST_DUE: "badge-berry",
+  CANCELLED: "badge-sage",
+};
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import {
   createSubscriptionCheckoutAction,
@@ -49,7 +63,7 @@ export default async function BillingPage({
     : [0, 0];
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-2xl">
       <h1 className="page-title">Facturación</h1>
 
       {checkout === "success" && <p className="msg-success mt-4">Suscripción configurada correctamente.</p>}
@@ -92,13 +106,31 @@ export default async function BillingPage({
           <p className="msg-error mt-4">{error}</p>
         )}
 
-      <div className="panel mt-6 space-y-1 text-sm">
-        <p className="text-ink/70">
-          Plan actual: <span className="font-medium text-ink">{tenant.plan}</span>
-        </p>
-        <p className="text-ink/70">
-          Estado: <span className="font-medium text-ink">{tenant.status}</span>
-        </p>
+      <div className="panel mt-6 flex items-center gap-4">
+        <span
+          className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-pine/10 text-pine-dark"
+          aria-hidden
+        >
+          <CreditCard className="h-6 w-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-display text-2xl font-bold text-ink">
+              {PLAN_OPTIONS.find((o) => o.value === tenant.plan)?.label ?? tenant.plan}
+            </p>
+            <span className={`badge ${STATUS_BADGE[tenant.status] ?? "badge-sage"}`}>
+              {STATUS_LABEL[tenant.status] ?? tenant.status}
+            </span>
+          </div>
+          {(() => {
+            const current = PLAN_OPTIONS.find((o) => o.value === tenant.plan);
+            return (
+              <p className="mt-1 text-sm text-ink/55">
+                {current ? describePlan(current) : "Plan personalizado"}
+              </p>
+            );
+          })()}
+        </div>
       </div>
 
       {!hasWompiSubscription && (

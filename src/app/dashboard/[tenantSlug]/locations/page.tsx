@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPinPlus } from "lucide-react";
+import { Briefcase, Clock, MapPin, MapPinPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireOwnerAccess } from "@/lib/auth-guards";
 import { getPlanLimits, hasReachedLocationLimit } from "@/lib/planLimits";
@@ -22,7 +22,7 @@ export default async function LocationsPage({
   const atLocationLimit = hasReachedLocationLimit(tenant.plan, locations.length);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-6xl">
       <div className="flex items-center justify-between gap-4">
         <h1 className="page-title">Sedes</h1>
         {!atLocationLimit && (
@@ -40,42 +40,45 @@ export default async function LocationsPage({
         {atLocationLimit && " Alcanzaste el máximo de tu plan — sube de plan para agregar más sedes."}
       </p>
 
-      <div className="table-shell mt-6">
-        <table className="w-full text-sm">
-          <thead className="table-head">
-            <tr>
-              <th className="table-head-cell">Nombre</th>
-              <th className="table-head-cell">Dirección</th>
-              <th className="table-head-cell">Timezone</th>
-              <th className="table-head-cell">Profesionales</th>
-            </tr>
-          </thead>
-          <tbody>
-            {locations.map((location) => (
-              <tr key={location.id} className="table-row">
-                <td className="table-cell">
-                  <Link
-                    href={`/dashboard/${tenantSlug}/locations/${location.id}`}
-                    className="font-medium text-ink hover:text-pine hover:underline"
-                  >
-                    {location.name}
-                  </Link>
-                </td>
-                <td className="table-cell-muted">{location.address ?? "—"}</td>
-                <td className="table-cell-muted data-mono">{location.timezone}</td>
-                <td className="table-cell-muted data-mono">{location._count.professionalLocations}</td>
-              </tr>
-            ))}
-            {locations.length === 0 && (
-              <tr>
-                <td colSpan={4} className="empty-row">
-                  Este negocio todavía no tiene sedes.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {locations.length === 0 ? (
+        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
+          Este negocio todavía no tiene sedes.
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {locations.map((location) => (
+            <Link
+              key={location.id}
+              href={`/dashboard/${tenantSlug}/locations/${location.id}`}
+              className="panel group flex flex-col gap-4 hover:-translate-y-0.5 hover:border-pine/30"
+            >
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-pine/10 text-pine-dark"
+                  aria-hidden
+                >
+                  <MapPin className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-ink group-hover:text-pine">{location.name}</p>
+                  <p className="truncate text-xs text-ink/50">{location.address ?? "Sin dirección cargada"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-sage-dark/25 pt-3 text-xs">
+                <span className="flex items-center gap-1.5 text-ink/50">
+                  <Clock className="h-3.5 w-3.5 flex-none" aria-hidden />
+                  {location.timezone}
+                </span>
+                <span className="badge badge-pine">
+                  <Briefcase className="mr-1 h-3 w-3" aria-hidden />
+                  {location._count.professionalLocations}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
