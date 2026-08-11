@@ -1,9 +1,27 @@
 import Link from "next/link";
-import { Search, UserPlus } from "lucide-react";
+import { CalendarCheck, Phone, Search, Star, UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireDashboardAccess } from "@/lib/auth-guards";
 import { isProfessionalOnlyInTenant } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
+
+// Tres tonos sólidos de marca (nunca berry/gold — esos ya significan
+// "alerta"/"pendiente" en los badges de estado) para que el avatar de
+// iniciales tenga variedad sin inventar semántica de color nueva.
+const AVATAR_TONES = ["bg-pine", "bg-pine-dark", "bg-ink"] as const;
+
+function avatarTone(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_TONES[hash % AVATAR_TONES.length];
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "";
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  return (first + last).toUpperCase() || "?";
+}
 
 export default async function ClientsPage({
   params,
@@ -72,7 +90,7 @@ export default async function ClientsPage({
   });
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <div className="flex items-center justify-between gap-4">
         <h1 className="page-title">Clientes</h1>
         {/* Crear clientes nuevos queda para recepción/administración — un
@@ -100,42 +118,53 @@ export default async function ClientsPage({
         />
       </form>
 
-      <div className="table-shell mt-6">
-        <table className="w-full text-sm">
-          <thead className="table-head">
-            <tr>
-              <th className="table-head-cell">Nombre</th>
-              <th className="table-head-cell">Email</th>
-              <th className="table-head-cell">Teléfono</th>
-              <th className="table-head-cell">Citas</th>
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((client) => (
-              <tr key={client.id} className="table-row">
-                <td className="table-cell">
-                  <Link
-                    href={`/dashboard/${tenantSlug}/clients/${client.id}`}
-                    className="font-medium text-ink hover:text-pine hover:underline"
-                  >
-                    {client.name}
-                  </Link>
-                </td>
-                <td className="table-cell-muted">{client.email ?? "—"}</td>
-                <td className="table-cell-muted data-mono">{client.phone ?? "—"}</td>
-                <td className="table-cell-muted data-mono">{client._count.appointments}</td>
-              </tr>
-            ))}
-            {clients.length === 0 && (
-              <tr>
-                <td colSpan={4} className="empty-row">
-                  {query ? "No se encontraron clientes." : "Todavía no hay clientes."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {clients.length === 0 ? (
+        <div className="empty-row mt-6 rounded-xl border border-dashed border-sage-dark/40">
+          {query ? "No se encontraron clientes." : "Todavía no hay clientes."}
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {clients.map((client) => (
+            <Link
+              key={client.id}
+              href={`/dashboard/${tenantSlug}/clients/${client.id}`}
+              className="panel group flex flex-col gap-4 hover:-translate-y-0.5 hover:border-pine/30"
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className={`flex h-11 w-11 flex-none items-center justify-center rounded-full text-sm font-semibold text-paper ${avatarTone(client.id)}`}
+                  aria-hidden
+                >
+                  {initials(client.name)}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-ink group-hover:text-pine">{client.name}</p>
+                  <p className="truncate text-xs text-ink/50">{client.email ?? "Sin email"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-sage-dark/25 pt-3 text-xs">
+                <span className="data-mono flex items-center gap-1.5 text-ink/60">
+                  <Phone className="h-3.5 w-3.5 flex-none text-ink/35" aria-hidden />
+                  {client.phone ?? "—"}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {tenant.loyaltyEnabled && client.loyaltyStamps > 0 && (
+                    <span className="badge badge-gold">
+                      <Star className="mr-1 h-3 w-3 fill-current" aria-hidden />
+                      {client.loyaltyStamps}
+                    </span>
+                  )}
+                  <span className="badge badge-pine">
+                    <CalendarCheck className="mr-1 h-3 w-3" aria-hidden />
+                    {client._count.appointments}
+                  </span>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
