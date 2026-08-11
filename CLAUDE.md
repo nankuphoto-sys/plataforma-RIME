@@ -1254,6 +1254,7 @@ cp .env.example .env        # y completar DATABASE_URL, etc.
 docker compose up -d        # levanta Postgres local
 npm run db:migrate          # crea las tablas a partir de prisma/schema.prisma
 npm run db:seed             # carga datos de ejemplo (tenant, sede, servicio, cliente demo)
+npm run db:seed:test-plans  # tenants mínimos en INDIVIDUAL/BASICO/PRO para probar gating (ver sesión 11 ago 2026)
 npm run dev                 # http://localhost:3000
 ```
 
@@ -1279,10 +1280,7 @@ npm run dev                 # http://localhost:3000
   ("precio transparente") y el nicho (clínicas chicas) prefiere costo fijo
   predecible.
 - ~~Tiers concretos (precio y límites por plan)~~ → resuelto, mapeado a los
-  4 valores que ya existen en el enum `Plan` del schema (hoy es solo un
-  campo de datos — no hay feature-gating implementado en ninguna fase
-  todavía, así que definir esto no dispara ninguna migración ni cambio de
-  código por sí solo):
+  4 valores que ya existen en el enum `Plan` del schema:
   - `INDIVIDUAL` — 19 USD/mes. 1 profesional activo, 1 sede. Agenda
     pública+interna, recordatorios WhatsApp sin límite duro visible, pagos
     Stripe/Wompi, ficha configurable por vertical.
@@ -1301,12 +1299,13 @@ npm run dev                 # http://localhost:3000
   incluido. Nota: estos montos y topes son una propuesta razonada, no
   están validados contra costos reales (WhatsApp Cloud API, Stripe/Wompi,
   infraestructura) ni contra investigación de disposición a pagar del
-  nicho — ajustar si la data real lo pide más adelante. Implementar el
-  feature-gating por plan (bloquear Inventario/CRM predictivo/Reportes
-  según `Tenant.plan`, hacer cumplir los topes de profesionales/sedes, y
-  la facturación en sí vía Stripe/Wompi suscripciones) queda fuera de
-  cualquier fase hecha hasta ahora — es trabajo de código pendiente,
-  todavía sin fase asignada.
+  nicho — ajustar si la data real lo pide más adelante.
+  **Corrección (11 ago 2026): esta nota decía que el feature-gating y la
+  facturación estaban pendientes — eso quedó desactualizado y ya no es
+  cierto.** Ambos están implementados y verificados de punta a punta, ver
+  "Verificación de gating por plan y facturación" más abajo. Antes de
+  asumir que algo de esto falta, revisar `src/lib/planLimits.ts` y
+  `src/lib/auth-guards.ts` en vez de confiar en esta sección.
 
 ## Integración de WhatsApp Business (Meta) — sesión de Cowork (31 jul 2026)
 
@@ -2457,3 +2456,91 @@ este entorno no tiene**:
 5. **Sin repo de Git conectado** — cada deploy nuevo requiere correr
    `vercel deploy --prod` a mano desde esta carpeta; no hay auto-deploy en
    cada push todavía.
+
+## Identidad visual: dirección "Booksy" reemplazó a "cronógrafo" (verde pino → turquesa)
+
+No estaba documentado acá — solo como comentarios sueltos en
+`tailwind.config.ts`/`src/app/layout.tsx`, lo que causó confusión real en
+una sesión de Claude Code (11 ago 2026) que asumió por error que el verde
+pino seguía vigente. Registrado ahora para que no vuelva a pasar.
+
+**Estado actual (el correcto, no lo cambies sin pedido explícito):**
+paleta turquesa-petróleo (`pine.DEFAULT #1E7F95`, `pine.dark #145D6E`),
+tipografía Inter (`--font-sans` y `--font-display` apuntan a la misma
+variable, sin serif aparte), íconos Lucide sin modificar. Los NOMBRES de
+los tokens de Tailwind (`ink`, `paper`, `pine`, `sage`, `berry`, `gold`,
+`case`) se mantuvieron iguales a propósito a través del cambio de paleta
+— todo el código que ya usa `bg-pine`/`text-ink`/etc. hereda el look
+nuevo sin tocar archivo por archivo. Ver los comentarios en
+`tailwind.config.ts` y `src/app/layout.tsx` para el detalle campo por
+campo.
+
+**Por qué existe esta nota:** en la carpeta hermana `design_handoff_rime_app`
+viven los prototipos `.dc.html` originales (`RIME Escritorio.dc.html`, etc.)
+con la identidad *anterior* — verde pino `#2F5D50`, Fraunces + Plus Jakarta
+Sans. Son solo mockups de diseño, no reflejan el estado actual de esta app.
+Si alguna vez se pide "que la plataforma se vea como los mockups de RIME",
+la respuesta correcta es actualizar ESE color/tipografía en los mockups
+para que coincidan con lo que ya está en producción acá — no al revés.
+
+## Verificación de gating por plan y facturación — sesión de Claude Code (11 ago 2026)
+
+Motivada por descubrir que la nota de "Qué falta por decidir" (más arriba)
+estaba desactualizada: decía que faltaba implementar feature-gating y
+facturación, cuando en realidad ya estaban construidos — solo nunca se
+habían probado de punta a punta (el seed solo tenía un tenant PREMIUM, que
+ve todo habilitado).
+
+**Gating por plan — verificado, 20/20 chequeos.** Nuevo script
+`prisma/seed-test-plans.ts` (`npm run db:seed:test-plans`, re-ejecutable
+con `upsert`) crea tenants mínimos en los 3 planes que el seed principal no
+cubre: `test-individual` (`owner@test-individual.com`), `test-basico`
+(`owner@test-basico.com`), `test-pro` (`owner@test-pro.com`) — contraseña
+`demo1234` igual que el resto. Con Playwright contra un build de
+producción local, se confirmó que Reportes/Inventario/Gift
+cards/Marketing respetan `PLAN_LIMITS` exactamente (bloqueados en
+INDIVIDUAL/BASICO según corresponda, abiertos en PREMIUM/PRO), Reseñas
+queda abierto en todos los planes (gating por rol, no por plan — así está
+diseñado). Los topes de sede/profesional (`hasReachedLocationLimit`/
+`hasReachedProfessionalLimit`) también se probaron reales contra
+`test-individual` (cap=1 en ambos): el primero entra, el segundo se
+bloquea con el mensaje esperado.
+
+**Facturación Stripe — verificada con datos reales, no simulados.**
+Completado un checkout real en modo test (tarjeta 4242 4242 4242 4242)
+para `test-individual`. Como no hay un túnel hacia este servidor local
+(el Stripe CLI tenía la sesión de login vencida — pediría `stripe login`
+interactivo), los eventos reales que generó Stripe
+(`checkout.session.completed`, luego `customer.subscription.updated` al
+cambiar de plan) se tomaron con `stripe.events.list()` y se entregaron a
+mano a `/api/webhooks/stripe`, firmados con `stripe.webhooks
+.generateTestHeaderString()` usando el mismo `STRIPE_WEBHOOK_SECRET` de
+`.env` — mismo código de verificación de firma que corre en producción,
+solo sin depender de que Stripe pueda alcanzar `localhost`. Confirmado en
+la base de datos: `Tenant.status` pasó de `TRIAL` a `ACTIVE` con el
+`stripeSubscriptionId` real guardado tras el primer evento, y
+`Tenant.plan` pasó de `INDIVIDUAL` a `BASICO` tras cambiar de plan y
+entregar el segundo evento. **Pendiente, no probado todavía:** los flujos
+de Wompi (cambiar de plan, cancelar, reactivar) y los eventos
+`invoice.payment_failed`/`customer.subscription.deleted`.
+
+**Bug real encontrado y corregido en el camino** (no relacionado a lo de
+arriba — apareció mientras se probaban los topes de capacidad): el
+callback `jwt` de `src/lib/auth.ts` reconsulta `passwordChangedAt` contra
+la base en cada `auth()` (necesario para poder invalidar el token si la
+contraseña cambió en otro dispositivo). Si esa consulta puntual falla por
+un hipo transitorio de conexión con Neon — se vio pasar en vivo durante
+esta sesión (`Error in PostgreSQL connection: Closed`) — Auth.js
+interpretaba el error como sesión inválida y deslogueaba al usuario sin
+aviso, en medio de cualquier acción. Ahora ese caso falla en modo abierto
+(conserva la sesión existente) en vez de cerrado. Ver el comentario en el
+callback `jwt` para el razonamiento completo del trade-off.
+
+**De paso, optimización de performance:** `src/app/dashboard/[tenantSlug]/layout.tsx`
+y el guard `requireDashboardAccess` (`src/lib/auth-guards.ts`) hacían cada
+uno su propio `auth()` + `prisma.tenant.findUnique` — el mismo roundtrip a
+la base duplicado en cada navegación del dashboard. Unificado en
+`getSessionAndTenant()`, envuelto en `React.cache()` para que ambos
+compartan la misma consulta dentro del mismo request. Medido: ~20-25% más
+rápido en las páginas simples (Clientes, Inventario, Servicios, Agenda) en
+producción local.
