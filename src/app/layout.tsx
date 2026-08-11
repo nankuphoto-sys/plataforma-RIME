@@ -1,21 +1,16 @@
 import type { Metadata } from "next";
-import { Fraunces, Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-// Identidad RIME: Fraunces (serif) para títulos/marca, Plus Jakarta Sans
-// para texto general — la pareja tipográfica de RIME Escritorio.dc.html.
-// El mono (IBM Plex) se mantiene igual, sigue siendo el protagonista de
-// horarios/montos/datos.
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["500", "600", "700"],
-});
-
-const plusJakartaSans = Plus_Jakarta_Sans({
+// Dirección "Booksy" (turquesa + Inter): Inter reemplaza a Plus Jakarta Sans
+// como tipografía única de marca (--font-display apunta a la misma variable
+// que --font-sans, ver tailwind.config.ts `fontFamily.display`), pedido
+// explícito del spec de rediseño. El mono (IBM Plex) se mantiene igual,
+// sigue siendo el protagonista de horarios/montos/datos.
+const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
-  weight: ["400", "500", "600", "700"],
+  weight: ["500", "600", "700", "800"],
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -37,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${fraunces.variable} ${plusJakartaSans.variable} ${ibmPlexMono.variable}`}
+      className={`${inter.variable} ${ibmPlexMono.variable}`}
       // Algunas extensiones del navegador (temas, lectores, gestores de
       // contraseñas) le agregan atributos al <html> antes de que React
       // hidrate (ej. data-theme, variables CSS de otra fuente/paleta que no

@@ -10,13 +10,15 @@ import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
 // Cada barra ya lleva su categoría como label directo en el eje X (y su
 // valor arriba de la barra), así que la identidad nunca depende solo del
 // color — mitiga que pine/berry no separan bien para protanopía.
-// Valores tomados directo de tailwind.config.ts.
-const COLOR_PINE = "#2F5D50";
-const COLOR_BERRY = "#A23E4C";
-const COLOR_GOLD = "#C08A2E";
-const COLOR_NEUTRAL = "#B7C9BB";
-const AXIS_TEXT_COLOR = "#1E2A24";
-const GRID_COLOR = "#E4EBE2";
+// Valores tomados directo de tailwind.config.ts — estaban hardcodeados con
+// la paleta verde vieja de antes del rebranding a turquesa (Booksy) y nunca
+// se actualizaron, quedando desentonados con el resto del dashboard.
+const COLOR_PINE = "#1E7F95";
+const COLOR_BERRY = "#E0455C";
+const COLOR_GOLD = "#F2A93B";
+const COLOR_NEUTRAL = "#E5E7EB";
+const AXIS_TEXT_COLOR = "#17181A";
+const GRID_COLOR = "#EEF0F1";
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
   PENDING: COLOR_GOLD,
