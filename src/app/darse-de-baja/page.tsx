@@ -6,10 +6,10 @@ function UnsubscribeShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="auth-shell">
       <div className="w-full max-w-sm">
-        <div className="auth-brand">
+        <Link href="/" className="auth-brand transition-opacity hover:opacity-80">
           <span className="auth-brand-mark">R</span>
           <span className="font-display text-lg font-semibold text-paper">RIME</span>
-        </div>
+        </Link>
         <div className="auth-card">{children}</div>
       </div>
     </main>

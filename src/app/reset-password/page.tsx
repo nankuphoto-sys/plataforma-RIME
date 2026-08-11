@@ -12,10 +12,10 @@ export default async function ResetPasswordPage({
     return (
       <main className="auth-shell">
         <div className="w-full max-w-sm">
-          <div className="auth-brand">
+          <Link href="/" className="auth-brand transition-opacity hover:opacity-80">
             <span className="auth-brand-mark">R</span>
             <span className="font-display text-lg font-semibold text-paper">RIME</span>
-          </div>
+          </Link>
           <div className="auth-card">
             <h1 className="page-title text-2xl">Link inválido</h1>
             <p className="page-subtitle">
@@ -39,10 +39,10 @@ export default async function ResetPasswordPage({
   return (
     <main className="auth-shell">
       <div className="w-full max-w-sm">
-        <div className="auth-brand">
+        <Link href="/" className="auth-brand transition-opacity hover:opacity-80">
           <span className="auth-brand-mark">R</span>
           <span className="font-display text-lg font-semibold text-paper">RIME</span>
-        </div>
+        </Link>
 
         <div className="auth-card">
           <h1 className="page-title text-2xl">Elegí una nueva contraseña</h1>

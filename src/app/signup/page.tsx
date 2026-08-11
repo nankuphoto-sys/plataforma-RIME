@@ -24,10 +24,10 @@ export default async function SignupPage({
   return (
     <main className="auth-shell">
       <div className="w-full max-w-xl">
-        <div className="auth-brand">
+        <Link href="/" className="auth-brand transition-opacity hover:opacity-80">
           <span className="auth-brand-mark">R</span>
           <span className="font-display text-lg font-semibold text-paper">RIME</span>
-        </div>
+        </Link>
 
         <div className="auth-card max-w-xl">
           <h1 className="page-title text-2xl">Crea tu cuenta</h1>
