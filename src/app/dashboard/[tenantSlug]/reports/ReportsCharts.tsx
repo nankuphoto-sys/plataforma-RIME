@@ -10,12 +10,15 @@ import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
 // Cada barra ya lleva su categoría como label directo en el eje X (y su
 // valor arriba de la barra), así que la identidad nunca depende solo del
 // color — mitiga que pine/berry no separan bien para protanopía.
-const COLOR_PINE = "#2F5D50";
-const COLOR_BERRY = "#A23E4C";
-const COLOR_GOLD = "#C08A2E";
-const COLOR_NEUTRAL = "#B7C9BB";
-const AXIS_TEXT_COLOR = "#1E2A24";
-const GRID_COLOR = "#E4EBE2";
+// Valores tomados directo de tailwind.config.ts — estaban hardcodeados con
+// la paleta verde vieja de antes del rebranding a turquesa (Booksy) y nunca
+// se actualizaron, quedando desentonados con el resto del dashboard.
+const COLOR_PINE = "#1E7F95";
+const COLOR_BERRY = "#E0455C";
+const COLOR_GOLD = "#F2A93B";
+const COLOR_NEUTRAL = "#E5E7EB";
+const AXIS_TEXT_COLOR = "#17181A";
+const GRID_COLOR = "#EEF0F1";
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
   PENDING: COLOR_GOLD,
@@ -55,6 +58,7 @@ export function ReportsCharts({ statusCountsByStatus, revenueRows, commissionRow
     value: statusCountsByStatus[status],
     fill: STATUS_COLORS[status],
   }));
+  const hasAnyAppointments = statusData.some((row) => row.value > 0);
 
   // Nunca se combina Stripe y Wompi (ni distintas monedas) en una sola
   // barra o total — cada fila de revenueRows ya viene separada por
@@ -75,23 +79,27 @@ export function ReportsCharts({ statusCountsByStatus, revenueRows, commissionRow
   return (
     <div className="mt-10 grid gap-8 md:grid-cols-3">
       <ChartCard title="Citas por estado">
-        <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-          <BarChart data={statusData} barCategoryGap="30%">
-            <CartesianGrid stroke={GRID_COLOR} vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: AXIS_TEXT_COLOR, fontSize: 11 }} axisLine={{ stroke: GRID_COLOR }} tickLine={false} />
-            <YAxis allowDecimals={false} tick={{ fill: AXIS_TEXT_COLOR, fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
-            <Tooltip
-              cursor={{ fill: GRID_COLOR }}
-              formatter={(value) => [toDisplayNumber(value), "Citas"]}
-            />
-            <Bar dataKey="value" maxBarSize={24} radius={[4, 4, 0, 0]}>
-              {statusData.map((entry) => (
-                <Cell key={entry.status} fill={entry.fill} />
-              ))}
-              <LabelList dataKey="value" position="top" fill={AXIS_TEXT_COLOR} fontSize={11} />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        {!hasAnyAppointments ? (
+          <EmptyChartState message="No hay citas en este rango." />
+        ) : (
+          <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+            <BarChart data={statusData} barCategoryGap="30%">
+              <CartesianGrid stroke={GRID_COLOR} vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: AXIS_TEXT_COLOR, fontSize: 11 }} axisLine={{ stroke: GRID_COLOR }} tickLine={false} />
+              <YAxis allowDecimals={false} tick={{ fill: AXIS_TEXT_COLOR, fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
+              <Tooltip
+                cursor={{ fill: GRID_COLOR }}
+                formatter={(value) => [toDisplayNumber(value), "Citas"]}
+              />
+              <Bar dataKey="value" maxBarSize={24} radius={[4, 4, 0, 0]}>
+                {statusData.map((entry) => (
+                  <Cell key={entry.status} fill={entry.fill} />
+                ))}
+                <LabelList dataKey="value" position="top" fill={AXIS_TEXT_COLOR} fontSize={11} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </ChartCard>
 
       <ChartCard title="Ingresos por proveedor">

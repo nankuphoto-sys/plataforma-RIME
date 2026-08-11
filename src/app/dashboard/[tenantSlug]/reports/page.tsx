@@ -1,5 +1,5 @@
 import type { AppointmentStatus } from "@prisma/client";
-import { CheckCircle2, Download, FileDown, Filter, Save } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Clock, DollarSign, Download, FileDown, Filter, Save } from "lucide-react";
 import { requireReportsAccess } from "@/lib/auth-guards";
 import {
   computeInventoryConsumption,
@@ -45,6 +45,16 @@ export default async function ReportsPage({
     to
   );
 
+  // KPIs grandes arriba de los gráficos — solo cifras que se pueden sumar
+  // sin mezclar cosas que no son comparables: citas (siempre un conteo) y
+  // comisión (siempre USD, ver el comentario en ReportData.commissionRows).
+  // Nunca un "ingreso total" acá — revenueRows mezcla proveedores con
+  // monedas distintas (USD de Stripe, COP de Wompi) que no se pueden sumar
+  // en un solo número sin mentir.
+  const totalAppointments = Object.values(statusCountsByStatus).reduce((sum, n) => sum + n, 0);
+  const totalServiceRevenue = commissionRows.reduce((sum, row) => sum + row.totalServiceRevenue, 0);
+  const totalPendingCommission = commissionRows.reduce((sum, row) => sum + row.pendingCommissionAmount, 0);
+
   // Consumo de insumos hereda el gating de plan del módulo "inventory" — un
   // tenant sin ese módulo (ej. BASICO) no tiene datos de inventario de
   // todos modos, así que la sección directamente no se muestra en vez de
@@ -61,7 +71,7 @@ export default async function ReportsPage({
   const rangeQuery = `from=${fromValue}&to=${toValue}`;
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <div className="flex items-center justify-between gap-4">
         <h1 className="page-title">Reportes</h1>
         {/* El export CSV es un Route Handler normal (src/app/.../export/csv),
@@ -94,6 +104,35 @@ export default async function ReportsPage({
           Aplicar
         </button>
       </form>
+
+      <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiTile
+          icon={<CalendarCheck className="h-5 w-5" />}
+          label="Citas en el período"
+          value={totalAppointments}
+        />
+        <KpiTile
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          label="Completadas"
+          value={statusCountsByStatus.COMPLETED}
+          tone="pine"
+        />
+        <KpiTile
+          icon={<DollarSign className="h-5 w-5" />}
+          label="Ingreso por servicios"
+          value={totalServiceRevenue}
+          decimals={2}
+          prefix="USD "
+        />
+        <KpiTile
+          icon={<Clock className="h-5 w-5" />}
+          label="Comisión pendiente"
+          value={totalPendingCommission}
+          decimals={2}
+          prefix="USD "
+          tone={totalPendingCommission > 0 ? "gold" : undefined}
+        />
+      </div>
 
       <ReportsCharts
         statusCountsByStatus={statusCountsByStatus}
@@ -292,6 +331,40 @@ export default async function ReportsPage({
           )}
         </section>
       )}
+    </div>
+  );
+}
+
+function KpiTile({
+  icon,
+  label,
+  value,
+  decimals = 0,
+  prefix = "",
+  tone = "pine",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  decimals?: number;
+  prefix?: string;
+  tone?: "pine" | "gold";
+}) {
+  return (
+    <div className="panel">
+      <span
+        className={`flex h-9 w-9 items-center justify-center rounded-full ${
+          tone === "gold" ? "bg-gold/15 text-gold" : "bg-pine/10 text-pine-dark"
+        }`}
+        aria-hidden
+      >
+        {icon}
+      </span>
+      <p className="data-mono mt-3 text-2xl font-semibold text-ink">
+        {prefix}
+        <AnimatedNumber value={value} decimals={decimals} />
+      </p>
+      <p className="mt-0.5 text-xs text-ink/50">{label}</p>
     </div>
   );
 }
