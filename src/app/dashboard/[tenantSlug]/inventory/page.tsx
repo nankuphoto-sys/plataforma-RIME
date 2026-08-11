@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeftRight, Package, PackagePlus, Save, TriangleAlert } from "lucide-react";
+import { ArrowLeftRight, MapPin, MessageCircle, Package, PackagePlus, Save, TriangleAlert } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireInventoryAccess } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations, hasLocationAccess } from "@/lib/authorization";
@@ -72,45 +72,68 @@ export default async function InventoryPage({
       {error && <p className="msg-error mt-3">{error}</p>}
       {alertPhoneSaved && !error && <p className="msg-success mt-3">Preferencia de alertas guardada.</p>}
 
-      {hasInventoryManageAccess && (
-        <div className="mt-6 border-t border-sage-dark/30 pt-4">
-          <p className="section-title text-sm">Alertas de stock bajo por WhatsApp</p>
-          <p className="mt-1 text-sm text-ink/60">
-            Cuando una salida de inventario deja un ítem en su umbral de stock bajo o por debajo, se
-            avisa por WhatsApp a este número. Dejalo vacío para desactivar las alertas.
-          </p>
-          <form
-            action={updateLowStockAlertPhoneAction.bind(null, tenantSlug)}
-            className="mt-3 flex flex-wrap items-end gap-2"
-          >
-            <input
-              type="tel"
-              name="lowStockAlertPhone"
-              placeholder="+57 300 123 4567"
-              defaultValue={tenant.lowStockAlertPhone ?? ""}
-              className="field-input mt-0 w-64"
-            />
-            <SubmitButton icon={<Save className="h-4 w-4" />} pendingLabel="Guardando…" className="btn-secondary">
-              Guardar
-            </SubmitButton>
-          </form>
-        </div>
-      )}
+      {(hasInventoryManageAccess || accessibleLocations.length > 1) && (
+        <div className="mt-6 flex flex-col gap-4">
+          {hasInventoryManageAccess && (
+            <div className="panel">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-pine/10 text-pine-dark"
+                  aria-hidden
+                >
+                  <MessageCircle className="h-4 w-4" />
+                </span>
+                <p className="section-title text-sm">Alertas de stock bajo por WhatsApp</p>
+              </div>
+              <p className="mt-2 text-sm text-ink/60">
+                Cuando una salida de inventario deja un ítem en su umbral de stock bajo o por debajo, se
+                avisa por WhatsApp a este número. Dejalo vacío para desactivar las alertas.
+              </p>
+              <form
+                action={updateLowStockAlertPhoneAction.bind(null, tenantSlug)}
+                className="mt-3 flex flex-wrap items-end gap-2"
+              >
+                <input
+                  type="tel"
+                  name="lowStockAlertPhone"
+                  placeholder="+57 300 123 4567"
+                  defaultValue={tenant.lowStockAlertPhone ?? ""}
+                  className="field-input mt-0 w-64"
+                />
+                <SubmitButton icon={<Save className="h-4 w-4" />} pendingLabel="Guardando…" className="btn-secondary">
+                  Guardar
+                </SubmitButton>
+              </form>
+            </div>
+          )}
 
-      {accessibleLocations.length > 1 && (
-        <form method="get" className="mt-4 flex items-end gap-2">
-          <select name="locationId" defaultValue={location.id} className="field-input mt-0 w-auto">
-            {accessibleLocations.map((loc) => (
-              <option key={loc.id} value={loc.id}>
-                {loc.name}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="btn-secondary">
-            <ArrowLeftRight className="h-4 w-4" />
-            Cambiar
-          </button>
-        </form>
+          {accessibleLocations.length > 1 && (
+            <div className="panel">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-pine/10 text-pine-dark"
+                  aria-hidden
+                >
+                  <MapPin className="h-4 w-4" />
+                </span>
+                <p className="section-title text-sm">Sede</p>
+              </div>
+              <form method="get" className="mt-3 flex flex-wrap items-end gap-2">
+                <select name="locationId" defaultValue={location.id} className="field-input mt-0 w-auto">
+                  {accessibleLocations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </option>
+                  ))}
+                </select>
+                <button type="submit" className="btn-secondary">
+                  <ArrowLeftRight className="h-4 w-4" />
+                  Cambiar
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
       )}
 
       {items.length === 0 ? (
