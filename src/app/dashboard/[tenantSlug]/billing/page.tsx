@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRightLeft, CreditCard, RefreshCw, Settings, XCircle } from "lucide-react";
+import { ArrowRightLeft, Banknote, CreditCard, RefreshCw, Settings, Wallet, XCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireBillingAccess } from "@/lib/auth-guards";
 import { getPlanLimits } from "@/lib/planLimits";
@@ -264,6 +264,46 @@ export default async function BillingPage({
           )}
         </section>
       )}
+
+      {/* Addi y Sistecrédito: solo interfaz, sin integración real todavía —
+          no hay credenciales de ninguno de los dos. Mismo patrón que el
+          prototipo de diseño original (RIME Landing.dc.html), pero acá se
+          marca explícitamente "Próximamente" en vez de simular un cobro
+          exitoso: esta pantalla la usa un dueño de negocio real, y fingir
+          que quedó configurado sería engañoso. */}
+      <section className="mt-10 border-t border-sage-dark/30 pt-6">
+        <div className="flex items-center gap-2">
+          <h2 className="section-title">Addi</h2>
+          <span className="badge badge-sage">Próximamente</span>
+        </div>
+        <p className="mt-2 text-sm text-ink/55">
+          Cobro recurrente financiado a través de Addi. Todavía no está conectado — esto es solo la
+          interfaz.
+        </p>
+        <div className="mt-4">
+          <button type="button" disabled className="btn-secondary">
+            <Banknote className="h-4 w-4" />
+            Configurar cobro automático (Addi)
+          </button>
+        </div>
+      </section>
+
+      <section className="mt-10 border-t border-sage-dark/30 pt-6">
+        <div className="flex items-center gap-2">
+          <h2 className="section-title">Sistecrédito</h2>
+          <span className="badge badge-sage">Próximamente</span>
+        </div>
+        <p className="mt-2 text-sm text-ink/55">
+          Cobro recurrente financiado a través de Sistecrédito. Todavía no está conectado — esto es
+          solo la interfaz.
+        </p>
+        <div className="mt-4">
+          <button type="button" disabled className="btn-secondary">
+            <Wallet className="h-4 w-4" />
+            Configurar cobro automático (Sistecrédito)
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
