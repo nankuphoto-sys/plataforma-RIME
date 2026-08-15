@@ -102,21 +102,38 @@ export default async function DashboardShellLayout({
           position:fixed no queda contenido por este z-index. */}
       <aside className="flex flex-col justify-between bg-case-deep text-paper md:relative md:z-20 md:w-20 md:shrink-0">
         <div>
-          {/* Mobile: nombre completo del negocio + "RIME", como siempre.
-              Desde md: colapsa a una sola marca circular (el riel es angosto
-              a propósito, no hay lugar para texto ahí). */}
-          <div className="px-5 pb-2 pt-6 md:flex md:flex-col md:items-center md:px-0 md:pb-3 md:pt-5">
-            <p className="font-display text-lg font-semibold leading-tight md:hidden">{tenant.name}</p>
-            <p className="mt-1 text-[11px] uppercase tracking-wider text-paper/45 md:hidden">RIME</p>
+          {/* Mobile: nombre del negocio + botón de logout (ícono) comparten
+              una sola fila angosta — antes eran dos bloques apilados (nombre,
+              luego un segundo bloque separado con el email completo y el
+              texto "Cerrar sesión") que juntos ocupaban ~300px fijos arriba
+              de cualquier pantalla, mucho en un viewport de ~800px de alto.
+              El email ya se puede ver en "Mi cuenta" (nav), así que en
+              mobile no hace falta repetirlo acá. Desde md: colapsa a una
+              sola marca circular (el riel es angosto a propósito, no hay
+              lugar para texto ahí) y el logout vuelve a su lugar de siempre
+              más abajo, con el email visible como nav-label. */}
+          <div className="flex items-center justify-between gap-3 px-4 py-3 md:flex-col md:px-0 md:pb-3 md:pt-5">
+            <p className="min-w-0 truncate font-display text-base font-semibold leading-tight md:hidden">
+              {tenant.name}
+            </p>
             <div
               className="hidden md:flex md:h-8 md:w-8 md:items-center md:justify-center md:rounded-full md:bg-gradient-to-br md:from-pine-light md:to-pine-dark md:font-display md:text-xs md:font-bold md:text-case-deep"
               title={`${tenant.name} · RIME`}
             >
               R
             </div>
+            <form action={logoutAction} className="shrink-0 md:hidden">
+              <SubmitButton
+                icon={<LogOut className="h-4 w-4" />}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/20 text-paper/70 active:scale-95"
+                aria-label="Cerrar sesión"
+              >
+                <span className="sr-only">Cerrar sesión</span>
+              </SubmitButton>
+            </form>
           </div>
           {!isLocked && (
-            <nav className="flex gap-1 overflow-x-auto px-3 py-4 md:flex-col md:items-center md:gap-1 md:overflow-visible md:px-2 md:py-1">
+            <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:items-center md:gap-1 md:overflow-visible md:px-2 md:py-1">
               {navItems.map((item) => (
                 <NavLink
                   key={item.href}
@@ -134,15 +151,13 @@ export default async function DashboardShellLayout({
             </nav>
           )}
         </div>
-        <div className="border-t border-white/10 px-5 py-4 md:flex md:justify-center md:px-0 md:py-4">
-          <p className="truncate text-xs text-paper/55 md:hidden">{session.user.email}</p>
-          <form action={logoutAction} className="mt-2 md:mt-0">
+        <div className="hidden border-t border-white/10 px-5 py-4 md:flex md:justify-center md:px-0 md:py-4">
+          <form action={logoutAction}>
             <SubmitButton
               icon={<LogOut className="h-3.5 w-3.5 transition-transform duration-150 ease-out group-hover:scale-110" />}
               pendingLabel="Cerrando sesión…"
-              className="group relative flex items-center gap-1.5 text-xs text-paper/70 underline-offset-2 transition-colors hover:text-paper hover:underline active:scale-[0.98] md:h-9 md:w-9 md:justify-center md:rounded-full md:border md:border-white/10 md:bg-black/20 md:no-underline md:hover:border-berry/50 md:hover:bg-berry/20"
+              className="group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/20 text-xs text-paper/70 transition-colors hover:border-berry/50 hover:bg-berry/20"
             >
-              <span className="md:hidden">Cerrar sesión</span>
               <span className="nav-label hidden md:block">{session.user.email} · Cerrar sesión</span>
             </SubmitButton>
           </form>
