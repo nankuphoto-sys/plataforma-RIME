@@ -4,7 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireReportsAccess } from "@/lib/auth-guards";
-import { getDefaultReportRange, parseReportDateParam } from "@/lib/reports";
+import { calculateCommissionAmount, getDefaultReportRange, parseReportDateParam } from "@/lib/reports";
+import { sendCommissionPaidEmail } from "@/lib/email";
+
+function formatDateLabel(date: Date): string {
+  return date.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 export async function updateProfessionalCommissionRateAction(
   tenantSlug: string,
@@ -65,6 +70,7 @@ export async function markCommissionAsPaidAction(
 
   const professional = await prisma.professional.findFirst({
     where: { id: professionalId, tenantId: tenant.id },
+    include: { user: { select: { email: true } } },
   });
   if (!professional) notFound();
 
@@ -73,18 +79,63 @@ export async function markCommissionAsPaidAction(
   const { from, to } =
     parsedFrom && parsedTo ? { from: parsedFrom, to: parsedTo } : getDefaultReportRange(new Date());
 
-  await prisma.appointment.updateMany({
-    where: {
-      tenantId: tenant.id,
-      professionalId: professional.id,
-      status: "COMPLETED",
-      startsAt: { gte: from, lte: to },
-      commissionPaidAt: null,
-    },
-    data: { commissionPaidAt: new Date() },
+  const defaultRatePercent = Number(professional.commissionRate);
+
+  // Leemos las citas que se van a marcar como pagadas ANTES del updateMany
+  // (mismo where, en la misma transacción) para poder avisarle al
+  // profesional cuánto se le pagó — el updateMany en sí no devuelve las filas
+  // afectadas. Reusa calculateCommissionAmount, la misma fórmula por cita que
+  // ya usa computeReportData (ver ese archivo para el razonamiento del
+  // override de Service.commissionRate).
+  const paidAppointments = await prisma.$transaction(async (tx) => {
+    const toPay = await tx.appointment.findMany({
+      where: {
+        tenantId: tenant.id,
+        professionalId: professional.id,
+        status: "COMPLETED",
+        startsAt: { gte: from, lte: to },
+        commissionPaidAt: null,
+      },
+      select: { id: true, service: { select: { price: true, commissionRate: true } } },
+    });
+
+    if (toPay.length > 0) {
+      await tx.appointment.updateMany({
+        where: { id: { in: toPay.map((appointment) => appointment.id) } },
+        data: { commissionPaidAt: new Date() },
+      });
+    }
+
+    return toPay;
   });
 
   revalidatePath(`/dashboard/${tenantSlug}/reports`);
+
+  // Fuera de la transacción a propósito, fire-and-forget — mismo criterio
+  // que maybeSendLowStockAlerts (un envío de red nunca vive dentro de una
+  // transacción de base de datos).
+  if (paidAppointments.length > 0 && professional.user?.email) {
+    let totalAmount = 0;
+    for (const appointment of paidAppointments) {
+      const effectiveRatePercent =
+        appointment.service.commissionRate !== null
+          ? Number(appointment.service.commissionRate)
+          : defaultRatePercent;
+      totalAmount += calculateCommissionAmount(Number(appointment.service.price), effectiveRatePercent);
+    }
+    totalAmount = Math.round(totalAmount * 100) / 100;
+
+    void sendCommissionPaidEmail({
+      to: professional.user.email,
+      professionalName: professional.name,
+      amountLabel: `$${totalAmount.toLocaleString("es-CO")}`,
+      appointmentCount: paidAppointments.length,
+      fromLabel: formatDateLabel(from),
+      toLabel: formatDateLabel(to),
+      tenantName: tenant.name,
+    });
+  }
+
   const query = rangeParams.toString();
   redirect(`/dashboard/${tenantSlug}/reports${query ? `?${query}` : ""}`);
 }

@@ -58,6 +58,42 @@ export async function sendReviewInviteEmail(
   }
 }
 
+// Aviso al profesional de que se le pagó su comisión pendiente de un rango
+// de fechas — dispara desde markCommissionAsPaidAction. No pasa por
+// NotificationQueue (igual que sendLowStockAlertWhatsAppMessage): es un
+// aviso interno al equipo del negocio, no a un cliente, y no necesita
+// reintentos ni tracking de estado — si falla, el pago ya quedó registrado
+// en Appointment.commissionPaidAt de todos modos, el email es solo cortesía.
+export async function sendCommissionPaidEmail(params: {
+  to: string;
+  professionalName: string;
+  amountLabel: string;
+  appointmentCount: number;
+  fromLabel: string;
+  toLabel: string;
+  tenantName: string;
+}): Promise<void> {
+  try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM ?? "RIME <onboarding@resend.dev>",
+      to: params.to,
+      subject: `Se te pagó tu comisión — ${params.tenantName}`,
+      html: `
+        <p>Hola ${params.professionalName},</p>
+        <p>Se marcó como pagada tu comisión de <strong>${params.amountLabel}</strong>
+        correspondiente a ${params.appointmentCount} ${params.appointmentCount === 1 ? "cita" : "citas"}
+        entre el ${params.fromLabel} y el ${params.toLabel}.</p>
+        <p>Este es un aviso automático de ${params.tenantName} — no hace falta que respondas este correo.</p>
+      `,
+    });
+  } catch (error) {
+    // No relanzar, mismo criterio que sendPasswordResetEmail: el pago ya
+    // quedó registrado en la base sin importar si este aviso sale o no.
+    console.error("Error enviando email de comisión pagada", error);
+  }
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
