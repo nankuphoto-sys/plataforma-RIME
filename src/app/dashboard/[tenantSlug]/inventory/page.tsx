@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeftRight, MapPin, MessageCircle, Package, PackagePlus, Save, TriangleAlert } from "lucide-react";
+import { ArrowLeftRight, MapPin, MessageCircle, Package, PackagePlus, Save, Tag, TriangleAlert } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireInventoryAccess } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations, hasLocationAccess } from "@/lib/authorization";
@@ -15,13 +15,14 @@ export default async function InventoryPage({
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     locationId?: string;
+    category?: string;
     error?: string;
     alertPhoneSaved?: string;
     itemDeleted?: string;
   }>;
 }) {
   const { tenantSlug } = await params;
-  const { locationId, error, alertPhoneSaved, itemDeleted } = await searchParams;
+  const { locationId, category, error, alertPhoneSaved, itemDeleted } = await searchParams;
   const { session, tenant } = await requireInventoryAccess(tenantSlug);
 
   const hasInventoryManageAccess = hasAnyOfRolesInTenantLocations(
@@ -51,8 +52,18 @@ export default async function InventoryPage({
     );
   }
 
+  // Opciones del filtro: categorías que ya existen en algún ítem de este
+  // tenant, sin depender de un catálogo separado (mismo criterio que en
+  // Nuevo ítem/Editar ítem).
+  const categoryOptions = await prisma.inventoryItem.findMany({
+    where: { tenantId: tenant.id, active: true, category: { not: null } },
+    select: { category: true },
+    distinct: ["category"],
+    orderBy: { category: "asc" },
+  });
+
   const items = await prisma.inventoryItem.findMany({
-    where: { tenantId: tenant.id, active: true },
+    where: { tenantId: tenant.id, active: true, ...(category ? { category } : {}) },
     include: {
       stockLevels: { where: { locationId: location.id } },
       serviceLinks: { include: { service: { select: { name: true } } } },
@@ -90,21 +101,22 @@ export default async function InventoryPage({
                 >
                   <MessageCircle className="h-4 w-4" />
                 </span>
-                <p className="section-title text-sm">Alertas de stock bajo por WhatsApp</p>
+                <p className="section-title text-sm">Alertas de stock bajo por WhatsApp — {location.name}</p>
               </div>
               <p className="mt-2 text-sm text-ink/60">
-                Cuando una salida de inventario deja un ítem en su umbral de stock bajo o por debajo, se
-                avisa por WhatsApp a este número. Dejalo vacío para desactivar las alertas.
+                Cuando una salida de inventario deja un ítem en su umbral de stock bajo o por debajo en{" "}
+                {location.name}, se avisa por WhatsApp a este número. Cada sede tiene el suyo — dejalo
+                vacío para desactivar las alertas de esta sede en particular.
               </p>
               <form
-                action={updateLowStockAlertPhoneAction.bind(null, tenantSlug)}
+                action={updateLowStockAlertPhoneAction.bind(null, tenantSlug, location.id)}
                 className="mt-3 flex flex-wrap items-end gap-2"
               >
                 <input
                   type="tel"
                   name="lowStockAlertPhone"
                   placeholder="+57 300 123 4567"
-                  defaultValue={tenant.lowStockAlertPhone ?? ""}
+                  defaultValue={location.lowStockAlertPhone ?? ""}
                   className="field-input mt-0 w-64"
                 />
                 <SubmitButton icon={<Save className="h-4 w-4" />} pendingLabel="Guardando…" className="btn-secondary">
@@ -136,6 +148,38 @@ export default async function InventoryPage({
                 <button type="submit" className="btn-secondary">
                   <ArrowLeftRight className="h-4 w-4" />
                   Cambiar
+                </button>
+              </form>
+            </div>
+          )}
+
+          {categoryOptions.length > 0 && (
+            <div className="panel">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-pine/10 text-pine-dark"
+                  aria-hidden
+                >
+                  <Tag className="h-4 w-4" />
+                </span>
+                <p className="section-title text-sm">Categoría</p>
+              </div>
+              <form method="get" className="mt-3 flex flex-wrap items-end gap-2">
+                <input type="hidden" name="locationId" value={location.id} />
+                <select name="category" defaultValue={category ?? ""} className="field-input mt-0 w-auto">
+                  <option value="">Todas</option>
+                  {categoryOptions.map(
+                    (opt) =>
+                      opt.category && (
+                        <option key={opt.category} value={opt.category}>
+                          {opt.category}
+                        </option>
+                      )
+                  )}
+                </select>
+                <button type="submit" className="btn-secondary">
+                  <ArrowLeftRight className="h-4 w-4" />
+                  Filtrar
                 </button>
               </form>
             </div>
@@ -176,7 +220,16 @@ export default async function InventoryPage({
                     >
                       <Package className="h-5 w-5" />
                     </span>
-                    <p className="truncate text-base font-semibold text-ink group-hover:text-pine">{item.name}</p>
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-semibold text-ink group-hover:text-pine">
+                        {item.name}
+                      </p>
+                      {(item.category || item.supplier) && (
+                        <p className="truncate text-xs text-ink/45">
+                          {[item.category, item.supplier].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   {isLowStock ? (
                     <span className="badge badge-berry flex-none">

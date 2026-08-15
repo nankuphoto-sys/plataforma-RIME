@@ -45,12 +45,6 @@ model Tenant {
   wompiRetryCount      Int       @default(0)
   wompiFirstFailedAt   DateTime?
 
-  // Número de WhatsApp (sin formatear, se normaliza igual que Client.phone
-  // vía normalizePhoneForWhatsapp) al que se le avisa cuando un ítem de
-  // inventario cruza su umbral de stock bajo. Un solo número por tenant —
-  // deliberadamente simple, no por sede/usuario — null = alertas desactivadas.
-  lowStockAlertPhone String?
-
   // Política de pago al reservar (protección por no-show). FULL_PAYMENT es
   // el default porque preserva el comportamiento actual (cobro 100% del
   // servicio) para todos los tenants existentes sin migrar datos. Un solo
@@ -130,6 +124,16 @@ model Location {
   address   String?
   timezone  String   @default("America/Santiago")
   createdAt DateTime @default(now())
+
+  // Número de WhatsApp (sin formatear, se normaliza igual que Client.phone
+  // vía normalizePhoneForWhatsapp) al que se le avisa cuando un ítem de
+  // inventario cruza su umbral de stock bajo EN ESTA SEDE. Antes era un solo
+  // número por tenant (Tenant.lowStockAlertPhone) — se movió acá para que
+  // cada sede pueda avisarle a la persona que de verdad maneja su stock, en
+  // vez de mandarle todo a un solo número compartido. Null = alertas
+  // desactivadas para esta sede. Ver la migración que copia el valor viejo
+  // de Tenant a cada Location existente antes de borrar la columna vieja.
+  lowStockAlertPhone String?
 
   staffRoles            StaffLocationRole[]
   appointments          Appointment[]
@@ -859,6 +863,13 @@ model InventoryItem {
   tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name              String
   unit              String // texto libre: "unidad", "ml", "g", "caja", etc. — sin catálogo fijo
+  // Mismo criterio que unit: texto libre, sin catálogo fijo ni modelo aparte.
+  // El filtro por categoría en la lista de Inventario arma sus opciones a
+  // partir de lo que ya se escribió en los ítems existentes, no de una
+  // tabla separada — evita el mantenimiento de un catálogo para un negocio
+  // chico con pocos insumos.
+  category          String?
+  supplier          String?
   lowStockThreshold Int      @default(0)
   // Costo unitario opcional (misma convención sin moneda propia que
   // Service.price — ver ese comentario). Null = costo no cargado todavía,

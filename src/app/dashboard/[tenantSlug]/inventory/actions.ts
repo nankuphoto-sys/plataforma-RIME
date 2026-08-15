@@ -11,13 +11,19 @@ import { normalizePhoneForWhatsapp } from "@/lib/whatsapp";
 function parseItemFields(formData: FormData) {
   const name = formData.get("name")?.toString().trim() ?? "";
   const unit = formData.get("unit")?.toString().trim() ?? "";
+  // Texto libre, igual que unit — campo vacío = null (sin categoría/proveedor
+  // cargado), no un string vacío.
+  const categoryRaw = formData.get("category")?.toString().trim() ?? "";
+  const category = categoryRaw === "" ? null : categoryRaw;
+  const supplierRaw = formData.get("supplier")?.toString().trim() ?? "";
+  const supplier = supplierRaw === "" ? null : supplierRaw;
   const lowStockThresholdRaw = formData.get("lowStockThreshold")?.toString().trim() ?? "0";
   const lowStockThreshold = Number.parseInt(lowStockThresholdRaw, 10);
   // Costo opcional: campo vacío = null (costo no cargado), distinto de "0".
   // No confundir con lowStockThreshold, que sí tiene un default numérico.
   const unitCostRaw = formData.get("unitCost")?.toString().trim() ?? "";
   const unitCost = unitCostRaw === "" ? null : Number(unitCostRaw);
-  return { name, unit, lowStockThreshold, unitCost };
+  return { name, unit, category, supplier, lowStockThreshold, unitCost };
 }
 
 function validateItemCost(unitCost: number | null): string | null {
@@ -30,7 +36,7 @@ function validateItemCost(unitCost: number | null): string | null {
 export async function createInventoryItemAction(tenantSlug: string, formData: FormData): Promise<void> {
   const { tenant } = await requireInventoryManageAccess(tenantSlug);
 
-  const { name, unit, lowStockThreshold, unitCost } = parseItemFields(formData);
+  const { name, unit, category, supplier, lowStockThreshold, unitCost } = parseItemFields(formData);
   if (!name || !unit) {
     redirect(
       `/dashboard/${tenantSlug}/inventory/new?error=${encodeURIComponent("Nombre y unidad son obligatorios.")}`
@@ -47,7 +53,7 @@ export async function createInventoryItemAction(tenantSlug: string, formData: Fo
   }
 
   const item = await prisma.inventoryItem.create({
-    data: { tenantId: tenant.id, name, unit, lowStockThreshold, unitCost },
+    data: { tenantId: tenant.id, name, unit, category, supplier, lowStockThreshold, unitCost },
   });
 
   revalidatePath(`/dashboard/${tenantSlug}/inventory`);
@@ -64,7 +70,7 @@ export async function updateInventoryItemAction(
   const item = await prisma.inventoryItem.findFirst({ where: { id: itemId, tenantId: tenant.id } });
   if (!item) notFound();
 
-  const { name, unit, lowStockThreshold, unitCost } = parseItemFields(formData);
+  const { name, unit, category, supplier, lowStockThreshold, unitCost } = parseItemFields(formData);
   const active = formData.get("active") === "on";
 
   if (!name || !unit) {
@@ -92,7 +98,7 @@ export async function updateInventoryItemAction(
   await prisma.$transaction(async (tx) => {
     await tx.inventoryItem.update({
       where: { id: item.id },
-      data: { name, unit, lowStockThreshold, unitCost, active },
+      data: { name, unit, category, supplier, lowStockThreshold, unitCost, active },
     });
     if (isDeactivating) {
       await tx.serviceInventoryItem.deleteMany({ where: { itemId: item.id } });
@@ -107,30 +113,42 @@ export async function updateInventoryItemAction(
 }
 
 // Configura (o desactiva, con campo vacío) el número al que se avisa por
-// WhatsApp cuando un insumo cruza su umbral de stock bajo — ver
-// Tenant.lowStockAlertPhone y src/lib/inventory.ts (maybeSendLowStockAlerts).
-// Mismo guard que crear/editar ítems (OWNER/ADMIN) — es configuración del
-// negocio, no una operación del día a día como registrar un movimiento.
-export async function updateLowStockAlertPhoneAction(tenantSlug: string, formData: FormData): Promise<void> {
+// WhatsApp cuando un insumo cruza su umbral de stock bajo EN ESTA SEDE — ver
+// Location.lowStockAlertPhone y src/lib/inventory.ts (maybeSendLowStockAlerts).
+// Antes era un solo número por tenant; se movió a Location para que cada
+// sede pueda avisarle a quien de verdad maneja su stock (ver el comentario
+// en el schema y la migración que preserva el valor viejo). Mismo guard que
+// crear/editar ítems (OWNER/ADMIN) — es configuración del negocio, no una
+// operación del día a día como registrar un movimiento.
+export async function updateLowStockAlertPhoneAction(
+  tenantSlug: string,
+  locationId: string,
+  formData: FormData
+): Promise<void> {
   const { tenant } = await requireInventoryManageAccess(tenantSlug);
 
+  // No confiar en el id que llega del formulario: la sede tiene que ser de
+  // este tenant.
+  const location = await prisma.location.findFirst({ where: { id: locationId, tenantId: tenant.id } });
+  if (!location) notFound();
+
   const raw = formData.get("lowStockAlertPhone")?.toString().trim() ?? "";
-  const redirectPath = `/dashboard/${tenantSlug}/inventory`;
+  const redirectPath = `/dashboard/${tenantSlug}/inventory?locationId=${locationId}`;
 
   if (raw === "") {
-    await prisma.tenant.update({ where: { id: tenant.id }, data: { lowStockAlertPhone: null } });
+    await prisma.location.update({ where: { id: location.id }, data: { lowStockAlertPhone: null } });
     revalidatePath(redirectPath);
-    redirect(`${redirectPath}?alertPhoneSaved=1`);
+    redirect(`${redirectPath}&alertPhoneSaved=1`);
   }
 
   if (!normalizePhoneForWhatsapp(raw)) {
-    redirect(`${redirectPath}?error=${encodeURIComponent("Ese número no parece válido. Dejalo vacío para desactivar las alertas.")}`);
+    redirect(`${redirectPath}&error=${encodeURIComponent("Ese número no parece válido. Dejalo vacío para desactivar las alertas.")}`);
   }
 
-  await prisma.tenant.update({ where: { id: tenant.id }, data: { lowStockAlertPhone: raw } });
+  await prisma.location.update({ where: { id: location.id }, data: { lowStockAlertPhone: raw } });
 
   revalidatePath(redirectPath);
-  redirect(`${redirectPath}?alertPhoneSaved=1`);
+  redirect(`${redirectPath}&alertPhoneSaved=1`);
 }
 
 // Accesible a cualquiera con acceso a la sede indicada (hasLocationAccess),
@@ -238,7 +256,6 @@ export async function recordInventoryMovementAction(
         itemId: item.id,
         itemName: item.name,
         unit: item.unit,
-        tenantId: tenant.id,
         locationId: location.id,
         newQuantity: nextQuantityForAlert,
       },

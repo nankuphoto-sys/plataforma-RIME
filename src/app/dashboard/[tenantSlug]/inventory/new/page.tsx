@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, PackagePlus } from "lucide-react";
+import { prisma } from "@/lib/prisma";
 import { requireInventoryManageAccess } from "@/lib/auth-guards";
 import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
 import { SubmitButton } from "@/components/ui/SubmitButton";
@@ -14,7 +15,23 @@ export default async function NewInventoryItemPage({
 }) {
   const { tenantSlug } = await params;
   const { error } = await searchParams;
-  await requireInventoryManageAccess(tenantSlug);
+  const { tenant } = await requireInventoryManageAccess(tenantSlug);
+
+  // Texto libre, no un catálogo separado (ver el comentario en el schema) —
+  // pero sugerimos lo que ya se escribió en otros ítems para que "Insumos"
+  // no termine también como "insumos"/"INSUMOS" por descuido.
+  const [existingCategories, existingSuppliers] = await Promise.all([
+    prisma.inventoryItem.findMany({
+      where: { tenantId: tenant.id, category: { not: null } },
+      select: { category: true },
+      distinct: ["category"],
+    }),
+    prisma.inventoryItem.findMany({
+      where: { tenantId: tenant.id, supplier: { not: null } },
+      select: { supplier: true },
+      distinct: ["supplier"],
+    }),
+  ]);
 
   return (
     <div className="mx-auto max-w-xl">
@@ -47,6 +64,44 @@ export default async function NewInventoryItemPage({
             required
             className="field-input"
           />
+        </div>
+
+        <div>
+          <label className="field-label" htmlFor="category">
+            Categoría (opcional)
+          </label>
+          <input
+            id="category"
+            name="category"
+            type="text"
+            list="category-options"
+            placeholder="Ej. Insumos, Retail, Limpieza"
+            className="field-input"
+          />
+          <datalist id="category-options">
+            {existingCategories.map(
+              (item) => item.category && <option key={item.category} value={item.category} />
+            )}
+          </datalist>
+        </div>
+
+        <div>
+          <label className="field-label" htmlFor="supplier">
+            Proveedor (opcional)
+          </label>
+          <input
+            id="supplier"
+            name="supplier"
+            type="text"
+            list="supplier-options"
+            placeholder="Ej. Distribuidora XYZ"
+            className="field-input"
+          />
+          <datalist id="supplier-options">
+            {existingSuppliers.map(
+              (item) => item.supplier && <option key={item.supplier} value={item.supplier} />
+            )}
+          </datalist>
         </div>
 
         <div>

@@ -74,7 +74,7 @@ export default async function InventoryItemDetailPage({
     );
   }
 
-  const [stock, recentMovements, totalMovementCount] = await Promise.all([
+  const [stock, recentMovements, totalMovementCount, existingCategories, existingSuppliers] = await Promise.all([
     prisma.inventoryStock.findUnique({
       where: { itemId_locationId: { itemId: item.id, locationId: location.id } },
     }),
@@ -90,6 +90,18 @@ export default async function InventoryItemDetailPage({
     // si borrar es seguro, así que el botón solo aparece cuando de verdad
     // va a funcionar.
     prisma.inventoryMovement.count({ where: { itemId: item.id } }),
+    // Mismo criterio que en Nuevo ítem: sugerir lo ya escrito, sin catálogo
+    // separado.
+    prisma.inventoryItem.findMany({
+      where: { tenantId: tenant.id, category: { not: null } },
+      select: { category: true },
+      distinct: ["category"],
+    }),
+    prisma.inventoryItem.findMany({
+      where: { tenantId: tenant.id, supplier: { not: null } },
+      select: { supplier: true },
+      distinct: ["supplier"],
+    }),
   ]);
 
   const quantity = stock?.quantity ?? 0;
@@ -161,6 +173,42 @@ export default async function InventoryItemDetailPage({
                 Unidad
               </label>
               <input id="unit" name="unit" type="text" required defaultValue={item.unit} className="field-input" />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="category">
+                Categoría (opcional)
+              </label>
+              <input
+                id="category"
+                name="category"
+                type="text"
+                list="category-options"
+                defaultValue={item.category ?? ""}
+                className="field-input"
+              />
+              <datalist id="category-options">
+                {existingCategories.map(
+                  (i) => i.category && <option key={i.category} value={i.category} />
+                )}
+              </datalist>
+            </div>
+            <div>
+              <label className="field-label" htmlFor="supplier">
+                Proveedor (opcional)
+              </label>
+              <input
+                id="supplier"
+                name="supplier"
+                type="text"
+                list="supplier-options"
+                defaultValue={item.supplier ?? ""}
+                className="field-input"
+              />
+              <datalist id="supplier-options">
+                {existingSuppliers.map(
+                  (i) => i.supplier && <option key={i.supplier} value={i.supplier} />
+                )}
+              </datalist>
             </div>
             <div>
               <label className="field-label" htmlFor="lowStockThreshold">

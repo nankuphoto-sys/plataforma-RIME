@@ -19,7 +19,6 @@ export interface LowStockAlertCandidate {
   itemId: string;
   itemName: string;
   unit: string;
-  tenantId: string;
   locationId: string;
   newQuantity: number;
 }
@@ -81,7 +80,6 @@ export async function deductInventoryForCompletedAppointment(
         itemId: link.itemId,
         itemName: link.item.name,
         unit: link.item.unit,
-        tenantId: link.item.tenantId,
         locationId: params.locationId,
         newQuantity,
       });
@@ -92,28 +90,29 @@ export async function deductInventoryForCompletedAppointment(
 }
 
 // Dispara (fire-and-forget, nunca lanza) la alerta de WhatsApp para cada
-// insumo que cruzó su umbral, si el tenant tiene Tenant.lowStockAlertPhone
-// configurado. Pensada para llamarse DESPUÉS de que la transacción que
-// generó el/los movimiento(s) ya confirmó — nunca antes, para no mandar un
-// aviso de un cambio que después se revierte. Silenciosa ante cualquier
-// falla (sin token de Meta configurado, plantilla no aprobada, número
-// inválido, etc.) — mismo criterio que el resto de los envíos de WhatsApp
-// del proyecto (recordatorios, seguimiento de recompra): nunca bloquea ni
-// revienta el flujo que la originó.
+// insumo que cruzó su umbral, si esa sede tiene Location.lowStockAlertPhone
+// configurado — antes era un solo número por tenant, ahora es por sede (ver
+// el comentario en el schema). Pensada para llamarse DESPUÉS de que la
+// transacción que generó el/los movimiento(s) ya confirmó — nunca antes,
+// para no mandar un aviso de un cambio que después se revierte. Silenciosa
+// ante cualquier falla (sin token de Meta configurado, plantilla no
+// aprobada, número inválido, etc.) — mismo criterio que el resto de los
+// envíos de WhatsApp del proyecto (recordatorios, seguimiento de recompra):
+// nunca bloquea ni revienta el flujo que la originó.
 export async function maybeSendLowStockAlerts(candidates: LowStockAlertCandidate[]): Promise<void> {
   if (candidates.length === 0) return;
 
   // Los candidatos de una sola llamada (una cita, un registro manual)
-  // siempre son del mismo tenant y la misma sede — una sola consulta alcanza.
-  const { tenantId, locationId } = candidates[0];
+  // siempre son de la misma sede — una sola consulta alcanza.
+  const { locationId } = candidates[0];
 
-  const [tenant, location] = await Promise.all([
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { lowStockAlertPhone: true } }),
-    prisma.location.findUnique({ where: { id: locationId }, select: { name: true } }),
-  ]);
+  const location = await prisma.location.findUnique({
+    where: { id: locationId },
+    select: { name: true, lowStockAlertPhone: true },
+  });
 
-  const normalizedPhone = tenant?.lowStockAlertPhone
-    ? normalizePhoneForWhatsapp(tenant.lowStockAlertPhone)
+  const normalizedPhone = location?.lowStockAlertPhone
+    ? normalizePhoneForWhatsapp(location.lowStockAlertPhone)
     : null;
   if (!normalizedPhone) return;
 

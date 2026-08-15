@@ -129,7 +129,8 @@ export async function sendFollowUpWhatsAppMessage(params: {
 }
 
 // Alerta de stock bajo (sesión de Cowork): avisa al número configurado en
-// Tenant.lowStockAlertPhone que un insumo cruzó su umbral. Sin NotificationQueue
+// Location.lowStockAlertPhone (por sede — antes era un solo número por
+// tenant) que un insumo cruzó su umbral. Sin NotificationQueue
 // de por medio a propósito — ese modelo exige appointmentId o clientId, y esto
 // no es ni uno ni otro (es un evento de negocio interno, no ligado a un
 // cliente puntual). Se dispara fire-and-forget desde donde se detecta el
