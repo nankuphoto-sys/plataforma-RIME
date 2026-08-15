@@ -82,14 +82,28 @@ export async function updateInventoryItemAction(
     redirect(`/dashboard/${tenantSlug}/inventory/${itemId}?error=${encodeURIComponent(costError)}`);
   }
 
-  await prisma.inventoryItem.update({
-    where: { id: item.id },
-    data: { name, unit, lowStockThreshold, unitCost, active },
+  // Al desactivar (no al crear/editar sin cambiar el estado), desvincular
+  // de los servicios que lo consumen — si no, deductInventoryForCompletedAppointment
+  // seguiría descontando stock de un insumo que ya no se está gestionando.
+  // No pasa lo mismo al reactivar: no reconstruimos vínculos borrados, el
+  // usuario los vuelve a crear a mano desde Servicios si corresponde.
+  const isDeactivating = item.active && !active;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.inventoryItem.update({
+      where: { id: item.id },
+      data: { name, unit, lowStockThreshold, unitCost, active },
+    });
+    if (isDeactivating) {
+      await tx.serviceInventoryItem.deleteMany({ where: { itemId: item.id } });
+    }
   });
 
   revalidatePath(`/dashboard/${tenantSlug}/inventory/${itemId}`);
   revalidatePath(`/dashboard/${tenantSlug}/inventory`);
-  redirect(`/dashboard/${tenantSlug}/inventory/${itemId}?saved=1`);
+  redirect(
+    `/dashboard/${tenantSlug}/inventory/${itemId}?saved=1${isDeactivating ? "&unlinked=1" : ""}`
+  );
 }
 
 // Configura (o desactiva, con campo vacío) el número al que se avisa por
@@ -232,4 +246,88 @@ export async function recordInventoryMovementAction(
   }
 
   redirect(`/dashboard/${tenantSlug}/inventory/${itemId}?locationId=${locationId}&saved=1`);
+}
+
+// Borra un movimiento manual y revierte su efecto sobre InventoryStock, para
+// que el stock quede consistente con lo que realmente queda registrado en el
+// historial. Solo movimientos manuales (appointmentId null) — uno automático
+// por cita completada es historial real de negocio, no un error de tipeo, y
+// borrarlo dejaría el reporte de consumo (computeInventoryConsumption)
+// inconsistente con Appointment.status. Mismo guard que editar el ítem
+// (OWNER/ADMIN): registrar un movimiento es día a día y lo puede hacer
+// cualquier STAFF con acceso a la sede, pero deshacer uno ya registrado es
+// una corrección, no una operación de rutina.
+export async function deleteInventoryMovementAction(
+  tenantSlug: string,
+  itemId: string,
+  movementId: string
+): Promise<void> {
+  const { tenant } = await requireInventoryManageAccess(tenantSlug);
+
+  const movement = await prisma.inventoryMovement.findFirst({
+    where: { id: movementId, itemId, item: { tenantId: tenant.id } },
+  });
+  if (!movement) notFound();
+
+  const redirectPath = `/dashboard/${tenantSlug}/inventory/${itemId}?locationId=${movement.locationId}`;
+
+  if (movement.appointmentId !== null) {
+    redirect(
+      `${redirectPath}&error=${encodeURIComponent("Este movimiento es automático (de una cita completada) y no se puede borrar.")}`
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const stock = await tx.inventoryStock.findUnique({
+      where: { itemId_locationId: { itemId: movement.itemId, locationId: movement.locationId } },
+    });
+    const currentQuantity = stock?.quantity ?? 0;
+    // Revertir: un IN sumó al registrarse, así que borrarlo resta; un OUT
+    // restó, así que borrarlo suma de vuelta.
+    const revertedQuantity =
+      movement.type === "IN" ? currentQuantity - movement.quantity : currentQuantity + movement.quantity;
+
+    await tx.inventoryStock.upsert({
+      where: { itemId_locationId: { itemId: movement.itemId, locationId: movement.locationId } },
+      create: { itemId: movement.itemId, locationId: movement.locationId, quantity: revertedQuantity },
+      update: { quantity: revertedQuantity },
+    });
+
+    await tx.inventoryMovement.delete({ where: { id: movement.id } });
+  });
+
+  revalidatePath(`/dashboard/${tenantSlug}/inventory/${itemId}`);
+  revalidatePath(`/dashboard/${tenantSlug}/inventory`);
+  redirect(`${redirectPath}&movementDeleted=1`);
+}
+
+// Borra el ítem por completo — solo si nunca tuvo movimientos. Con historial
+// real, la acción correcta es desactivarlo (checkbox "Activo" en editar),
+// nunca borrarlo: este proyecto no destruye historial de negocio en ningún
+// otro módulo (profesionales, servicios, sedes, equipo — todos usan `active`,
+// ninguno borra), y un ítem con movimientos es exactamente ese caso. Un ítem
+// sin movimientos, en cambio, no tiene nada que perder — probablemente se
+// creó por error y nunca se usó. Cascade de Prisma (onDelete: Cascade en
+// InventoryStock/ServiceInventoryItem/InventoryMovement) limpia lo demás.
+export async function deleteInventoryItemAction(tenantSlug: string, itemId: string): Promise<void> {
+  const { tenant } = await requireInventoryManageAccess(tenantSlug);
+
+  const item = await prisma.inventoryItem.findFirst({
+    where: { id: itemId, tenantId: tenant.id },
+    include: { _count: { select: { movements: true } } },
+  });
+  if (!item) notFound();
+
+  if (item._count.movements > 0) {
+    redirect(
+      `/dashboard/${tenantSlug}/inventory/${itemId}?error=${encodeURIComponent(
+        "Este ítem ya tiene movimientos registrados — no se puede borrar sin perder ese historial. Desactívalo en vez de borrarlo."
+      )}`
+    );
+  }
+
+  await prisma.inventoryItem.delete({ where: { id: item.id } });
+
+  revalidatePath(`/dashboard/${tenantSlug}/inventory`);
+  redirect(`/dashboard/${tenantSlug}/inventory?itemDeleted=1`);
 }

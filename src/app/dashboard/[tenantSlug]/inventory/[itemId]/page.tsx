@@ -6,7 +6,13 @@ import { requireInventoryAccess } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations, hasLocationAccess } from "@/lib/authorization";
 import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
 import { SubmitButton } from "@/components/ui/SubmitButton";
-import { recordInventoryMovementAction, updateInventoryItemAction } from "../actions";
+import { DeleteButton } from "@/components/ui/DeleteButton";
+import {
+  deleteInventoryItemAction,
+  deleteInventoryMovementAction,
+  recordInventoryMovementAction,
+  updateInventoryItemAction,
+} from "../actions";
 
 function formatMovementDate(date: Date): string {
   return date.toLocaleString("es-CL", {
@@ -24,10 +30,16 @@ export default async function InventoryItemDetailPage({
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string; itemId: string }>;
-  searchParams: Promise<{ locationId?: string; error?: string; saved?: string }>;
+  searchParams: Promise<{
+    locationId?: string;
+    error?: string;
+    saved?: string;
+    unlinked?: string;
+    movementDeleted?: string;
+  }>;
 }) {
   const { tenantSlug, itemId } = await params;
-  const { locationId, error, saved } = await searchParams;
+  const { locationId, error, saved, unlinked, movementDeleted } = await searchParams;
   const { session, tenant } = await requireInventoryAccess(tenantSlug);
 
   // Filtramos por tenantId además del id: no confiar en el id de la URL solo.
@@ -62,7 +74,7 @@ export default async function InventoryItemDetailPage({
     );
   }
 
-  const [stock, recentMovements] = await Promise.all([
+  const [stock, recentMovements, totalMovementCount] = await Promise.all([
     prisma.inventoryStock.findUnique({
       where: { itemId_locationId: { itemId: item.id, locationId: location.id } },
     }),
@@ -72,6 +84,12 @@ export default async function InventoryItemDetailPage({
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
+    // Cuenta TODOS los movimientos del ítem (todas las sedes), no solo los
+    // de recentMovements (que además está limitado a 10 y a esta sede) —
+    // es la misma condición que usa deleteInventoryItemAction para decidir
+    // si borrar es seguro, así que el botón solo aparece cuando de verdad
+    // va a funcionar.
+    prisma.inventoryMovement.count({ where: { itemId: item.id } }),
   ]);
 
   const quantity = stock?.quantity ?? 0;
@@ -88,7 +106,12 @@ export default async function InventoryItemDetailPage({
       <h1 className="page-title mt-3">{item.name}</h1>
 
       {error && <p className="msg-error mt-3">{error}</p>}
-      {saved && !error && <p className="msg-success mt-3">Cambios guardados.</p>}
+      {saved && !error && (
+        <p className="msg-success mt-3">
+          Cambios guardados.{unlinked && " Se desvinculó de los servicios que lo consumían."}
+        </p>
+      )}
+      {movementDeleted && !error && <p className="msg-success mt-3">Movimiento borrado y stock revertido.</p>}
 
       {accessibleLocations.length > 1 && (
         <form method="get" className="mt-4 flex items-end gap-2">
@@ -179,6 +202,21 @@ export default async function InventoryItemDetailPage({
               Guardar
             </SubmitButton>
           </form>
+
+          {totalMovementCount === 0 ? (
+            <form action={deleteInventoryItemAction.bind(null, tenantSlug, itemId)} className="mt-4">
+              <DeleteButton
+                confirmMessage={`¿Borrar "${item.name}" por completo? Nunca tuvo movimientos, así que no hay historial que perder. Esta acción no se puede deshacer.`}
+              >
+                Borrar ítem
+              </DeleteButton>
+            </form>
+          ) : (
+            <p className="mt-4 text-xs text-ink/45">
+              Este ítem ya tiene movimientos registrados, así que no se puede borrar sin perder ese
+              historial — desmarca &quot;Activo&quot; arriba en vez de borrarlo.
+            </p>
+          )}
         </section>
       )}
 
@@ -250,9 +288,24 @@ export default async function InventoryItemDetailPage({
                     movement.note && <span className="ml-2 text-ink/50">{movement.note}</span>
                   )}
                 </div>
-                <div className="text-right text-ink/45">
-                  <div className="data-mono">{formatMovementDate(movement.createdAt)}</div>
-                  {movement.createdByUser && <div>{movement.createdByUser.name}</div>}
+                <div className="flex items-center gap-3">
+                  <div className="text-right text-ink/45">
+                    <div className="data-mono">{formatMovementDate(movement.createdAt)}</div>
+                    {movement.createdByUser && <div>{movement.createdByUser.name}</div>}
+                  </div>
+                  {hasInventoryManageAccess && !movement.appointmentId && (
+                    <form
+                      action={deleteInventoryMovementAction.bind(null, tenantSlug, itemId, movement.id)}
+                    >
+                      <DeleteButton
+                        confirmMessage={`¿Borrar este movimiento (${movement.type === "IN" ? "+" : "-"}${movement.quantity} ${item.unit})? El stock se revierte al valor de antes de registrarlo.`}
+                        className="btn-secondary-sm !text-berry-dark"
+                        pendingLabel="Borrando…"
+                      >
+                        <span className="sr-only">Borrar movimiento</span>
+                      </DeleteButton>
+                    </form>
+                  )}
                 </div>
               </li>
             ))}

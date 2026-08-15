@@ -13,10 +13,15 @@ export default async function InventoryPage({
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ locationId?: string; error?: string; alertPhoneSaved?: string }>;
+  searchParams: Promise<{
+    locationId?: string;
+    error?: string;
+    alertPhoneSaved?: string;
+    itemDeleted?: string;
+  }>;
 }) {
   const { tenantSlug } = await params;
-  const { locationId, error, alertPhoneSaved } = await searchParams;
+  const { locationId, error, alertPhoneSaved, itemDeleted } = await searchParams;
   const { session, tenant } = await requireInventoryAccess(tenantSlug);
 
   const hasInventoryManageAccess = hasAnyOfRolesInTenantLocations(
@@ -72,6 +77,7 @@ export default async function InventoryPage({
 
       {error && <p className="msg-error mt-3">{error}</p>}
       {alertPhoneSaved && !error && <p className="msg-success mt-3">Preferencia de alertas guardada.</p>}
+      {itemDeleted && !error && <p className="msg-success mt-3">Ítem borrado.</p>}
 
       {(hasInventoryManageAccess || accessibleLocations.length > 1) && (
         <div className="mt-6 flex flex-col gap-4">
