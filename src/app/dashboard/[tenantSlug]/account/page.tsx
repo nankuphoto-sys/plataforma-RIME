@@ -1,6 +1,7 @@
-import { Camera, KeyRound, Trash2 } from "lucide-react";
+import { Camera, Download, KeyRound, Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireDashboardAccess } from "@/lib/auth-guards";
+import { hasAnyOfRolesInTenantLocations } from "@/lib/authorization";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { MAX_PROFILE_IMAGE_LABEL } from "@/lib/profileImage";
 import { changePasswordAction, removeProfilePhotoAction } from "./actions";
@@ -24,12 +25,22 @@ export default async function AccountPage({
 }) {
   const { tenantSlug } = await params;
   const { error, saved, photoError, savedPhoto } = await searchParams;
-  const { session } = await requireDashboardAccess(tenantSlug);
+  const { session, tenant } = await requireDashboardAccess(tenantSlug);
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: session.user.id },
     select: { name: true, email: true, image: true },
   });
+
+  // "Descargar mis datos" es el respaldo completo del NEGOCIO (todos los
+  // clientes, todo el equipo) — solo OWNER, mismo criterio que
+  // requireOwnerAccess en el route handler que de verdad lo sirve. Esto es
+  // solo para no mostrar un link que va a dar 404 a quien no es OWNER.
+  const isOwner = hasAnyOfRolesInTenantLocations(
+    session.user.locationRoles,
+    tenant.locations.map((location) => location.id),
+    ["OWNER"]
+  );
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -146,6 +157,32 @@ export default async function AccountPage({
           </SubmitButton>
         </form>
       </div>
+
+      {isOwner && (
+        <div className="panel mt-4">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-pine/10 text-pine-dark"
+              aria-hidden
+            >
+              <Download className="h-4 w-4" />
+            </span>
+            <p className="section-title text-sm">Tus datos</p>
+          </div>
+          <p className="mt-3 text-sm text-ink/60">
+            Descarga un respaldo completo de tu negocio: sedes, equipo, profesionales, servicios,
+            clientes, citas, inventario, paquetes, gift cards y reseñas — en un archivo legible que
+            podés abrir o llevar a otro sistema.
+          </p>
+          <a
+            href={`/dashboard/${tenantSlug}/account/export`}
+            className="btn-secondary mt-4 inline-flex"
+          >
+            <Download className="h-4 w-4" />
+            Descargar mis datos
+          </a>
+        </div>
+      )}
     </div>
   );
 }
