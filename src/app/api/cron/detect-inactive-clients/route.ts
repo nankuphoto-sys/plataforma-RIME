@@ -35,8 +35,16 @@ export async function GET(request: Request): Promise<NextResponse> {
     planIncludesModule(plan, "reengagement")
   );
 
+  // seguimiento_recompra es plantilla Marketing en WhatsApp (no Utility) —
+  // la política de WhatsApp exige opt-in explícito, distinto del opt-out
+  // implícito de marketing por email (Client.marketingOptOut). Sin
+  // whatsappMarketingOptIn, ni se escanea al cliente.
   const clients = await prisma.client.findMany({
-    where: { phone: { not: null }, tenant: { plan: { in: reengagementEnabledPlans } } },
+    where: {
+      phone: { not: null },
+      whatsappMarketingOptIn: true,
+      tenant: { plan: { in: reengagementEnabledPlans } },
+    },
     include: { tenant: true },
     take: MAX_CLIENTS_SCANNED,
   });

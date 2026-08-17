@@ -40,12 +40,15 @@ export async function GET(request: Request): Promise<NextResponse> {
     planIncludesModule(plan, "packages")
   );
 
+  // alerta_paquete_vencimiento es plantilla Marketing en WhatsApp (Meta la
+  // reclasificó desde Utility) — requiere opt-in explícito, mismo criterio
+  // que detect-inactive-clients.
   const packages = await prisma.sessionPackage.findMany({
     where: {
       status: "ACTIVE",
       expiresAt: { not: null },
       tenant: { plan: { in: packagesEnabledPlans } },
-      client: { phone: { not: null } },
+      client: { phone: { not: null }, whatsappMarketingOptIn: true },
     },
     include: { client: true },
     take: MAX_PACKAGES_SCANNED,

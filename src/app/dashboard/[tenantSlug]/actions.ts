@@ -129,7 +129,12 @@ export async function updateAppointmentStatusAction(
     // puede pasar por COMPLETED más de una vez si el estado se corrige a
     // mano). El token crudo viaja en NotificationQueue.payload para que el
     // cron arme el link recién al enviar de verdad — ver src/lib/reviewToken.ts.
-    if (nextStatus === "COMPLETED" && (appointment.client.email || appointment.client.phone)) {
+    // invitacion_resena es plantilla Marketing en WhatsApp (Meta la
+    // reclasificó desde Utility), así que el fallback a WhatsApp solo aplica
+    // si el cliente dio opt-in explícito; sin email y sin opt-in, no se
+    // manda invitación por ningún canal.
+    const canWhatsappReview = !!appointment.client.phone && appointment.client.whatsappMarketingOptIn;
+    if (nextStatus === "COMPLETED" && (appointment.client.email || canWhatsappReview)) {
       const existingReview = await tx.review.findUnique({ where: { appointmentId: appointment.id } });
       if (!existingReview) {
         const rawToken = generateRawReviewToken();

@@ -97,7 +97,7 @@ export interface CreateAppointmentInput {
   professionalId: string;
   serviceId: string;
   startsAtIso: string;
-  client: { name: string; email: string; phone: string };
+  client: { name: string; email: string; phone: string; whatsappMarketingOptIn?: boolean };
   source?: "WEBSITE" | "MARKETPLACE";
 }
 
@@ -117,6 +117,7 @@ export async function createAppointmentAction(
   const name = input.client.name.trim();
   const email = input.client.email.trim();
   const phone = input.client.phone.trim();
+  const whatsappMarketingOptIn = input.client.whatsappMarketingOptIn === true;
 
   if (!name || !email || !phone) {
     return { ok: false, error: "Nombre, email y teléfono son obligatorios." };
@@ -192,7 +193,7 @@ export async function createAppointmentAction(
         const client =
           existingClient ??
           (await tx.client.create({
-            data: { tenantId: tenant.id, name, email, phone },
+            data: { tenantId: tenant.id, name, email, phone, whatsappMarketingOptIn },
           }));
 
         return tx.appointment.create({

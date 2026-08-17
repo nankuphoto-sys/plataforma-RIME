@@ -370,6 +370,17 @@ model Client {
   // masivo en el roadmap), esto es solo la salida.
   marketingOptOut Boolean @default(false)
 
+  // Distinto de marketingOptOut: ese es para campañas de EMAIL (consentimiento
+  // implícito, con salida). Este es específico para plantillas de WhatsApp
+  // que Meta clasifica como Marketing (seguimiento_recompra,
+  // alerta_paquete_vencimiento, invitacion_resena vía WhatsApp) — la política
+  // de WhatsApp exige opt-in EXPLÍCITO, no basta con ser cliente del negocio.
+  // Default false: sin marcar el checkbox en la reserva pública, no se manda
+  // ninguna plantilla Marketing por WhatsApp a este cliente. Se captura solo
+  // al crear el cliente (reserva pública) — no se retoca en reservas
+  // posteriores del mismo cliente, mismo criterio que name/email/phone acá.
+  whatsappMarketingOptIn Boolean @default(false)
+
   appointments    Appointment[]
   notifications   NotificationQueue[]
   sessionPackages SessionPackage[]

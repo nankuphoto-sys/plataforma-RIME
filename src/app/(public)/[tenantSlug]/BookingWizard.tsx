@@ -160,6 +160,7 @@ export function BookingWizard({
   const [dayPart, setDayPart] = useState<DayPart | null>(null);
 
   const [clientForm, setClientForm] = useState({ name: "", email: "", phone: "" });
+  const [whatsappMarketingOptIn, setWhatsappMarketingOptIn] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<CreatedAppointment | null>(null);
   const [noProfessionalsServiceId, setNoProfessionalsServiceId] = useState<string | null>(null);
@@ -193,6 +194,7 @@ export function BookingWizard({
     setSelectedSlotIso(null);
     setDayPart(null);
     setClientForm({ name: "", email: "", phone: "" });
+    setWhatsappMarketingOptIn(false);
     setFormError(null);
     setConfirmation(null);
     setNoProfessionalsServiceId(null);
@@ -286,7 +288,7 @@ export function BookingWizard({
         professionalId: selectedProfessionalId,
         serviceId: selectedServiceId,
         startsAtIso: selectedSlotIso,
-        client: clientForm,
+        client: { ...clientForm, whatsappMarketingOptIn },
         source,
       });
 
@@ -623,6 +625,16 @@ export function BookingWizard({
               />
             </div>
           </div>
+
+          <label className="mt-4 flex items-start gap-2 text-sm text-ink/70">
+            <input
+              type="checkbox"
+              checked={whatsappMarketingOptIn}
+              onChange={(e) => setWhatsappMarketingOptIn(e.target.checked)}
+              className="mt-0.5"
+            />
+            Quiero recibir novedades y promociones por WhatsApp
+          </label>
 
           {formError && <p className="msg-error mt-3">{formError}</p>}
 
