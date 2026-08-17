@@ -141,6 +141,68 @@ cuenta por abuso de política. Esto es una decisión de producto/cumplimiento,
 no algo que yo deba resolver por vos — lo dejo señalado para que lo decidas
 con conocimiento antes de activarlo con clientes reales.
 
+## Paso 5b — Las otras cuatro plantillas (se agregaron en fases posteriores)
+
+Cuando se escribió la primera versión de esta guía el código solo tenía dos
+plantillas. Desde entonces se agregaron cuatro más (`src/lib/whatsapp.ts`) —
+esta sección estaba desactualizada y le faltaban. Mismo trámite que las de
+arriba: registrarlas en WhatsApp Manager con este texto/variables y esperar
+aprobación.
+
+**3. `alerta_stock_bajo`** (Inventario) — 3 variables: nombre del insumo,
+stock actual + unidad, nombre de la sede. Se manda al número de
+`Location.lowStockAlertPhone` — o sea, al negocio mismo, no a un cliente
+final.
+
+> Alerta de stock bajo: {{1}} tiene {{2}} disponibles en la sede {{3}}. Por
+> favor revisa el inventario.
+
+(Ajustado respecto a la versión original de esta guía: Meta rechaza
+cualquier plantilla que termine con una variable sin texto real después —
+"no se permite incluir parámetros al principio ni al final".)
+
+Categoría esperable: **Utility** — es un aviso operativo sobre la propia
+cuenta del negocio.
+
+**4. `alerta_paquete_vencimiento`** (Paquetes y bonos) — 3 variables: nombre
+del cliente, sesiones restantes, fecha de vencimiento.
+
+> Hola {{1}}, tu paquete tiene {{2}} sesiones sin usar y vence el {{3}}.
+> ¿Querés agendar?
+
+Categoría esperable: **Utility** — es sobre una compra que el cliente ya
+hizo, no una campaña.
+
+**5. `invitacion_resena`** (Reseñas verificadas) — 3 variables: nombre del
+cliente, nombre del negocio, link para dejar la reseña. Ojo: esta es un
+**fallback** — si el cliente tiene email cargado se le manda por email
+(`sendReviewInviteEmail`) en vez de WhatsApp; esta plantilla solo se usa
+cuando no hay email.
+
+> Hola {{1}}, gracias por tu visita a {{2}}. Contános cómo te fue en este
+> link: {{3}} ¡Gracias por tu tiempo!
+
+(Mismo ajuste que `alerta_stock_bajo` — la variable no puede quedar al
+final.)
+
+Categoría esperable: **Utility** (ligada a una cita puntual ya completada),
+pero no está de más confirmarlo al enviarla — a diferencia de
+`seguimiento_recompra`, esta sí tiene una razón transaccional clara para
+existir.
+
+**6. `cupo_lista_espera`** (Lista de espera inteligente) — 3 variables:
+nombre del cliente, nombre del servicio, fecha/hora del cupo liberado. Se
+manda inmediato (no espera al cron de recordatorios) porque es urgente —
+ver el comentario en `buildWaitlistSlotOpenedTemplatePayload`.
+
+> Hola {{1}}, se liberó un cupo de {{2}} el {{3}}. ¿Lo querés tomar?
+
+Categoría esperable: **Utility**.
+
+Ninguna de estas cuatro tiene el problema de opt-in/Marketing que sí tiene
+`seguimiento_recompra` — todas están atadas a una acción concreta que el
+cliente (o el negocio, en el caso de stock) ya tomó.
+
 ## Paso 6 — Cargar las credenciales
 
 Una vez aprobadas ambas plantillas y con el token permanente en mano,
@@ -153,7 +215,20 @@ WHATSAPP_REMINDER_TEMPLATE_NAME="recordatorio_cita"
 WHATSAPP_REMINDER_TEMPLATE_LANG="es_MX"
 WHATSAPP_FOLLOWUP_TEMPLATE_NAME="seguimiento_recompra"
 WHATSAPP_FOLLOWUP_TEMPLATE_LANG="es_MX"
+WHATSAPP_LOW_STOCK_TEMPLATE_NAME="alerta_stock_bajo"
+WHATSAPP_LOW_STOCK_TEMPLATE_LANG="es_MX"
+WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_NAME="alerta_paquete_vencimiento"
+WHATSAPP_PACKAGE_EXPIRATION_TEMPLATE_LANG="es_MX"
+WHATSAPP_REVIEW_INVITE_TEMPLATE_NAME="invitacion_resena"
+WHATSAPP_REVIEW_INVITE_TEMPLATE_LANG="es_MX"
+WHATSAPP_WAITLIST_TEMPLATE_NAME="cupo_lista_espera"
+WHATSAPP_WAITLIST_TEMPLATE_LANG="es_MX"
 ```
+
+Los nombres/idioma de plantilla ya tienen el mismo valor por default en el
+código (ver `src/lib/whatsapp.ts`) — técnicamente no hace falta declararlos
+si lo registrado en Meta coincide con el default, pero declararlos
+explícito es más a prueba de errores.
 
 Los nombres de plantilla y el idioma tienen que coincidir EXACTO (mismo
 texto, mismas mayúsculas, mismo código de idioma) con lo que registraste en
@@ -183,11 +258,46 @@ de recordatorios automáticos.
 - [ ] Número de teléfono dedicado (nunca usado en WhatsApp normal) verificado.
 - [ ] Nombre para mostrar aprobado.
 - [ ] System user creado, token permanente generado.
-- [ ] Plantilla `recordatorio_cita` (3 variables, es_MX) enviada y aprobada.
-- [ ] Plantilla `seguimiento_recompra` (2 variables, es_MX) enviada y
-      aprobada — con la decisión de opt-in/Marketing ya resuelta.
-- [ ] `.env` de producción completado con token, phone number id, y nombres
-      de plantilla exactos.
+- [x] Plantilla `recordatorio_cita` (3 variables, es_MX) enviada — `PENDING`.
+- [x] Plantilla `seguimiento_recompra` (2 variables, es_MX) enviada como
+      **Marketing** — `PENDING`. Decisión explícita del dueño del producto
+      (15 ago 2026): mandarla igual a revisión, pero **no activar el envío
+      real en producción hasta agregar opt-in de marketing al CRM** — eso
+      sigue pendiente, es una tarea de producto aparte, no de esta sesión.
+- [x] Plantilla `alerta_stock_bajo` (3 variables, es_MX) enviada — `PENDING`.
+- [x] Plantilla `alerta_paquete_vencimiento` (3 variables, es_MX) enviada —
+      `PENDING`.
+- [x] Plantilla `invitacion_resena` (3 variables, es_MX) enviada —
+      `PENDING`.
+- [x] Plantilla `cupo_lista_espera` (3 variables, es_MX) enviada —
+      `PENDING`.
+- [ ] `.env` de producción completado con token, phone number id, y los 6
+      pares de nombre/idioma de plantilla exactos.
+
+**Nota de sesión (15 ago 2026):** número `+57 301 1666621` agregado,
+verificado y registrado como cuenta "Rime" (WABA id
+`27699257069773851`, phone number id `1308441025680420`) directo desde el
+asistente nuevo de Meta for Developers — el proceso guiado ya incluye
+verificación + PIN de 2 pasos en un solo flujo, no hizo falta el `/register`
+manual por separado como describe el Paso 4 más arriba. Las 5 plantillas de
+arriba (todas menos `seguimiento_recompra`) se crearon directo por la Graph
+API (`POST /{waba-id}/message_templates`) en vez de por la interfaz de
+WhatsApp Manager — mismo resultado, quedaron `PENDING` esperando revisión de
+Meta. IDs de plantilla: `recordatorio_cita` 900418182818577,
+`alerta_stock_bajo` 1606647524398045, `alerta_paquete_vencimiento`
+1486895826526405, `invitacion_resena` 28385503211054318,
+`cupo_lista_espera` 2006941969964295. Dos intentos iniciales
+(`alerta_stock_bajo`, `invitacion_resena`) rechazados por Meta con
+`error_subcode 2388299` ("las variables no pueden estar al principio ni al
+final de la plantilla") — corregido agregando texto real después de la
+última variable, ver los textos actualizados en el Paso 5b más arriba.
+`seguimiento_recompra` (id `1565834855559880`) también se mandó, como
+Marketing — ver la nota en el checklist sobre no activarla en producción
+todavía.
+
+Con esto, las 6 plantillas quedaron enviadas a revisión de Meta. Falta:
+esperar la aprobación (Utility suele ser rápido, Marketing no), y decidir
+el opt-in de marketing antes de activar `seguimiento_recompra` de verdad.
 - [ ] Prueba real: completar el flujo de reserva pública con una cita a 24h+
       y confirmar que `/api/cron/send-reminders` efectivamente entrega el
       WhatsApp (hasta ahora solo se probó el encolado, nunca el envío real).
