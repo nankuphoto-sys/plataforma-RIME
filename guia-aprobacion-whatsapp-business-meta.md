@@ -295,9 +295,21 @@ final de la plantilla") — corregido agregando texto real después de la
 Marketing — ver la nota en el checklist sobre no activarla en producción
 todavía.
 
-Con esto, las 6 plantillas quedaron enviadas a revisión de Meta. Falta:
-esperar la aprobación (Utility suele ser rápido, Marketing no), y decidir
-el opt-in de marketing antes de activar `seguimiento_recompra` de verdad.
+Con esto, las 6 plantillas quedaron enviadas a revisión de Meta.
+
+**Corrección importante (15 ago 2026, revisión posterior):** al volver a
+consultar el estado real vía API (no confiar en lo que se envió, sino en lo
+que Meta efectivamente asignó), Meta reclasificó **de oficio** dos
+plantillas que se mandaron como Utility a **Marketing**:
+`alerta_paquete_vencimiento` e `invitacion_resena`. Solo `recordatorio_cita`,
+`alerta_stock_bajo` y `cupo_lista_espera` quedaron como Utility real.
+
+Esto **amplía el problema de opt-in** que esta guía documentaba solo para
+`seguimiento_recompra` — ahora aplica a **tres** plantillas, no una. Antes
+de activar el envío real de `alerta_paquete_vencimiento` o
+`invitacion_resena` en producción, hace falta la misma decisión de
+opt-in/cumplimiento que `seguimiento_recompra`. Pendiente: resolver el
+opt-in de marketing en el CRM antes de activar cualquiera de las tres.
 - [ ] Prueba real: completar el flujo de reserva pública con una cita a 24h+
       y confirmar que `/api/cron/send-reminders` efectivamente entrega el
       WhatsApp (hasta ahora solo se probó el encolado, nunca el envío real).
