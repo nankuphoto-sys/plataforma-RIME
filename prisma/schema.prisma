@@ -63,6 +63,14 @@ model Tenant {
   loyaltyStampsRequired    Int     @default(10)
   loyaltyRewardDescription String?
 
+  // Eliminar cuenta (OWNER, dashboard de Facturación/Mi cuenta): pide
+  // confirmación escribiendo el nombre del negocio, pasa el tenant a
+  // DELETION_REQUESTED, y un cron (borrar-tenants-solicitados) hace el
+  // borrado definitivo (cascade) tras un período de gracia — así el dueño
+  // puede arrepentirse antes de perder todo el historial de clientes.
+  deletionRequestedAt      DateTime?
+  deletionRequestedByEmail String?
+
   locations       Location[]
   users           User[]
   professionals   Professional[]
@@ -80,6 +88,7 @@ model Tenant {
   reviews         Review[]
   giftCards       GiftCard[]
   marketingCampaigns MarketingCampaign[]
+  pushSubscriptions  PushSubscription[]
 }
 
 enum Plan {
@@ -103,6 +112,10 @@ enum TenantStatus {
   ACTIVE
   PAST_DUE
   CANCELLED
+  // Baja solicitada por el OWNER (borrado con período de gracia, no
+  // instantáneo — ver deletionRequestedAt en Tenant y el cron que hace el
+  // borrado definitivo tras el período de gracia).
+  DELETION_REQUESTED
 }
 
 enum DepositPolicy {
@@ -167,14 +180,60 @@ model User {
   // dispositivos" (limitación conocida de session: { strategy: "jwt" }).
   passwordChangedAt DateTime  @default(now())
 
+  // 2FA por TOTP (app autenticadora, ej. Google Authenticator/Authy) —
+  // opcional, lo activa cada usuario desde Mi cuenta. twoFactorSecret va
+  // cifrado en reposo (ver src/lib/crypto.ts); solo se descifra al validar
+  // un código en el login. twoFactorBackupCodes es un JSON de hashes
+  // SHA-256 de códigos de un solo uso (nunca se guarda el código crudo).
+  twoFactorSecret      String?
+  twoFactorEnabled     Boolean @default(false)
+  twoFactorBackupCodes String?
+
   locationRoles       StaffLocationRole[]
   professionalProfile Professional?
   accounts            Account[]
   sessions            Session[]
   inventoryMovements  InventoryMovement[]
   passwordResetTokens PasswordResetToken[]
+  pushSubscriptions   PushSubscription[]
 
   @@index([tenantId])
+}
+
+// Suscripción de notificaciones push del navegador (Web Push estándar,
+// VAPID) — infraestructura lista para que cualquier flujo del backend
+// dispare una notificación; hoy WhatsApp cubre los recordatorios, esto es
+// un canal adicional opt-in por dispositivo/usuario.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tenantId])
+}
+
+// Log de errores interno (sustituto liviano de un APM externo tipo Sentry,
+// sin depender de una cuenta de terceros) — ver src/lib/errorLog.ts.
+// tenantId es opcional porque hay errores que ocurren fuera de cualquier
+// contexto de tenant (ej. en el login antes de resolver el usuario).
+model ErrorLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  level     String
+  message   String
+  stack     String?
+  context   Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([createdAt])
 }
 
 // Token de un solo uso para el flujo público "olvidé mi contraseña". Nunca
