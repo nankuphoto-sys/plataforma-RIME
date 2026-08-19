@@ -42,22 +42,39 @@ export async function resetPasswordAction(token: string, formData: FormData): Pr
 
   const passwordHash = await bcrypt.hash(password, 10);
 
-  await prisma.$transaction([
-    prisma.user.update({
+  // Reclamo atómico del token (usedAt: null en el where, no un update por id)
+  // ANTES de tocar la contraseña: sin esto, un doble submit del mismo token
+  // (doble click, dos pestañas con el mismo link) podría pasar el chequeo de
+  // arriba en ambos requests antes de que cualquiera escriba, y el segundo
+  // terminaría fijando la contraseña con lo que sea que tenía ese formulario,
+  // pisando en silencio lo que el usuario ya había guardado con el primero.
+  const claimed = await prisma.$transaction(async (tx) => {
+    const claim = await tx.passwordResetToken.updateMany({
+      where: { id: resetToken!.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    if (claim.count === 0) return false;
+
+    await tx.user.update({
       where: { id: resetToken!.userId },
       data: { passwordHash, passwordChangedAt: new Date() },
-    }),
-    prisma.passwordResetToken.update({
-      where: { id: resetToken!.id },
-      data: { usedAt: new Date() },
-    }),
+    });
+
     // Si el usuario pidió el link dos veces, el primero muere al usar el
     // segundo, y viceversa.
-    prisma.passwordResetToken.updateMany({
+    await tx.passwordResetToken.updateMany({
       where: { userId: resetToken!.userId, usedAt: null, id: { not: resetToken!.id } },
       data: { usedAt: new Date() },
-    }),
-  ]);
+    });
+
+    return true;
+  });
+
+  if (!claimed) {
+    redirect(
+      `/reset-password?token=${encodeURIComponent(token)}&error=${encodeURIComponent("token-invalido")}`
+    );
+  }
 
   redirect("/login?reset=success");
 }

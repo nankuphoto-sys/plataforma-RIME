@@ -213,11 +213,29 @@ export async function recordInventoryMovementAction(
 
       const nextQuantity = type === "IN" ? currentQuantity + quantity : currentQuantity - quantity;
 
-      await tx.inventoryStock.upsert({
-        where: { itemId_locationId: { itemId: item.id, locationId: location.id } },
-        create: { itemId: item.id, locationId: location.id, quantity: nextQuantity },
-        update: { quantity: nextQuantity },
-      });
+      // CAS contra la cantidad leída arriba (no un upsert liso): dos
+      // movimientos manuales concurrentes sobre el mismo ítem/sede (dos
+      // personas en el mostrador) podrían leer el mismo stock antes de que
+      // cualquiera escriba, y el segundo upsert pisaría al primero — el
+      // historial de InventoryMovement quedaría con ambos movimientos, pero
+      // InventoryStock.quantity solo reflejaría el efecto de uno. Si el CAS
+      // falla (o la creación choca con una concurrente para este mismo par,
+      // su primer movimiento), se aborta y se le pide reintentar.
+      if (stock) {
+        const casResult = await tx.inventoryStock.updateMany({
+          where: { itemId: item.id, locationId: location.id, quantity: stock.quantity },
+          data: { quantity: nextQuantity },
+        });
+        if (casResult.count === 0) throw new Error("CONCURRENT_MODIFICATION");
+      } else {
+        try {
+          await tx.inventoryStock.create({
+            data: { itemId: item.id, locationId: location.id, quantity: nextQuantity },
+          });
+        } catch {
+          throw new Error("CONCURRENT_MODIFICATION");
+        }
+      }
 
       await tx.inventoryMovement.create({
         data: {
@@ -240,6 +258,10 @@ export async function recordInventoryMovementAction(
   } catch (err) {
     if (err instanceof Error && err.message === "INSUFFICIENT_STOCK") {
       redirectWithError("No hay stock suficiente para registrar esta salida.");
+      return;
+    }
+    if (err instanceof Error && err.message === "CONCURRENT_MODIFICATION") {
+      redirectWithError("Alguien más registró un movimiento de este ítem justo ahora — probá de nuevo.");
       return;
     }
     throw err;

@@ -477,11 +477,19 @@ export async function applyGiftCardAction(
   const remainingAmount = Math.max(0, Number(charge.amount) - amountApplied);
   const newBalance = Number(giftCard.balance) - amountApplied;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.giftCard.update({
-      where: { id: giftCard.id },
+  // CAS contra el balance leído arriba: si dos checkouts concurrentes (dos
+  // pestañas, doble click) leen el mismo balance antes de que cualquiera
+  // escriba, sin esto ambos calcularían amountApplied sobre el mismo saldo y
+  // el segundo update pisaría al primero — dejando la tarjeta con más saldo
+  // redimido del que realmente tenía. `updateMany` con el balance leído en
+  // el `where` hace que solo la primera escritura tenga efecto; la segunda
+  // afecta 0 filas y se aborta.
+  const updated = await prisma.$transaction(async (tx) => {
+    const casResult = await tx.giftCard.updateMany({
+      where: { id: giftCard.id, balance: giftCard.balance },
       data: { balance: newBalance, status: newBalance <= 0 ? "DEPLETED" : giftCard.status },
     });
+    if (casResult.count === 0) return false;
 
     await tx.giftCardRedemption.create({
       data: { giftCardId: giftCard.id, appointmentId: appointment.id, amountApplied },
@@ -504,7 +512,13 @@ export async function applyGiftCardAction(
         await tx.appointment.update({ where: { id: appointment.id }, data: { status: "CONFIRMED" } });
       }
     }
+
+    return true;
   });
+
+  if (!updated) {
+    return { ok: false, error: "El saldo de esta gift card cambió justo ahora — probá de nuevo." };
+  }
 
   return {
     ok: true,

@@ -27,14 +27,23 @@ export async function submitReviewAction(token: string, formData: FormData): Pro
     redirect(`/resena?token=${encodeURIComponent(token)}&error=${encodeURIComponent("token-invalido")}`);
   }
 
-  await prisma.review.update({
-    where: { id: review!.id },
+  // updateMany con submittedAt: null en el where (no un update por id) como
+  // guarda contra un doble submit concurrente (doble click, o "atrás" del
+  // navegador reenviando el POST): sin esto, dos requests podrían pasar el
+  // chequeo de arriba antes de que cualquiera escriba, y la segunda
+  // pisaría la reseña ya guardada de la primera en vez de fallar.
+  const updated = await prisma.review.updateMany({
+    where: { id: review!.id, submittedAt: null },
     data: {
       rating,
       comment: comment ? comment.slice(0, MAX_COMMENT_LENGTH) : null,
       submittedAt: new Date(),
     },
   });
+
+  if (updated.count === 0) {
+    redirect(`/resena?token=${encodeURIComponent(token)}&error=${encodeURIComponent("token-invalido")}`);
+  }
 
   redirect(`/resena?token=${encodeURIComponent(token)}`);
 }
