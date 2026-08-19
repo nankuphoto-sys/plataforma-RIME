@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarCheck, Phone, Search, Star, UserPlus } from "lucide-react";
+import { CalendarCheck, Phone, Search, Star, Upload, UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireDashboardAccess } from "@/lib/auth-guards";
 import { isProfessionalOnlyInTenant } from "@/lib/authorization";
@@ -82,10 +82,16 @@ export default async function ClientsPage({
             tiene una cita, así que un cliente recién creado por él quedaría
             invisible hasta tener una cita, un callejón sin salida confuso. */}
         {!isProfessionalOnly && (
-          <Link href={`/dashboard/${tenantSlug}/clients/new`} className="btn-primary">
-            <UserPlus className="h-4 w-4" />
-            Nuevo cliente
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href={`/dashboard/${tenantSlug}/clients/import`} className="btn-secondary">
+              <Upload className="h-4 w-4" />
+              Importar CSV
+            </Link>
+            <Link href={`/dashboard/${tenantSlug}/clients/new`} className="btn-primary">
+              <UserPlus className="h-4 w-4" />
+              Nuevo cliente
+            </Link>
+          </div>
         )}
       </div>
 
