@@ -7,6 +7,8 @@ import { requireInventoryAccess, requireInventoryManageAccess } from "@/lib/auth
 import { hasLocationAccess } from "@/lib/authorization";
 import { crossedLowStockThreshold, maybeSendLowStockAlerts } from "@/lib/inventory";
 import { normalizePhoneForWhatsapp } from "@/lib/whatsapp";
+import { planIncludesModule } from "@/lib/planLimits";
+import { askInventoryCopilot } from "@/lib/copilot";
 
 function parseItemFields(formData: FormData) {
   const name = formData.get("name")?.toString().trim() ?? "";
@@ -369,4 +371,40 @@ export async function deleteInventoryItemAction(tenantSlug: string, itemId: stri
 
   revalidatePath(`/dashboard/${tenantSlug}/inventory`);
   redirect(`/dashboard/${tenantSlug}/inventory?itemDeleted=1`);
+}
+
+// Nivel 1 del Copiloto RIME (solo lectura) — ver src/lib/copilot.ts. Mismo
+// guard que el resto de Inventario MÁS el chequeo explícito de plan del
+// módulo "aiAssistant" (hoy redundante con "inventory", que ya es
+// PREMIUM/PRO — se deja igual explícito por si el gating de planes
+// diverge más adelante) y la validación de que la sede pedida es de este
+// tenant y el usuario tiene acceso a ella.
+export async function askInventoryCopilotAction(
+  tenantSlug: string,
+  locationId: string,
+  question: string
+): Promise<{ ok: true; answer: string } | { ok: false; error: string }> {
+  const { session, tenant } = await requireInventoryAccess(tenantSlug);
+
+  if (!planIncludesModule(tenant.plan, "aiAssistant")) {
+    return { ok: false, error: "Esta función no está disponible en tu plan." };
+  }
+
+  const location = await prisma.location.findFirst({ where: { id: locationId, tenantId: tenant.id } });
+  if (!location || !hasLocationAccess(session.user.locationRoles, location.id)) {
+    return { ok: false, error: "Sede no válida." };
+  }
+
+  const trimmed = question.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Escribe una pregunta." };
+  }
+
+  try {
+    const answer = await askInventoryCopilot(tenant.id, location.id, trimmed);
+    return { ok: true, answer };
+  } catch (err) {
+    console.error("[askInventoryCopilotAction]", err);
+    return { ok: false, error: "No se pudo responder tu pregunta. Intenta de nuevo en un momento." };
+  }
 }

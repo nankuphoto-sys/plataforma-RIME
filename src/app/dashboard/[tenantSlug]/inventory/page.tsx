@@ -5,7 +5,9 @@ import { requireInventoryAccess } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations, hasLocationAccess } from "@/lib/authorization";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { updateLowStockAlertPhoneAction } from "./actions";
+import { askInventoryCopilotAction, updateLowStockAlertPhoneAction } from "./actions";
+import { planIncludesModule } from "@/lib/planLimits";
+import { AskCopilotBox } from "../AskCopilotBox";
 
 
 export default async function InventoryPage({
@@ -89,6 +91,19 @@ export default async function InventoryPage({
       {error && <p className="msg-error mt-3">{error}</p>}
       {alertPhoneSaved && !error && <p className="msg-success mt-3">Preferencia de alertas guardada.</p>}
       {itemDeleted && !error && <p className="msg-success mt-3">Ítem borrado.</p>}
+
+      {planIncludesModule(tenant.plan, "aiAssistant") && (
+        <div className="mt-6">
+          <AskCopilotBox
+            title="Pregúntale a tu inventario"
+            subtitle={`Responde sobre el stock de ${location.name}. Para facturación o citas, pregunta en Reportes.`}
+            scopeLabel="Solo lectura"
+            placeholder="¿Qué insumos están por agotarse?"
+            examples={["¿Qué insumos están por agotarse?", "¿Cuánto consumí este mes?"]}
+            action={askInventoryCopilotAction.bind(null, tenantSlug, location.id)}
+          />
+        </div>
+      )}
 
       {(hasInventoryManageAccess || accessibleLocations.length > 1) && (
         <div className="mt-6 flex flex-col gap-4">

@@ -17,10 +17,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.39",
     "@auth/prisma-adapter": "^2.11.3",
     "@prisma/client": "^5.20.0",
     "@react-pdf/renderer": "^3.4.5",
     "@vercel/blob": "^2.7.0",
+    "ai": "^7.0.68",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^1.28.0",
     "next": "^15.0.0",
@@ -29,7 +31,8 @@
     "react-dom": "^18.3.0",
     "recharts": "^3.10.1",
     "resend": "^6.18.1",
-    "stripe": "^22.3.2"
+    "stripe": "^22.3.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

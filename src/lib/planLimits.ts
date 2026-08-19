@@ -11,7 +11,8 @@ export type PlanModule =
   | "prescriptions"
   | "photos"
   | "loyalty"
-  | "giftCards";
+  | "giftCards"
+  | "aiAssistant";
 
 export interface PlanLimits {
   maxLocations: number | null; // null = sin límite (PRO)
@@ -41,6 +42,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       photos: false,
       loyalty: false,
       giftCards: false,
+      aiAssistant: false,
     },
   },
   BASICO: {
@@ -56,6 +58,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       photos: false,
       loyalty: false,
       giftCards: false,
+      aiAssistant: false,
     },
   },
   PREMIUM: {
@@ -71,6 +74,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       photos: true,
       loyalty: true,
       giftCards: true,
+      aiAssistant: true,
     },
   },
   PRO: {
@@ -86,6 +90,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       photos: true,
       loyalty: true,
       giftCards: true,
+      aiAssistant: true,
     },
   },
 };

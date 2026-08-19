@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { requireReportsAccess } from "@/lib/auth-guards";
 import { calculateCommissionAmount, getDefaultReportRange, parseReportDateParam } from "@/lib/reports";
 import { sendCommissionPaidEmail } from "@/lib/email";
+import { planIncludesModule } from "@/lib/planLimits";
+import { askReportsCopilot } from "@/lib/copilot";
 
 function formatDateLabel(date: Date): string {
   return date.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -138,4 +140,32 @@ export async function markCommissionAsPaidAction(
 
   const query = rangeParams.toString();
   redirect(`/dashboard/${tenantSlug}/reports${query ? `?${query}` : ""}`);
+}
+
+// Nivel 1 del Copiloto RIME (solo lectura) — ver src/lib/copilot.ts. Mismo
+// guard que el resto de Reportes MÁS el chequeo explícito de plan del
+// módulo "aiAssistant": PREMIUM/PRO únicamente, aunque el tenant ya tenga
+// acceso a Reportes en un plan más chico (BASICO).
+export async function askReportsCopilotAction(
+  tenantSlug: string,
+  question: string
+): Promise<{ ok: true; answer: string } | { ok: false; error: string }> {
+  const { tenant } = await requireReportsAccess(tenantSlug);
+
+  if (!planIncludesModule(tenant.plan, "aiAssistant")) {
+    return { ok: false, error: "Esta función no está disponible en tu plan." };
+  }
+
+  const trimmed = question.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Escribe una pregunta." };
+  }
+
+  try {
+    const answer = await askReportsCopilot(tenant.id, trimmed);
+    return { ok: true, answer };
+  } catch (err) {
+    console.error("[askReportsCopilotAction]", err);
+    return { ok: false, error: "No se pudo responder tu pregunta. Intenta de nuevo en un momento." };
+  }
 }

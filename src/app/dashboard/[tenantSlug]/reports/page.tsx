@@ -12,8 +12,9 @@ import { planIncludesModule } from "@/lib/planLimits";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
-import { markCommissionAsPaidAction, updateProfessionalCommissionRateAction } from "./actions";
+import { askReportsCopilotAction, markCommissionAsPaidAction, updateProfessionalCommissionRateAction } from "./actions";
 import { ReportsCharts } from "./ReportsCharts";
+import { AskCopilotBox } from "../AskCopilotBox";
 
 const PROVIDER_LABELS: Record<string, string> = { STRIPE: "Stripe", WOMPI: "Wompi" };
 
@@ -115,6 +116,19 @@ export default async function ReportsPage({
           Aplicar
         </button>
       </form>
+
+      {planIncludesModule(tenant.plan, "aiAssistant") && (
+        <div className="mt-6">
+          <AskCopilotBox
+            title="Pregúntale a tus reportes"
+            subtitle="Responde sobre ingresos, citas y comisiones de este negocio. No sabe de inventario ni de clientes."
+            scopeLabel="Solo lectura"
+            placeholder="¿Cuánto facturé este mes?"
+            examples={["¿Cuánto facturé hoy?", "¿Cuánto llevo facturado en el año?"]}
+            action={askReportsCopilotAction.bind(null, tenantSlug)}
+          />
+        </div>
+      )}
 
       <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiTile
