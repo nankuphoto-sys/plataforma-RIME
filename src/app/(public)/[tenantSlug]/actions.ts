@@ -186,8 +186,15 @@ export async function createAppointmentAction(
           throw new Error("SLOT_TAKEN");
         }
 
+        // Insensible a mayúsculas/minúsculas — mismo criterio que
+        // findDuplicateClient en el dashboard (src/app/dashboard/[tenantSlug]/
+        // clients/actions.ts). Sin esto, un mismo cliente que reserva de nuevo
+        // con el email capitalizado distinto (autocapitalize del teclado del
+        // celular, por ejemplo) queda partido en dos registros de Client
+        // separados — fragmentando su historial de citas, sellos de fidelidad
+        // y conteo de inactividad entre ambos.
         const existingClient = await tx.client.findFirst({
-          where: { tenantId: tenant.id, email },
+          where: { tenantId: tenant.id, email: { equals: email, mode: "insensitive" } },
         });
 
         const client =
@@ -496,17 +503,36 @@ export async function applyGiftCardAction(
     });
 
     if (remainingAmount <= 0) {
-      await tx.payment.create({
-        data: {
-          appointmentId: appointment.id,
-          provider: "GIFT_CARD",
-          status: "PAID",
-          amount: charge.amount,
-          kind: charge.kind,
-          currency: "usd",
-          confirmedAt: new Date(),
-        },
-      });
+      // Puede que ya exista un Payment PENDING de un intento de checkout
+      // anterior (Stripe/Wompi) que el cliente abandonó antes de volver acá a
+      // aplicar la gift card — Payment.appointmentId es @unique, así que un
+      // create liso rompería con una violación de constraint en ese caso.
+      // Actualizamos ese registro en vez de crear uno nuevo.
+      if (appointment.payment) {
+        await tx.payment.update({
+          where: { id: appointment.payment.id },
+          data: {
+            provider: "GIFT_CARD",
+            status: "PAID",
+            amount: charge.amount,
+            kind: charge.kind,
+            currency: "usd",
+            confirmedAt: new Date(),
+          },
+        });
+      } else {
+        await tx.payment.create({
+          data: {
+            appointmentId: appointment.id,
+            provider: "GIFT_CARD",
+            status: "PAID",
+            amount: charge.amount,
+            kind: charge.kind,
+            currency: "usd",
+            confirmedAt: new Date(),
+          },
+        });
+      }
 
       if (ALLOWED_STATUS_TRANSITIONS[appointment.status].includes("CONFIRMED")) {
         await tx.appointment.update({ where: { id: appointment.id }, data: { status: "CONFIRMED" } });
