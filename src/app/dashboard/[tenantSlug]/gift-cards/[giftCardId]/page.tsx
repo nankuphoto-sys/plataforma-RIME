@@ -15,6 +15,12 @@ const STATUS_LABELS = {
   CANCELLED: "Anulada",
 } as const;
 
+const STATUS_BADGE = {
+  ACTIVE: "badge-pine",
+  DEPLETED: "badge-sage",
+  CANCELLED: "badge-neutral",
+} as const;
+
 export default async function GiftCardDetailPage({
   params,
   searchParams,
@@ -74,7 +80,7 @@ export default async function GiftCardDetailPage({
               de {Number(giftCard.initialAmount).toLocaleString("es-CO")} emitidos
             </p>
           </div>
-          <span className="badge badge-pine">{STATUS_LABELS[giftCard.status]}</span>
+          <span className={`badge ${STATUS_BADGE[giftCard.status]}`}>{STATUS_LABELS[giftCard.status]}</span>
         </div>
         {giftCard.expiresAt && (
           <p className="mt-3 text-xs text-ink/50">

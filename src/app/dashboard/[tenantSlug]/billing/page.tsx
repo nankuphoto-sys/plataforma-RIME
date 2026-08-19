@@ -147,7 +147,7 @@ export default async function BillingPage({
                 }
                 pendingLabel={stripeNeedsReactivation ? "Reactivando…" : "Configurando…"}
               >
-                {stripeNeedsReactivation ? "Reactivar suscripción" : "Configurar cobro automático"}
+                {stripeNeedsReactivation ? "Reactivar suscripción (Stripe)" : "Configurar cobro automático (Stripe)"}
               </SubmitButton>
             </form>
           ) : (

@@ -35,7 +35,7 @@ const DAY_PART_LABEL: Record<DayPart, string> = {
 
 function slotDayPart(iso: string, timezone: string): DayPart {
   const hour = Number(
-    new Date(iso).toLocaleTimeString("es-CL", { hour: "2-digit", hourCycle: "h23", timeZone: timezone })
+    new Date(iso).toLocaleTimeString("es-CO", { hour: "2-digit", hourCycle: "h23", timeZone: timezone })
   );
   if (hour < 12) return "morning";
   if (hour < 18) return "afternoon";
@@ -88,7 +88,7 @@ function calendarDateKey(date: CalendarDate): string {
 
 function formatDateLabel(date: CalendarDate): string {
   const asUtcNoon = new Date(Date.UTC(date.year, date.month - 1, date.day, 12));
-  const label = asUtcNoon.toLocaleDateString("es-CL", {
+  const label = asUtcNoon.toLocaleDateString("es-CO", {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -98,7 +98,7 @@ function formatDateLabel(date: CalendarDate): string {
 }
 
 function formatSlotTime(iso: string, timezone: string): string {
-  return new Date(iso).toLocaleTimeString("es-CL", {
+  return new Date(iso).toLocaleTimeString("es-CO", {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
@@ -107,7 +107,7 @@ function formatSlotTime(iso: string, timezone: string): string {
 }
 
 function formatFullDateTime(iso: string, timezone: string): string {
-  const label = new Date(iso).toLocaleDateString("es-CL", {
+  const label = new Date(iso).toLocaleDateString("es-CO", {
     weekday: "long",
     day: "2-digit",
     month: "long",

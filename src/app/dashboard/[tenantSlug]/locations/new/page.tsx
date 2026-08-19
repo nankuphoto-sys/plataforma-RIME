@@ -50,7 +50,7 @@ export default async function NewLocationPage({
             id="timezone"
             name="timezone"
             type="text"
-            defaultValue="America/Santiago"
+            defaultValue="America/Bogota"
             className="field-input"
           />
         </div>

@@ -199,7 +199,7 @@ export default async function InventoryPage({
             // como % de qué tan lejos están de su propia zona de alerta,
             // no como cantidades absolutas que no tienen la misma escala.
             const gaugeScale = Math.max(quantity, item.lowStockThreshold * 3, 1);
-            const gaugePercent = Math.min(100, Math.round((quantity / gaugeScale) * 100));
+            const gaugePercent = Math.max(0, Math.min(100, Math.round((quantity / gaugeScale) * 100)));
             const services = item.serviceLinks.map((link) => link.service.name);
 
             return (

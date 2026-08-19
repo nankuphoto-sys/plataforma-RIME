@@ -58,7 +58,7 @@ export default async function ReviewsPage({
               <p className="line-clamp-2 text-sm text-ink/65">{review.comment ?? "Sin comentario."}</p>
 
               <p className="data-mono border-t border-sage-dark/25 pt-3 text-xs text-ink/45">
-                {review.submittedAt?.toLocaleDateString("es-CL", { dateStyle: "medium" })}
+                {review.submittedAt?.toLocaleDateString("es-CO", { dateStyle: "medium" })}
               </p>
             </Link>
           ))}

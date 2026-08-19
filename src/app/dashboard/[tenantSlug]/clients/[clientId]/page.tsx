@@ -262,7 +262,7 @@ export default async function ClientDetailPage({
                 <div>
                   <p className="font-medium text-ink">{appointment.service.name}</p>
                   <p className="data-mono text-ink/50">
-                    {appointment.startsAt.toLocaleString("es-CL", {
+                    {appointment.startsAt.toLocaleString("es-CO", {
                       dateStyle: "medium",
                       timeStyle: "short",
                     })}
@@ -307,7 +307,7 @@ export default async function ClientDetailPage({
                           {redeemableAppointments.map((appointment) => (
                             <option key={appointment.id} value={appointment.id}>
                               {appointment.service.name} —{" "}
-                              {appointment.startsAt.toLocaleDateString("es-CL", { dateStyle: "medium" })}
+                              {appointment.startsAt.toLocaleDateString("es-CO", { dateStyle: "medium" })}
                             </option>
                           ))}
                         </select>
@@ -436,8 +436,8 @@ export default async function ClientDetailPage({
                   {(entry.preferredFrom || entry.preferredTo) && (
                     <p className="data-mono mt-1 text-ink/50">
                       Ventana:{" "}
-                      {entry.preferredFrom?.toLocaleDateString("es-CL", { dateStyle: "medium" }) ?? "sin inicio"} –{" "}
-                      {entry.preferredTo?.toLocaleDateString("es-CL", { dateStyle: "medium" }) ?? "sin fin"}
+                      {entry.preferredFrom?.toLocaleDateString("es-CO", { dateStyle: "medium" }) ?? "sin inicio"} –{" "}
+                      {entry.preferredTo?.toLocaleDateString("es-CO", { dateStyle: "medium" }) ?? "sin fin"}
                     </p>
                   )}
                   {(entry.status === "WAITING" || entry.status === "NOTIFIED") && (
@@ -535,7 +535,7 @@ export default async function ClientDetailPage({
                   </div>
                   <p className="data-mono mt-1 text-ink/50">
                     {prescription.professional.name} —{" "}
-                    {prescription.issuedAt.toLocaleDateString("es-CL", { dateStyle: "medium" })}
+                    {prescription.issuedAt.toLocaleDateString("es-CO", { dateStyle: "medium" })}
                   </p>
                   <p className="mt-2 whitespace-pre-wrap text-ink/80">{prescription.content}</p>
                 </li>
@@ -576,7 +576,7 @@ export default async function ClientDetailPage({
                     {appointments.map((appointment) => (
                       <option key={appointment.id} value={appointment.id}>
                         {appointment.service.name} —{" "}
-                        {appointment.startsAt.toLocaleDateString("es-CL", { dateStyle: "medium" })}
+                        {appointment.startsAt.toLocaleDateString("es-CO", { dateStyle: "medium" })}
                       </option>
                     ))}
                   </select>
@@ -608,7 +608,7 @@ export default async function ClientDetailPage({
                 <li key={photo.id} className="overflow-hidden rounded-xl border border-sage-dark/25">
                   <img src={photo.url} alt={photo.caption ?? "Foto de seguimiento"} className="aspect-square w-full object-cover" />
                   <div className="p-2 text-xs text-ink/60">
-                    <p className="data-mono">{photo.takenAt.toLocaleDateString("es-CL", { dateStyle: "medium" })}</p>
+                    <p className="data-mono">{photo.takenAt.toLocaleDateString("es-CO", { dateStyle: "medium" })}</p>
                     {photo.caption && <p className="mt-1 text-ink/80">{photo.caption}</p>}
                   </div>
                 </li>

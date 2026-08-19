@@ -253,7 +253,7 @@ export async function updateAppointmentStatusAction(
       to: waitlistNotification.to,
       clientName: waitlistNotification.clientName,
       serviceName: waitlistNotification.serviceName,
-      startsAtLabel: waitlistNotification.startsAt.toLocaleString("es-CL", {
+      startsAtLabel: waitlistNotification.startsAt.toLocaleString("es-CO", {
         dateStyle: "medium",
         timeStyle: "short",
       }),

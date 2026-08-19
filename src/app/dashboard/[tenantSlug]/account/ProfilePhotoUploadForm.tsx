@@ -23,18 +23,21 @@ interface ProfilePhotoUploadFormProps {
 // fuerza a subir con JS deshabilitado).
 export function ProfilePhotoUploadForm({ tenantSlug }: ProfilePhotoUploadFormProps) {
   const [clientError, setClientError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) {
       setClientError(null);
+      setFileName(null);
       return;
     }
 
     if (!ALLOWED_PROFILE_IMAGE_TYPES.has(file.type)) {
       setClientError("Formato no soportado. Usá JPG, PNG o WEBP.");
       event.target.value = "";
+      setFileName(null);
       return;
     }
 
@@ -44,10 +47,12 @@ export function ProfilePhotoUploadForm({ tenantSlug }: ProfilePhotoUploadFormPro
         `Esa imagen pesa ${sizeMb}MB. El máximo es ${MAX_PROFILE_IMAGE_LABEL} — elegí una más liviana.`
       );
       event.target.value = "";
+      setFileName(null);
       return;
     }
 
     setClientError(null);
+    setFileName(file.name);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -63,7 +68,7 @@ export function ProfilePhotoUploadForm({ tenantSlug }: ProfilePhotoUploadFormPro
       <form
         action={updateProfilePhotoAction.bind(null, tenantSlug)}
         onSubmit={handleSubmit}
-        className="flex items-center gap-2"
+        className="flex flex-wrap items-center gap-2"
       >
         <input
           ref={inputRef}
@@ -72,8 +77,18 @@ export function ProfilePhotoUploadForm({ tenantSlug }: ProfilePhotoUploadFormPro
           accept="image/jpeg,image/png,image/webp"
           required
           onChange={handleFileChange}
-          className="text-sm text-ink/70 file:mr-3 file:rounded-md file:border-0 file:bg-sage file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ink hover:file:bg-sage-dark/40"
+          className="sr-only"
         />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="shrink-0 rounded-md bg-sage px-3 py-1.5 text-xs font-medium text-ink hover:bg-sage-dark/40"
+        >
+          Elegir archivo
+        </button>
+        <span className="truncate text-sm text-ink/70">
+          {fileName ?? "Sin archivo seleccionado"}
+        </span>
         <SubmitButton
           icon={<Upload className="h-3.5 w-3.5" />}
           pendingLabel="Guardando…"

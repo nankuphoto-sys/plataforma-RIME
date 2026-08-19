@@ -13,14 +13,14 @@ export function computeReminderScheduledFor(startsAt: Date, now: Date): Date | n
 // formatFullDateTime en src/app/(public)/[tenantSlug]/PostCheckoutStatus.tsx)
 // — día de la semana, día, mes y año, y hora en 24h, en la timezone de la sede.
 export function formatAppointmentDateTimeLabel(startsAt: Date, timezone: string): string {
-  const label = startsAt.toLocaleDateString("es-CL", {
+  const label = startsAt.toLocaleDateString("es-CO", {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
     timeZone: timezone,
   });
-  const time = startsAt.toLocaleTimeString("es-CL", {
+  const time = startsAt.toLocaleTimeString("es-CO", {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",

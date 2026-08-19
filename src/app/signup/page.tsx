@@ -8,7 +8,6 @@ const VERTICAL_OPTIONS = [
   { value: "NUTRICION", label: "Nutrición" },
   { value: "FISIOTERAPIA", label: "Fisioterapia" },
   { value: "ESTETICA", label: "Estética" },
-  { value: "BARBERIA", label: "Barbería" },
 ] as const;
 
 export default async function SignupPage({
@@ -171,7 +170,7 @@ export default async function SignupPage({
                   id="timezone"
                   name="timezone"
                   type="text"
-                  defaultValue="America/Santiago"
+                  defaultValue="America/Bogota"
                   className="field-input"
                 />
               </div>

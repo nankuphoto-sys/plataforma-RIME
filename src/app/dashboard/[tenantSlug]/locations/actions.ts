@@ -7,7 +7,7 @@ import { requireOwnerAccess } from "@/lib/auth-guards";
 import { getPlanLimits, hasReachedLocationLimit } from "@/lib/planLimits";
 import { grantProfessionalLocationAccess, revokeProfessionalLocationAccess } from "@/lib/professionalLocationSync";
 
-const DEFAULT_TIMEZONE = "America/Santiago";
+const DEFAULT_TIMEZONE = "America/Bogota";
 
 function parseLocationFields(formData: FormData) {
   const name = formData.get("name")?.toString().trim() ?? "";

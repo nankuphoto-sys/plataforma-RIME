@@ -24,14 +24,14 @@ interface PostCheckoutStatusProps {
 }
 
 function formatFullDateTime(iso: string, timezone: string): string {
-  const label = new Date(iso).toLocaleDateString("es-CL", {
+  const label = new Date(iso).toLocaleDateString("es-CO", {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
     timeZone: timezone,
   });
-  const time = new Date(iso).toLocaleTimeString("es-CL", {
+  const time = new Date(iso).toLocaleTimeString("es-CO", {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",

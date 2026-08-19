@@ -35,7 +35,7 @@ export default async function ReviewDetailPage({
       <h1 className="page-title mt-3">{review.client.name}</h1>
       <p className="page-subtitle">
         {review.appointment.service.name} con {review.appointment.professional.name} ·{" "}
-        {review.submittedAt?.toLocaleDateString("es-CL", { dateStyle: "medium" })}
+        {review.submittedAt?.toLocaleDateString("es-CO", { dateStyle: "medium" })}
       </p>
 
       {error && <p className="msg-error mt-3">{error}</p>}
