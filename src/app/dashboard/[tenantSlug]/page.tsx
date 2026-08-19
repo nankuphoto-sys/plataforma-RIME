@@ -29,7 +29,7 @@ function formatWeekRangeLabel(weekDates: CalendarDate[]): string {
   const sameYear = start.year === end.year;
 
   const format = (date: CalendarDate, withYear: boolean) =>
-    new Date(Date.UTC(date.year, date.month - 1, date.day, 12)).toLocaleDateString("es-CL", {
+    new Date(Date.UTC(date.year, date.month - 1, date.day, 12)).toLocaleDateString("es-CO", {
       day: "numeric",
       month: "short",
       year: withYear ? "numeric" : undefined,
@@ -96,7 +96,14 @@ export default async function DashboardAgendaPage({
   }
 
   const referenceDate = parseCalendarDateKey(week ?? "") ?? getTodayInTimezone(location.timezone);
-  const weekDates = getWeekDates(referenceDate);
+  // Los 7 días, no el default de getWeekDates (lunes a viernes, pensado para
+  // el flujo público de reserva) — esta es la agenda interna del staff, y
+  // "Nueva cita" no restringe a días/horario hábil, así que una cita creada
+  // a mano un sábado (o fuera de horario) tiene que poder verse acá. Con el
+  // default anterior, esas citas desaparecían de la agenda por completo:
+  // seguían ocupando el turno del profesional para el chequeo de solapes,
+  // pero no había forma de verlas ni gestionarlas desde esta pantalla.
+  const weekDates = getWeekDates(referenceDate, [0, 1, 2, 3, 4, 5, 6]);
   const dayBounds = weekDates.map((date) => getDayBoundsUtc(date, location.timezone));
   const rangeStart = dayBounds[0].start;
   const rangeEnd = dayBounds[dayBounds.length - 1].end;

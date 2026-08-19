@@ -24,7 +24,13 @@ export function computeStampProgress(
   rewardsRedeemed: number
 ): number {
   if (stampsRequired <= 0) return 0;
-  const unconsumed = stamps - rewardsRedeemed * stampsRequired;
+  // Clamp a 0: si el negocio sube stampsRequired desde Configuración después
+  // de que un cliente ya canjeó premios calculados con el umbral viejo (más
+  // bajo), rewardsRedeemed * stampsRequired puede superar a stamps — sin este
+  // clamp, unconsumed queda negativo y % en JS preserva el signo (a
+  // diferencia de otros lenguajes), mostrando un progreso negativo sin
+  // sentido como "-4 de 5 sellos" en vez de arrancar el conteo en 0.
+  const unconsumed = Math.max(0, stamps - rewardsRedeemed * stampsRequired);
   const remainder = unconsumed % stampsRequired;
   return remainder === 0 && unconsumed > 0 ? stampsRequired : remainder;
 }

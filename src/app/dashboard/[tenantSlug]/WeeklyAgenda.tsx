@@ -76,7 +76,7 @@ const STATUS_ICONS: Record<AppointmentStatus, typeof Clock> = {
 
 function formatDayLabel(date: CalendarDate): string {
   const asUtcNoon = new Date(Date.UTC(date.year, date.month - 1, date.day, 12));
-  const label = asUtcNoon.toLocaleDateString("es-CL", {
+  const label = asUtcNoon.toLocaleDateString("es-CO", {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -91,13 +91,13 @@ function formatDayLabel(date: CalendarDate): string {
 function formatWeekdayAbbrev(date: CalendarDate): string {
   const asUtcNoon = new Date(Date.UTC(date.year, date.month - 1, date.day, 12));
   const label = asUtcNoon
-    .toLocaleDateString("es-CL", { weekday: "short", timeZone: "UTC" })
+    .toLocaleDateString("es-CO", { weekday: "short", timeZone: "UTC" })
     .replace(".", "");
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function formatTime(iso: string, timezone: string): string {
-  return new Date(iso).toLocaleTimeString("es-CL", {
+  return new Date(iso).toLocaleTimeString("es-CO", {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
@@ -106,7 +106,7 @@ function formatTime(iso: string, timezone: string): string {
 }
 
 function formatFullDateTime(iso: string, timezone: string): string {
-  const label = new Date(iso).toLocaleDateString("es-CL", {
+  const label = new Date(iso).toLocaleDateString("es-CO", {
     weekday: "long",
     day: "numeric",
     month: "long",

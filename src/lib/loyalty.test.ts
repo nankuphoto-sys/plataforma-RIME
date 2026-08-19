@@ -47,4 +47,10 @@ describe("computeStampProgress", () => {
   it("sigue sumando progreso sobre un premio ya disponible sin canjear", () => {
     expect(computeStampProgress(13, 10, 0)).toBe(3);
   });
+
+  it("nunca da negativo si el negocio sube stampsRequired después de canjes ya hechos con el umbral viejo", () => {
+    // stamps=6, canjeó 2 premios cuando stampsRequired era 3 (rewardsRedeemed=2),
+    // después el negocio subió stampsRequired a 5 desde Configuración.
+    expect(computeStampProgress(6, 5, 2)).toBe(0);
+  });
 });

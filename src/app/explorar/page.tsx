@@ -8,12 +8,15 @@ const VERTICAL_OPTIONS = [
   { value: "NUTRICION", label: "Nutrición" },
   { value: "FISIOTERAPIA", label: "Fisioterapia" },
   { value: "ESTETICA", label: "Estética" },
-  { value: "BARBERIA", label: "Barbería" },
 ] as const;
 
 const VERTICAL_LABELS: Record<string, string> = Object.fromEntries(
   VERTICAL_OPTIONS.map((option) => [option.value, option.label])
 );
+
+function isValidVertical(value: string): value is (typeof VERTICAL_OPTIONS)[number]["value"] {
+  return VERTICAL_OPTIONS.some((option) => option.value === value);
+}
 
 export default async function ExplorePage({
   searchParams,
@@ -22,12 +25,20 @@ export default async function ExplorePage({
 }) {
   const { q, vertical } = await searchParams;
 
+  // Un `vertical` inválido (URL armada a mano, link roto) no puede llegar
+  // directo al filtro de Prisma: TenantVertical es un enum de Postgres, y un
+  // valor que no matchea ninguno de sus miembros tira "Invalid value for
+  // argument `vertical`" y rompe la página entera con un 500 — confirmado en
+  // vivo con /explorar?vertical=cualquier-cosa. Mejor ignorar el filtro
+  // (mostrar todos los rubros) que reventar la página pública.
+  const validVertical = vertical && isValidVertical(vertical) ? vertical : undefined;
+
   const tenants = await prisma.tenant.findMany({
     where: {
       marketplaceListed: true,
       status: { in: ["TRIAL", "ACTIVE"] },
       ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
-      ...(vertical ? { vertical: vertical as (typeof VERTICAL_OPTIONS)[number]["value"] } : {}),
+      ...(validVertical ? { vertical: validVertical } : {}),
     },
     include: { locations: { take: 1 } },
     orderBy: { name: "asc" },

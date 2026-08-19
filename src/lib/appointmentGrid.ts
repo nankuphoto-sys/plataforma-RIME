@@ -37,8 +37,19 @@ export function getAppointmentBlockPosition(
   );
 
   const totalMs = closeAt.getTime() - openAt.getTime();
-  const topPercent = ((params.startsAt.getTime() - openAt.getTime()) / totalMs) * 100;
-  const heightPercent = ((params.endsAt.getTime() - params.startsAt.getTime()) / totalMs) * 100;
+  const rawTopPercent = ((params.startsAt.getTime() - openAt.getTime()) / totalMs) * 100;
+  const rawBottomPercent = ((params.endsAt.getTime() - openAt.getTime()) / totalMs) * 100;
+
+  // Una cita creada a mano (createManualAppointmentAction no valida horario
+  // de atención) puede caer total o parcialmente fuera de esta ventana fija.
+  // Sin este clamp, top/height quedaban fuera de 0-100% y el contenedor de
+  // la grilla (overflow-hidden en WeeklyAgenda) la recortaba por completo:
+  // invisible, sin ningún aviso de que existía. La anclamos al borde
+  // correspondiente con una altura mínima visible en vez de perderla.
+  const MIN_HEIGHT_PERCENT = 3;
+  const topPercent = Math.min(100 - MIN_HEIGHT_PERCENT, Math.max(0, rawTopPercent));
+  const bottomPercent = Math.max(topPercent + MIN_HEIGHT_PERCENT, Math.min(100, rawBottomPercent));
+  const heightPercent = bottomPercent - topPercent;
 
   return { topPercent, heightPercent };
 }
