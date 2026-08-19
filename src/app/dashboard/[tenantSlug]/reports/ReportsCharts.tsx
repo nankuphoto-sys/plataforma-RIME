@@ -3,6 +3,7 @@
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { AppointmentStatus } from "@prisma/client";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
+import { formatCOPNumber } from "@/lib/currency";
 
 // Paleta de marca del proyecto (ver tailwind.config.ts) — se reutiliza acá
 // en vez de sumar una paleta nueva solo para gráficos, para que Reportes se
@@ -113,7 +114,7 @@ export function ReportsCharts({ statusCountsByStatus, revenueRows, commissionRow
               <YAxis allowDecimals={false} tick={{ fill: AXIS_TEXT_COLOR, fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
               <Tooltip
                 cursor={{ fill: GRID_COLOR }}
-                formatter={(value) => toDisplayNumber(value).toFixed(2)}
+                formatter={(value) => formatCOPNumber(toDisplayNumber(value))}
               />
               <Bar dataKey="value" maxBarSize={24} radius={[4, 4, 0, 0]}>
                 {revenueData.map((entry) => (
@@ -124,7 +125,7 @@ export function ReportsCharts({ statusCountsByStatus, revenueRows, commissionRow
                   position="top"
                   fill={AXIS_TEXT_COLOR}
                   fontSize={11}
-                  formatter={(value) => toDisplayNumber(value).toFixed(0)}
+                  formatter={(value) => formatCOPNumber(toDisplayNumber(value))}
                 />
               </Bar>
             </BarChart>
@@ -143,7 +144,7 @@ export function ReportsCharts({ statusCountsByStatus, revenueRows, commissionRow
               <YAxis allowDecimals={false} tick={{ fill: AXIS_TEXT_COLOR, fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
               <Tooltip
                 cursor={{ fill: GRID_COLOR }}
-                formatter={(value) => toDisplayNumber(value).toFixed(2)}
+                formatter={(value) => formatCOPNumber(toDisplayNumber(value))}
               />
               <Bar dataKey="value" fill={COLOR_PINE} maxBarSize={24} radius={[4, 4, 0, 0]}>
                 <LabelList
@@ -151,7 +152,7 @@ export function ReportsCharts({ statusCountsByStatus, revenueRows, commissionRow
                   position="top"
                   fill={AXIS_TEXT_COLOR}
                   fontSize={11}
-                  formatter={(value) => toDisplayNumber(value).toFixed(0)}
+                  formatter={(value) => formatCOPNumber(toDisplayNumber(value))}
                 />
               </Bar>
             </BarChart>

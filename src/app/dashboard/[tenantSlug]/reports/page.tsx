@@ -9,6 +9,7 @@ import {
   parseReportDateParam,
 } from "@/lib/reports";
 import { planIncludesModule } from "@/lib/planLimits";
+import { formatCOP } from "@/lib/currency";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
@@ -59,10 +60,11 @@ export default async function ReportsPage({
 
   // KPIs grandes arriba de los gráficos — solo cifras que se pueden sumar
   // sin mezclar cosas que no son comparables: citas (siempre un conteo) y
-  // comisión (siempre USD, ver el comentario en ReportData.commissionRows).
-  // Nunca un "ingreso total" acá — revenueRows mezcla proveedores con
-  // monedas distintas (USD de Stripe, COP de Wompi) que no se pueden sumar
-  // en un solo número sin mentir.
+  // comisión (siempre COP, calculada sobre Service.price — ver el
+  // comentario en ReportData.commissionRows). Nunca un "ingreso total" acá —
+  // revenueRows mezcla pagos reales por proveedor, y los pagos históricos de
+  // antes del 2026-08-19 quedaron en USD (Stripe) mientras los nuevos son
+  // COP — no se pueden sumar en un solo número sin mentir.
   const totalAppointments = Object.values(statusCountsByStatus).reduce((sum, n) => sum + n, 0);
   const totalServiceRevenue = commissionRows.reduce((sum, row) => sum + row.totalServiceRevenue, 0);
   const totalPendingCommission = commissionRows.reduce((sum, row) => sum + row.pendingCommissionAmount, 0);
@@ -146,15 +148,13 @@ export default async function ReportsPage({
           icon={<DollarSign className="h-5 w-5" />}
           label="Ingreso por servicios"
           value={totalServiceRevenue}
-          decimals={2}
-          prefix="USD "
+          prefix="$ "
         />
         <KpiTile
           icon={<Clock className="h-5 w-5" />}
           label="Comisión pendiente"
           value={totalPendingCommission}
-          decimals={2}
-          prefix="USD "
+          prefix="$ "
           tone={totalPendingCommission > 0 ? "gold" : undefined}
         />
       </div>
@@ -206,7 +206,7 @@ export default async function ReportsPage({
                 </span>
                 <span className="data-mono font-medium text-ink">
                   {row.currency.toUpperCase()}{" "}
-                  <AnimatedNumber value={row.total} decimals={2} />
+                  <AnimatedNumber value={row.total} decimals={row.currency.toLowerCase() === "cop" ? 0 : 2} />
                 </span>
               </li>
             ))}
@@ -246,7 +246,7 @@ export default async function ReportsPage({
                       <AnimatedNumber value={row.completedCount} />
                     </td>
                     <td className="table-cell-muted data-mono">
-                      USD <AnimatedNumber value={row.totalServiceRevenue} decimals={2} />
+                      $ <AnimatedNumber value={row.totalServiceRevenue} />
                     </td>
                     <td className="table-cell-muted">
                       <form
@@ -275,14 +275,14 @@ export default async function ReportsPage({
                       <p className="mt-1 text-xs text-ink/40">Default — un servicio puede tener su propio %.</p>
                     </td>
                     <td className="table-cell-muted data-mono">
-                      USD <AnimatedNumber value={row.commissionAmount} decimals={2} />
+                      $ <AnimatedNumber value={row.commissionAmount} />
                     </td>
                     <td className="table-cell-muted data-mono">
-                      USD <AnimatedNumber value={row.paidCommissionAmount} decimals={2} />
+                      $ <AnimatedNumber value={row.paidCommissionAmount} />
                     </td>
                     <td className="table-cell-muted">
                       <span className="data-mono">
-                        USD <AnimatedNumber value={row.pendingCommissionAmount} decimals={2} />
+                        $ <AnimatedNumber value={row.pendingCommissionAmount} />
                       </span>
                       {row.pendingCommissionAmount > 0 && (
                         <form
@@ -346,7 +346,7 @@ export default async function ReportsPage({
                         {row.totalQuantity} {row.unit}
                       </td>
                       <td className="table-cell-muted data-mono">
-                        {row.totalValue !== null ? `USD ${row.totalValue.toFixed(2)}` : "Sin costo cargado"}
+                        {row.totalValue !== null ? formatCOP(row.totalValue) : "Sin costo cargado"}
                       </td>
                     </tr>
                   ))}

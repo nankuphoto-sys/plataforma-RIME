@@ -68,7 +68,7 @@ export async function GET(
           PROVIDER_LABELS[row.provider] ?? row.provider,
           row.currency.toUpperCase(),
           row.count,
-          row.total.toFixed(2),
+          row.currency.toLowerCase() === "cop" ? Math.round(row.total) : row.total.toFixed(2),
         ])
       );
     }
@@ -89,11 +89,11 @@ export async function GET(
         buildCsvRow([
           row.name,
           row.completedCount,
-          row.totalServiceRevenue.toFixed(2),
+          Math.round(row.totalServiceRevenue),
           row.commissionRatePercent,
-          row.commissionAmount.toFixed(2),
-          row.paidCommissionAmount.toFixed(2),
-          row.pendingCommissionAmount.toFixed(2),
+          Math.round(row.commissionAmount),
+          Math.round(row.paidCommissionAmount),
+          Math.round(row.pendingCommissionAmount),
         ])
       );
     }
@@ -102,7 +102,7 @@ export async function GET(
     // exige el módulo "reports"): si el tenant no tiene el módulo
     // "inventory", simplemente no va a tener InventoryMovement, así que el
     // CSV sale con solo el encabezado. Se valida igual por prolijidad.
-    rows.push(buildCsvRow(["Insumo", "Automático (citas)", "Manual", "Total consumido", "Unidad", "Valor (USD)"]));
+    rows.push(buildCsvRow(["Insumo", "Automático (citas)", "Manual", "Total consumido", "Unidad", "Valor (COP)"]));
     if (planIncludesModule(tenant.plan, "inventory")) {
       const consumptionRows = await computeInventoryConsumption(tenant.id, from, to);
       for (const row of consumptionRows) {
@@ -113,7 +113,7 @@ export async function GET(
             row.manualOutQuantity,
             row.totalQuantity,
             row.unit,
-            row.totalValue !== null ? row.totalValue.toFixed(2) : "",
+            row.totalValue !== null ? Math.round(row.totalValue) : "",
           ])
         );
       }

@@ -7,6 +7,7 @@ import { hasAnyOfRolesInTenantLocations, hasAnyRoleInTenantLocations } from "@/l
 import { planIncludesModule } from "@/lib/planLimits";
 import { computeReportData, getDefaultReportRange, parseReportDateParam, type ReportData } from "@/lib/reports";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
+import { formatCOPNumber } from "@/lib/currency";
 
 // Este endpoint vive en Pages Router (src/pages/api/), no en App Router,
 // a propósito: @react-pdf/renderer crea sus elementos con su propio
@@ -97,7 +98,7 @@ function ReportPdfDocument({ tenantName, fromLabel, toLabel, data }: ReportPdfDo
                   <Text style={styles.cell}>{PROVIDER_LABELS[row.provider] ?? row.provider}</Text>
                   <Text style={styles.cell}>{row.currency.toUpperCase()}</Text>
                   <Text style={styles.cell}>{row.count}</Text>
-                  <Text style={styles.cell}>{row.total.toFixed(2)}</Text>
+                  <Text style={styles.cell}>{formatCOPNumber(row.total)}</Text>
                 </View>
               ))}
             </View>
@@ -123,11 +124,11 @@ function ReportPdfDocument({ tenantName, fromLabel, toLabel, data }: ReportPdfDo
                 <View key={row.id} style={styles.row}>
                   <Text style={styles.cell}>{row.name}</Text>
                   <Text style={styles.cell}>{row.completedCount}</Text>
-                  <Text style={styles.cell}>USD {row.totalServiceRevenue.toFixed(2)}</Text>
+                  <Text style={styles.cell}>$ {formatCOPNumber(row.totalServiceRevenue)}</Text>
                   <Text style={styles.cell}>{row.commissionRatePercent}%</Text>
-                  <Text style={styles.cell}>USD {row.commissionAmount.toFixed(2)}</Text>
-                  <Text style={styles.cell}>USD {row.paidCommissionAmount.toFixed(2)}</Text>
-                  <Text style={styles.cell}>USD {row.pendingCommissionAmount.toFixed(2)}</Text>
+                  <Text style={styles.cell}>$ {formatCOPNumber(row.commissionAmount)}</Text>
+                  <Text style={styles.cell}>$ {formatCOPNumber(row.paidCommissionAmount)}</Text>
+                  <Text style={styles.cell}>$ {formatCOPNumber(row.pendingCommissionAmount)}</Text>
                 </View>
               ))}
             </View>

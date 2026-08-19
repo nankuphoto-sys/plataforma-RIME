@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PLAN_OPTIONS, describePlan } from "@/lib/planDisplay";
+import { formatCOP } from "@/lib/currency";
 
 export function PricingStrip() {
   return (
@@ -28,7 +29,7 @@ export function PricingStrip() {
               )}
               <p className="text-sm font-semibold text-ink">{plan.label}</p>
               <p className="mt-2 font-display text-2xl font-semibold text-pine">
-                USD {plan.priceUsd}
+                {formatCOP(plan.priceCop)}
                 <span className="text-sm font-normal text-ink/50">/mes</span>
               </p>
               <p className="mt-2 flex-1 text-xs leading-relaxed text-ink/55">{describePlan(plan)}</p>

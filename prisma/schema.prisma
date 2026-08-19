@@ -371,6 +371,10 @@ model Service {
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name            String
   durationMinutes Int
+  // Pesos colombianos (COP), sin campo de moneda propio — mismo criterio en
+  // SessionPackage.price, GiftCard.initialAmount/balance e
+  // InventoryItem.unitCost. Antes del 2026-08-19 esto era USD; migrado a COP
+  // (ver prisma/backfill-convert-usd-to-cop.ts).
   price           Decimal  @db.Decimal(10, 2)
   // Override opcional del Professional.commissionRate para ESTE servicio en
   // particular (ej. "los masajes pagan 40% sin importar quién los haga"). Si
@@ -557,7 +561,7 @@ model Payment {
   appointmentId String          @unique
   appointment   Appointment     @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   amount        Decimal         @db.Decimal(10, 2)
-  currency      String          @default("USD")
+  currency      String          @default("COP")
   provider      PaymentProvider
   providerRef   String? // id de la transacción en Stripe / Mercado Pago
   status        PaymentStatus   @default(PENDING)

@@ -7,6 +7,7 @@ import { hasAnyOfRolesInTenantLocations, hasLocationAccess } from "@/lib/authori
 import { LinkPendingSpinner } from "@/components/ui/LinkPendingSpinner";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { DeleteButton } from "@/components/ui/DeleteButton";
+import { formatCOP } from "@/lib/currency";
 import {
   deleteInventoryItemAction,
   deleteInventoryMovementAction,
@@ -151,7 +152,7 @@ export default async function InventoryItemDetailPage({
           <span className="badge badge-berry mt-2">Stock bajo (umbral: {item.lowStockThreshold})</span>
         )}
         {item.unitCost !== null && (
-          <p className="mt-2 text-xs text-ink/45">Costo: {Number(item.unitCost).toFixed(2)} / {item.unit}</p>
+          <p className="mt-2 text-xs text-ink/45">Costo: {formatCOP(Number(item.unitCost))} / {item.unit}</p>
         )}
       </section>
 

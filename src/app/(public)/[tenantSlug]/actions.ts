@@ -26,10 +26,6 @@ async function getRemainingAmountAfterGiftCard(appointmentId: string, baseAmount
   return remaining.toFixed(2);
 }
 
-// TODO: esto es una conversión de referencia fija, no una tasa de cambio real.
-// Cuando el modelo de precios soporte multi-moneda por tenant, reemplazar esto.
-const MOCK_USD_TO_COP_RATE = 4000;
-
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 export async function getAvailableSlotsAction(
@@ -309,13 +305,15 @@ export async function createCheckoutSessionAction(
         status: "PENDING",
         amount: remainingAmount,
         kind: charge.kind,
-        // Fijo en USD por ahora: Mercado Pago se encargará de moneda local
-        // (CLP, etc.) en una fase posterior.
-        currency: "usd",
+        currency: "cop",
       },
     }));
 
   const baseUrl = await getBaseUrl();
+  // Stripe trata el COP como moneda de 2 decimales igual que el USD (no está
+  // en su lista de monedas "zero-decimal"), así que unit_amount sigue siendo
+  // el monto en centavos — misma fórmula que antes, verificado contra la API
+  // real de Stripe en modo prueba.
   const amountInCents = Math.round(Number(remainingAmount) * 100);
   const productName =
     charge.kind === "DEPOSIT" ? `Seña — ${appointment.service.name}` : appointment.service.name;
@@ -325,7 +323,7 @@ export async function createCheckoutSessionAction(
     line_items: [
       {
         price_data: {
-          currency: "usd",
+          currency: "cop",
           product_data: { name: productName },
           unit_amount: amountInCents,
         },
@@ -385,7 +383,9 @@ export async function createWompiCheckoutAction(
   // Wompi no permite reutilizar una referencia ya usada: generamos una nueva
   // en cada intento de pago.
   const reference = `${appointment.id}-${Date.now()}`;
-  const amountInCents = Math.round(Number(remainingAmount) * MOCK_USD_TO_COP_RATE * 100);
+  // remainingAmount ya está en pesos colombianos (ver Service.price) —
+  // Wompi solo necesita el paso a centavos, sin ninguna conversión de moneda.
+  const amountInCents = Math.round(Number(remainingAmount) * 100);
 
   if (appointment.payment) {
     await prisma.payment.update({
@@ -516,7 +516,7 @@ export async function applyGiftCardAction(
             status: "PAID",
             amount: charge.amount,
             kind: charge.kind,
-            currency: "usd",
+            currency: "cop",
             confirmedAt: new Date(),
           },
         });
@@ -528,7 +528,7 @@ export async function applyGiftCardAction(
             status: "PAID",
             amount: charge.amount,
             kind: charge.kind,
-            currency: "usd",
+            currency: "cop",
             confirmedAt: new Date(),
           },
         });
