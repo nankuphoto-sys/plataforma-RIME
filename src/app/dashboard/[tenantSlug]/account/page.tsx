@@ -6,6 +6,9 @@ import { SubmitButton } from "@/components/ui/SubmitButton";
 import { MAX_PROFILE_IMAGE_LABEL } from "@/lib/profileImage";
 import { changePasswordAction, removeProfilePhotoAction } from "./actions";
 import { ProfilePhotoUploadForm } from "./ProfilePhotoUploadForm";
+import { TwoFactorPanel } from "./TwoFactorPanel";
+import { DeleteAccountPanel } from "./DeleteAccountPanel";
+import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 
 function getInitials(name: string): string {
   return name
@@ -29,7 +32,7 @@ export default async function AccountPage({
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: session.user.id },
-    select: { name: true, email: true, image: true },
+    select: { name: true, email: true, image: true, twoFactorEnabled: true },
   });
 
   // "Descargar mis datos" es el respaldo completo del NEGOCIO (todos los
@@ -158,6 +161,10 @@ export default async function AccountPage({
         </form>
       </div>
 
+      <TwoFactorPanel tenantSlug={tenantSlug} initialEnabled={user.twoFactorEnabled} />
+
+      <PushNotificationToggle tenantSlug={tenantSlug} />
+
       {isOwner && (
         <div className="panel mt-4">
           <div className="flex items-center gap-2.5">
@@ -182,6 +189,14 @@ export default async function AccountPage({
             Descargar mis datos
           </a>
         </div>
+      )}
+
+      {isOwner && (
+        <DeleteAccountPanel
+          tenantSlug={tenantSlug}
+          tenantName={tenant.name}
+          deletionRequestedAt={tenant.deletionRequestedAt?.toISOString() ?? null}
+        />
       )}
     </div>
   );

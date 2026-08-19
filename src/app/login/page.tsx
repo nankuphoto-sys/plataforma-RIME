@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isGoogleAuthEnabled } from "@/lib/auth";
 import { LoginForm } from "./LoginForm";
 
 export default async function LoginPage({
@@ -29,7 +30,7 @@ export default async function LoginPage({
               Contraseña restablecida correctamente, inicia sesión.
             </p>
           )}
-          <LoginForm />
+          <LoginForm googleEnabled={isGoogleAuthEnabled} />
           <p className="mt-5 text-center text-sm text-ink/50">
             <Link href="/forgot-password" className="text-pine underline-offset-2 hover:underline">
               ¿Olvidaste tu contraseña?
