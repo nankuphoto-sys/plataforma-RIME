@@ -12,12 +12,12 @@ const FAQS = [
   {
     question: "¿Puedo migrar mis pacientes desde otro software o desde Excel?",
     answer:
-      "Sí. Podés crear tus clientes manualmente desde el panel de administración; si tenés un volumen grande, contáctanos y te ayudamos con la carga inicial.",
+      "Sí. Puedes crear tus clientes manualmente desde el panel de administración; si tienes un volumen grande, contáctanos y te ayudamos con la carga inicial.",
   },
   {
     question: "¿Qué pasa si mi clínica tiene más de una sede?",
     answer:
-      "Los permisos por sede vienen incluidos desde el plan más básico: podés asignar profesionales y personal a sedes específicas, sin que uno vea la agenda del otro.",
+      "Los permisos por sede vienen incluidos desde el plan más básico: puedes asignar profesionales y personal a sedes específicas, sin que uno vea la agenda del otro.",
   },
   {
     question: "¿Cómo confirman un pago? ¿Tengo que revisarlo a mano?",

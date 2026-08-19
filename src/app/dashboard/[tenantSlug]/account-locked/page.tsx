@@ -50,8 +50,8 @@ export default async function AccountLockedPage({
       <p className="mt-4 text-sm text-ink/60">
         Tu cuenta está {tenant.status === "PAST_DUE" ? "con un pago pendiente" : "cancelada"}.{" "}
         {isOwner
-          ? "Andá a Facturación para actualizar tu método de pago o reactivar la suscripción."
-          : "Pedile al dueño de la cuenta (rol OWNER) que la reactive desde Facturación."}
+          ? "Ve a Facturación para actualizar tu método de pago o reactivar la suscripción."
+          : "Pídele al dueño de la cuenta (rol OWNER) que la reactive desde Facturación."}
       </p>
 
       {isOwner && (

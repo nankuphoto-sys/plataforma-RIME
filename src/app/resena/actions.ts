@@ -12,7 +12,7 @@ export async function submitReviewAction(token: string, formData: FormData): Pro
 
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
     redirect(
-      `/resena?token=${encodeURIComponent(token)}&error=${encodeURIComponent("Elegí una calificación de 1 a 5 estrellas.")}`
+      `/resena?token=${encodeURIComponent(token)}&error=${encodeURIComponent("Elige una calificación de 1 a 5 estrellas.")}`
     );
   }
 

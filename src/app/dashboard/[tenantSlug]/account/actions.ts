@@ -22,14 +22,14 @@ export async function updateProfilePhotoAction(tenantSlug: string, formData: For
   const file = formData.get("profileImage");
   if (!(file instanceof File) || file.size === 0) {
     redirect(
-      `/dashboard/${tenantSlug}/account?photoError=${encodeURIComponent("Elegí una imagen para subir.")}`
+      `/dashboard/${tenantSlug}/account?photoError=${encodeURIComponent("Elige una imagen para subir.")}`
     );
   }
 
   if (!ALLOWED_PROFILE_IMAGE_TYPES.has(file.type)) {
     redirect(
       `/dashboard/${tenantSlug}/account?photoError=${encodeURIComponent(
-        "Formato no soportado. Usá JPG, PNG o WEBP."
+        "Formato no soportado. Usa JPG, PNG o WEBP."
       )}`
     );
   }

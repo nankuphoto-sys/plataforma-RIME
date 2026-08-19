@@ -35,7 +35,7 @@ export function ProfilePhotoUploadForm({ tenantSlug }: ProfilePhotoUploadFormPro
     }
 
     if (!ALLOWED_PROFILE_IMAGE_TYPES.has(file.type)) {
-      setClientError("Formato no soportado. Usá JPG, PNG o WEBP.");
+      setClientError("Formato no soportado. Usa JPG, PNG o WEBP.");
       event.target.value = "";
       setFileName(null);
       return;
@@ -44,7 +44,7 @@ export function ProfilePhotoUploadForm({ tenantSlug }: ProfilePhotoUploadFormPro
     if (file.size > MAX_PROFILE_IMAGE_BYTES) {
       const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
       setClientError(
-        `Esa imagen pesa ${sizeMb}MB. El máximo es ${MAX_PROFILE_IMAGE_LABEL} — elegí una más liviana.`
+        `Esa imagen pesa ${sizeMb}MB. El máximo es ${MAX_PROFILE_IMAGE_LABEL} — elige una más liviana.`
       );
       event.target.value = "";
       setFileName(null);

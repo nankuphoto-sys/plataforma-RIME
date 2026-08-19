@@ -31,7 +31,7 @@ export default async function SettingsPage({
   return (
     <div className="mx-auto max-w-xl">
       <h1 className="page-title">Configuración</h1>
-      <p className="page-subtitle">Definí cómo se paga una cita al reservar online.</p>
+      <p className="page-subtitle">Define cómo se paga una cita al reservar online.</p>
 
       <div className="mt-6 border-t border-sage-dark/30 pt-4">
         <p className="section-title text-sm">Política de pago y no-show</p>
@@ -61,7 +61,7 @@ export default async function SettingsPage({
           <p className="section-title text-sm">Fidelidad con sellos</p>
           <p className="mt-1 text-xs text-ink/50">
             Cada cita completada suma un sello. Al llegar al total, el cliente gana el premio —
-            vos se lo canjeás desde su ficha.
+            tú se lo canjeas desde su ficha.
           </p>
 
           {loyaltyError && <p className="msg-error mt-3">{loyaltyError}</p>}
@@ -117,7 +117,7 @@ export default async function SettingsPage({
       <div className="mt-6 border-t border-sage-dark/30 pt-4">
         <p className="section-title text-sm">Marketplace</p>
         <p className="mt-1 text-xs text-ink/50">
-          Si activás esto, tu negocio aparece en{" "}
+          Si activas esto, tu negocio aparece en{" "}
           <a href="/explorar" target="_blank" rel="noreferrer" className="text-pine underline-offset-2 hover:underline">
             el directorio público de RIME
           </a>{" "}
@@ -162,7 +162,7 @@ export default async function SettingsPage({
       <div className="mt-6 border-t border-sage-dark/30 pt-4">
         <p className="section-title text-sm">Widget / enlace para compartir</p>
         <p className="mt-1 text-xs text-ink/50">
-          Compartí este link en redes o tu bio, o pegá el código en tu propio sitio para que
+          Comparte este link en redes o tu bio, o pega el código en tu propio sitio para que
           reserven sin salir de tu página.
         </p>
 

@@ -24,7 +24,7 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
   // permitiera — mismo mecanismo que ya usa forgot-password.
   const ip = await getClientIp();
   if (await isLoginRateLimited(ip)) {
-    return { ok: false, error: "Demasiados intentos. Esperá unos minutos e intentá de nuevo." };
+    return { ok: false, error: "Demasiados intentos. Espera unos minutos e intenta de nuevo." };
   }
   await recordLoginAttempt(ip);
 

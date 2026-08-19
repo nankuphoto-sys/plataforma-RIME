@@ -25,8 +25,8 @@ export default async function NewGiftCardPage({
       </Link>
       <h1 className="page-title mt-3">Emitir gift card</h1>
       <p className="page-subtitle">
-        El código se genera automáticamente. El cobro (efectivo, transferencia, en persona) lo manejás
-        vos fuera de la app.
+        El código se genera automáticamente. El cobro (efectivo, transferencia, en persona) lo manejas
+        tú fuera de la app.
       </p>
 
       <form action={createGiftCardAction.bind(null, tenantSlug)} className="mt-6 space-y-4">

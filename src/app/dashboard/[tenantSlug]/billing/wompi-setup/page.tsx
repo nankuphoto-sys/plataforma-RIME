@@ -28,7 +28,7 @@ export default async function WompiSetupPage({
       </Link>
       <h1 className="page-title mt-3">Configurar cobro automático (Wompi)</h1>
       <p className="page-subtitle">
-        Guardá tu tarjeta de forma segura con Wompi. Nunca vemos ni tocamos el número de tu tarjeta —
+        Guarda tu tarjeta de forma segura con Wompi. Nunca vemos ni tocamos el número de tu tarjeta —
         el widget lo maneja directamente con Wompi.
       </p>
 

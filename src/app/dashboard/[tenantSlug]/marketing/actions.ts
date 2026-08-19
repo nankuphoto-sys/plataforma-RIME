@@ -18,11 +18,11 @@ export async function createAndSendCampaignAction(tenantSlug: string, formData: 
 
   if (!subject || !body) {
     redirect(
-      `/dashboard/${tenantSlug}/marketing/new?error=${encodeURIComponent("Completá el asunto y el mensaje.")}`
+      `/dashboard/${tenantSlug}/marketing/new?error=${encodeURIComponent("Completa el asunto y el mensaje.")}`
     );
   }
   if (!segment || !VALID_SEGMENTS.includes(segment)) {
-    redirect(`/dashboard/${tenantSlug}/marketing/new?error=${encodeURIComponent("Elegí un segmento.")}`);
+    redirect(`/dashboard/${tenantSlug}/marketing/new?error=${encodeURIComponent("Elige un segmento.")}`);
   }
 
   const recipients = await prisma.client.findMany({

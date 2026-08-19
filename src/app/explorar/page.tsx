@@ -65,10 +65,10 @@ export default async function ExplorePage({
       <div className="mx-auto max-w-4xl px-6 py-14 sm:py-20">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-pine">Marketplace</p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-          Explorá negocios en RIME
+          Explora negocios en RIME
         </h1>
         <p className="mt-3 text-sm text-ink/55">
-          Encontrá un negocio y reservá directo, sin salir de acá.
+          Encuentra un negocio y reserva directo, sin salir de acá.
         </p>
 
         <form className="mt-6 flex flex-col gap-3 sm:flex-row" action="/explorar">

@@ -26,7 +26,7 @@ export async function requestPasswordResetAction(formData: FormData): Promise<vo
   if (await isPasswordResetRateLimited(ip)) {
     redirect(
       `/forgot-password?error=${encodeURIComponent(
-        "Demasiados intentos. Esperá unos minutos e intentá de nuevo."
+        "Demasiados intentos. Espera unos minutos e intenta de nuevo."
       )}`
     );
   }

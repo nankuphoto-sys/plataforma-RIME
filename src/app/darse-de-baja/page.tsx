@@ -64,7 +64,7 @@ export default async function UnsubscribePage({
     <UnsubscribeShell>
       <h1 className="page-title text-2xl">¿Dejar de recibir novedades?</h1>
       <p className="page-subtitle">
-        Vas a dejar de recibir emails de marketing de {client.tenant.name}. Seguís pudiendo reservar
+        Vas a dejar de recibir emails de marketing de {client.tenant.name}. Sigues pudiendo reservar
         citas normalmente.
       </p>
       <form action={unsubscribeAction.bind(null, clientId, tenantSlug)} className="mt-6">

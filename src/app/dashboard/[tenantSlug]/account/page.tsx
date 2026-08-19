@@ -172,7 +172,7 @@ export default async function AccountPage({
           <p className="mt-3 text-sm text-ink/60">
             Descarga un respaldo completo de tu negocio: sedes, equipo, profesionales, servicios,
             clientes, citas, inventario, paquetes, gift cards y reseñas — en un archivo legible que
-            podés abrir o llevar a otro sistema.
+            puedes abrir o llevar a otro sistema.
           </p>
           <a
             href={`/dashboard/${tenantSlug}/account/export`}

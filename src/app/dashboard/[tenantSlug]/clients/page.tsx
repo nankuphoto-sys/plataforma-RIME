@@ -36,7 +36,7 @@ export default async function ClientsPage({
       <div className="mx-auto max-w-4xl">
         <h1 className="page-title">Clientes</h1>
         <p className="mt-6 text-sm text-ink/40">
-          Tu usuario todavía no tiene un profesional vinculado en este negocio. Pedile a tu
+          Tu usuario todavía no tiene un profesional vinculado en este negocio. Pídele a tu
           administrador que lo revise desde Profesionales.
         </p>
       </div>

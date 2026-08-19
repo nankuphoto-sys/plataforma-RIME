@@ -9,7 +9,7 @@ const POLICIES: { value: Policy; label: string; description: string }[] = [
   {
     value: "NONE",
     label: "Sin pago anticipado",
-    description: "El cliente reserva sin pagar; vos confirmás la cita manualmente.",
+    description: "El cliente reserva sin pagar; tú confirmas la cita manualmente.",
   },
   {
     value: "DEPOSIT",

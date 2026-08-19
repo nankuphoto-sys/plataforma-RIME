@@ -29,11 +29,11 @@ export async function updateDepositPolicyAction(tenantSlug: string, formData: Fo
   const value = Number(rawValue);
 
   if (!type || !VALID_TYPES.includes(type)) {
-    redirect(`/dashboard/${tenantSlug}/settings?error=${encodeURIComponent("Elegí porcentaje o monto fijo.")}`);
+    redirect(`/dashboard/${tenantSlug}/settings?error=${encodeURIComponent("Elige porcentaje o monto fijo.")}`);
   }
 
   if (!Number.isFinite(value) || value <= 0) {
-    redirect(`/dashboard/${tenantSlug}/settings?error=${encodeURIComponent("Ingresá un monto de seña mayor a 0.")}`);
+    redirect(`/dashboard/${tenantSlug}/settings?error=${encodeURIComponent("Ingresa un monto de seña mayor a 0.")}`);
   }
 
   if (type === "PERCENTAGE" && (value < 1 || value > 100)) {
@@ -66,7 +66,7 @@ export async function updateLoyaltyPolicyAction(tenantSlug: string, formData: Fo
     }
     if (!rewardDescription) {
       redirect(
-        `/dashboard/${tenantSlug}/settings?loyaltyError=${encodeURIComponent("Describí el premio.")}`
+        `/dashboard/${tenantSlug}/settings?loyaltyError=${encodeURIComponent("Describe el premio.")}`
       );
     }
   }

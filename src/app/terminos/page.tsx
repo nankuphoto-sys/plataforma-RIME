@@ -17,11 +17,11 @@ export default function TerminosPage() {
           las citas ni los pagos que proceses con tus pacientes.
         </p>
         <p>
-          Podés cambiar de plan o cancelar tu suscripción en cualquier momento desde tu panel de
+          Puedes cambiar de plan o cancelar tu suscripción en cualquier momento desde tu panel de
           facturación.
         </p>
         <p>
-          Para el detalle completo de estos términos, escribinos a{" "}
+          Para el detalle completo de estos términos, escríbenos a{" "}
           <a className="shell-link" href="mailto:soporte@plataforma-agenda.com">
             soporte@plataforma-agenda.com
           </a>

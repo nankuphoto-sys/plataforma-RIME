@@ -28,14 +28,14 @@ export function ClientPhotoUploadForm({ tenantSlug, clientId }: ClientPhotoUploa
     }
 
     if (!ALLOWED_CLIENT_PHOTO_TYPES.has(file.type)) {
-      setClientError("Formato no soportado. Usá JPG, PNG o WEBP.");
+      setClientError("Formato no soportado. Usa JPG, PNG o WEBP.");
       event.target.value = "";
       return;
     }
 
     if (file.size > MAX_CLIENT_PHOTO_BYTES) {
       const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
-      setClientError(`Esa foto pesa ${sizeMb}MB. El máximo es ${MAX_CLIENT_PHOTO_LABEL} — elegí una más liviana.`);
+      setClientError(`Esa foto pesa ${sizeMb}MB. El máximo es ${MAX_CLIENT_PHOTO_LABEL} — elige una más liviana.`);
       event.target.value = "";
       return;
     }

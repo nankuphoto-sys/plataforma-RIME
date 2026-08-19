@@ -139,7 +139,7 @@ export async function createClientAction(tenantSlug: string, formData: FormData)
   if (isProfessionalOnly) {
     redirect(
       `/dashboard/${tenantSlug}/clients?error=${encodeURIComponent(
-        "No tenés permiso para crear clientes nuevos. Pedile a recepción o a tu administrador que lo haga."
+        "No tienes permiso para crear clientes nuevos. Pídele a recepción o a tu administrador que lo haga."
       )}`
     );
   }
@@ -155,7 +155,7 @@ export async function createClientAction(tenantSlug: string, formData: FormData)
   if (duplicate) {
     redirect(
       `/dashboard/${tenantSlug}/clients/new?error=${encodeURIComponent(
-        `Ese email o teléfono ya pertenece a ${duplicate.name} — revisá si es la misma persona antes de crear un registro nuevo.`
+        `Ese email o teléfono ya pertenece a ${duplicate.name} — revisa si es la misma persona antes de crear un registro nuevo.`
       )}`
     );
   }
@@ -212,7 +212,7 @@ export async function updateClientAction(
   if (duplicate) {
     redirect(
       `/dashboard/${tenantSlug}/clients/${clientId}?error=${encodeURIComponent(
-        `Ese email o teléfono ya pertenece a ${duplicate.name} — revisá si es la misma persona antes de guardar.`
+        `Ese email o teléfono ya pertenece a ${duplicate.name} — revisa si es la misma persona antes de guardar.`
       )}`
     );
   }
@@ -366,7 +366,7 @@ export async function redeemPackageSessionAction(
     data: { usedSessions: nextUsedSessions, status: nextStatus },
   });
   if (claim.count === 0) {
-    redirectWithError("Este paquete cambió justo ahora — probá de nuevo.");
+    redirectWithError("Este paquete cambió justo ahora — prueba de nuevo.");
     return;
   }
 
@@ -441,7 +441,7 @@ export async function redeemLoyaltyRewardAction(tenantSlug: string, clientId: st
   });
   if (claim.count === 0) {
     redirect(
-      `/dashboard/${tenantSlug}/clients/${clientId}?error=${encodeURIComponent("Este cliente cambió justo ahora — probá de nuevo.")}`
+      `/dashboard/${tenantSlug}/clients/${clientId}?error=${encodeURIComponent("Este cliente cambió justo ahora — prueba de nuevo.")}`
     );
   }
 
@@ -643,7 +643,7 @@ export async function uploadClientPhotoAction(
 
   const file = formData.get("photo");
   if (!(file instanceof File) || file.size === 0) {
-    redirectWithError("Elegí una foto para subir.");
+    redirectWithError("Elige una foto para subir.");
     return;
   }
   if (!ALLOWED_CLIENT_PHOTO_TYPES.has(file.type)) {
@@ -671,7 +671,7 @@ export async function uploadClientPhotoAction(
     url = blob.url;
   } catch {
     redirectWithError(
-      "No se pudo subir la foto — el almacenamiento de archivos no está configurado todavía. Contactá a soporte."
+      "No se pudo subir la foto — el almacenamiento de archivos no está configurado todavía. Contacta a soporte."
     );
     return;
   }

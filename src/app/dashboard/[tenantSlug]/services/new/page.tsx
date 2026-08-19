@@ -81,7 +81,7 @@ export default async function NewServicePage({
             className="field-input"
           />
           <p className="mt-1 text-xs text-ink/45">
-            Si lo dejás vacío, se usa el % de comisión de cada profesional. Si lo llenás, este
+            Si lo dejas vacío, se usa el % de comisión de cada profesional. Si lo llenas, este
             servicio siempre paga ese % sin importar quién lo haga.
           </p>
         </div>

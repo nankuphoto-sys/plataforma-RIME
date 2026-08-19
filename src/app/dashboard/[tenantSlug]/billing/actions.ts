@@ -87,7 +87,7 @@ export async function changeSubscriptionPlanAction(tenantSlug: string, newPlan: 
   if (subscription.items.data.length !== 1) {
     redirect(
       `/dashboard/${tenantSlug}/billing?error=${encodeURIComponent(
-        "No se pudo cambiar el plan: la suscripción de Stripe no tiene la forma esperada. Contactá soporte."
+        "No se pudo cambiar el plan: la suscripción de Stripe no tiene la forma esperada. Contacta soporte."
       )}`
     );
   }
@@ -204,7 +204,7 @@ export async function reactivateWompiSubscriptionAction(tenantSlug: string): Pro
   if (!result.approved) {
     redirect(
       `/dashboard/${tenantSlug}/billing?error=${encodeURIComponent(
-        "No se pudo iniciar el cobro de reactivación. Probá de nuevo en unos minutos."
+        "No se pudo iniciar el cobro de reactivación. Prueba de nuevo en unos minutos."
       )}`
     );
   }

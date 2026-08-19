@@ -150,7 +150,7 @@ export async function createTeamMemberAction(tenantSlug: string, formData: FormD
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       redirect(
         `/dashboard/${tenantSlug}/team/new?error=${encodeURIComponent(
-          "Ese correo ya tiene una cuenta — probá de nuevo o edítalo desde la lista."
+          "Ese correo ya tiene una cuenta — prueba de nuevo o edítalo desde la lista."
         )}`
       );
     }
@@ -214,7 +214,7 @@ export async function updateTeamMemberAction(
     if (otherOwnerCount === 0) {
       redirect(
         `/dashboard/${tenantSlug}/team/${userId}?error=${encodeURIComponent(
-          "No se puede quitar el rol OWNER: es el único OWNER del negocio. Asigná OWNER a otra persona primero."
+          "No se puede quitar el rol OWNER: es el único OWNER del negocio. Asigna OWNER a otra persona primero."
         )}`
       );
     }

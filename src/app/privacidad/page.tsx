@@ -22,7 +22,7 @@ export default function PrivacidadPage() {
           procesan a través de Stripe y Wompi; no almacenamos números de tarjeta en nuestros servidores.
         </p>
         <p>
-          Para cualquier consulta sobre el tratamiento de tus datos, escribinos a{" "}
+          Para cualquier consulta sobre el tratamiento de tus datos, escríbenos a{" "}
           <a className="shell-link" href="mailto:soporte@plataforma-agenda.com">
             soporte@plataforma-agenda.com
           </a>

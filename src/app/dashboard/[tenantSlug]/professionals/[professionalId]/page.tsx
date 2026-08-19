@@ -201,7 +201,7 @@ export default async function ProfessionalDetailPage({
           </div>
         ) : !hasAssignedLocations ? (
           <p className="mt-2 text-sm text-ink/60">
-            Asigná al menos una sede a este profesional antes de darle acceso al dashboard.
+            Asigna al menos una sede a este profesional antes de darle acceso al dashboard.
           </p>
         ) : (
           <div className="mt-3 space-y-6">
@@ -248,7 +248,7 @@ export default async function ProfessionalDetailPage({
                 <>
                   <select name="userId" required className="field-input" defaultValue="">
                     <option value="" disabled>
-                      Elegí un usuario
+                      Elige un usuario
                     </option>
                     {availableUsers.map((user) => (
                       <option key={user.id} value={user.id}>

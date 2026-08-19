@@ -267,7 +267,7 @@ export async function inviteProfessionalAsUserAction(
   if (professional.professionalLocations.length === 0) {
     redirect(
       `${detailPath}?error=${encodeURIComponent(
-        "Asigná al menos una sede a este profesional antes de darle acceso al dashboard."
+        "Asigna al menos una sede a este profesional antes de darle acceso al dashboard."
       )}`
     );
   }
@@ -286,7 +286,7 @@ export async function inviteProfessionalAsUserAction(
   if (existingUser) {
     const message =
       existingUser.tenantId === tenant.id
-        ? "Ese correo ya tiene una cuenta en tu equipo. Vinculalo desde \"usuario existente\" en vez de invitar de nuevo."
+        ? "Ese correo ya tiene una cuenta en tu equipo. Vincúlalo desde \"usuario existente\" en vez de invitar de nuevo."
         : "Ese correo ya pertenece a otra cuenta y no se puede usar aquí.";
     redirect(`${detailPath}?error=${encodeURIComponent(message)}`);
   }
@@ -312,7 +312,7 @@ export async function inviteProfessionalAsUserAction(
     // El chequeo de existingUser de arriba queda afuera de esta transacción —
     // ver el mismo comentario en team/actions.ts createTeamMemberAction.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      redirect(`${detailPath}?error=${encodeURIComponent("Ese correo ya tiene una cuenta — probá de nuevo.")}`);
+      redirect(`${detailPath}?error=${encodeURIComponent("Ese correo ya tiene una cuenta — prueba de nuevo.")}`);
     }
     throw err;
   }
@@ -354,7 +354,7 @@ export async function linkExistingUserToProfessionalAction(
   if (professional.professionalLocations.length === 0) {
     redirect(
       `${detailPath}?error=${encodeURIComponent(
-        "Asigná al menos una sede a este profesional antes de darle acceso al dashboard."
+        "Asigna al menos una sede a este profesional antes de darle acceso al dashboard."
       )}`
     );
   }
@@ -366,7 +366,7 @@ export async function linkExistingUserToProfessionalAction(
   });
   if (!targetUser || targetUser.professionalProfile) {
     redirect(
-      `${detailPath}?error=${encodeURIComponent("Elegí un usuario válido que todavía no esté vinculado a otro profesional.")}`
+      `${detailPath}?error=${encodeURIComponent("Elige un usuario válido que todavía no esté vinculado a otro profesional.")}`
     );
   }
 

@@ -29,7 +29,7 @@ export default async function NewClientPage({
   if (isProfessionalOnly) {
     redirect(
       `/dashboard/${tenantSlug}/clients?error=${encodeURIComponent(
-        "No tenés permiso para crear clientes nuevos. Pedile a recepción o a tu administrador que lo haga."
+        "No tienes permiso para crear clientes nuevos. Pídele a recepción o a tu administrador que lo haga."
       )}`
     );
   }

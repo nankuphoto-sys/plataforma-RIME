@@ -75,7 +75,7 @@ export async function createClientFieldAction(tenantSlug: string, formData: Form
   const key = generateFieldKey(label);
   if (!key) {
     redirect(
-      `${newPath}?error=${encodeURIComponent("El nombre no genera una clave válida, probá con otro.")}`
+      `${newPath}?error=${encodeURIComponent("El nombre no genera una clave válida, prueba con otro.")}`
     );
   }
 
@@ -83,7 +83,7 @@ export async function createClientFieldAction(tenantSlug: string, formData: Form
   if (fixedTemplate.some((field) => field.key === key)) {
     redirect(
       `${newPath}?error=${encodeURIComponent(
-        "Ya existe un campo de la ficha con esa clave (uno fijo de tu rubro). Probá con otro nombre."
+        "Ya existe un campo de la ficha con esa clave (uno fijo de tu rubro). Prueba con otro nombre."
       )}`
     );
   }
@@ -93,8 +93,8 @@ export async function createClientFieldAction(tenantSlug: string, formData: Form
   });
   if (existing) {
     const message = existing.active
-      ? "Ya existe un campo personalizado con esa clave. Probá con otro nombre."
-      : "Ya existe un campo personalizado (desactivado) con esa clave. Reactivalo en vez de crear uno nuevo.";
+      ? "Ya existe un campo personalizado con esa clave. Prueba con otro nombre."
+      : "Ya existe un campo personalizado (desactivado) con esa clave. Reactívalo en vez de crear uno nuevo.";
     redirect(`${newPath}?error=${encodeURIComponent(message)}`);
   }
 
@@ -113,7 +113,7 @@ export async function createClientFieldAction(tenantSlug: string, formData: Form
     // mismo comentario en team/actions.ts createTeamMemberAction.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       redirect(
-        `${newPath}?error=${encodeURIComponent("Ya existe un campo personalizado con esa clave. Probá con otro nombre.")}`
+        `${newPath}?error=${encodeURIComponent("Ya existe un campo personalizado con esa clave. Prueba con otro nombre.")}`
       );
     }
     throw err;

@@ -37,7 +37,7 @@ export async function createGiftCardAction(tenantSlug: string, formData: FormDat
 
   if (!Number.isFinite(amount) || amount <= 0) {
     redirect(
-      `/dashboard/${tenantSlug}/gift-cards/new?error=${encodeURIComponent("Ingresá un monto mayor a 0.")}`
+      `/dashboard/${tenantSlug}/gift-cards/new?error=${encodeURIComponent("Ingresa un monto mayor a 0.")}`
     );
   }
 

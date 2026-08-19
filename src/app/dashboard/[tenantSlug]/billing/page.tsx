@@ -96,7 +96,7 @@ export default async function BillingPage({
       )}
       {error === "mismo-plan" && <p className="msg-error mt-4">Ya estás en ese plan.</p>}
       {error === "ya-tenes-stripe" && (
-        <p className="msg-error mt-4">Ya tenés una suscripción de Stripe activa — no podés configurar Wompi a la vez.</p>
+        <p className="msg-error mt-4">Ya tienes una suscripción de Stripe activa — no puedes configurar Wompi a la vez.</p>
       )}
       {error === "tarjeta-rechazada" && (
         <p className="msg-error mt-4">No se pudo guardar la tarjeta. Intenta de nuevo.</p>
@@ -165,7 +165,7 @@ export default async function BillingPage({
           <h2 className="section-title">Cambiar de plan</h2>
           <p className="mt-2 text-sm text-ink/55">
             {hasStripeSubscription
-              ? "El cambio aplica de inmediato. Si subís de plan, Stripe cobra la diferencia prorrateada ahora; si bajás, te acredita la diferencia en tu próxima factura."
+              ? "El cambio aplica de inmediato. Si subes de plan, Stripe cobra la diferencia prorrateada ahora; si bajas, te acredita la diferencia en tu próxima factura."
               : "El cambio de acceso aplica de inmediato. A diferencia de Stripe, acá no hay prorrateo: tu próximo cobro automático por Wompi ya sale con el monto completo del plan nuevo, sin ajustar por lo que quedaba del ciclo actual."}
           </p>
 
@@ -189,7 +189,7 @@ export default async function BillingPage({
                     <p className="mt-0.5 text-xs text-ink/50">{describePlan(option)}</p>
                     {!isCurrent && (overLocations || overProfessionals) && (
                       <p className="mt-2 text-xs text-berry-dark">
-                        Hoy tenés {locationCount} sede{locationCount === 1 ? "" : "s"} /{" "}
+                        Hoy tienes {locationCount} sede{locationCount === 1 ? "" : "s"} /{" "}
                         {activeProfessionalCount} profesional{activeProfessionalCount === 1 ? "" : "es"}{" "}
                         activo{activeProfessionalCount === 1 ? "" : "s"}, más de lo que incluye este plan.
                         No se desactiva nada solo, pero no vas a poder agregar más hasta bajar de esa

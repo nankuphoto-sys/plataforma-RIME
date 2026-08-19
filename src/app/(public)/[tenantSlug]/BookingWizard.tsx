@@ -388,7 +388,7 @@ export function BookingWizard({
               {!giftCardApplied && (
                 <div className="mb-4 border-b border-sage-dark/25 pb-4">
                   <label className="field-label" htmlFor="giftCardCode">
-                    ¿Tenés una gift card?
+                    ¿Tienes una gift card?
                   </label>
                   <div className="mt-1 flex gap-2">
                     <input

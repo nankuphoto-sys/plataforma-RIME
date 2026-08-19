@@ -464,7 +464,7 @@ export async function applyGiftCardAction(
   }
 
   const code = rawCode.trim().toUpperCase();
-  if (!code) return { ok: false, error: "Ingresá un código." };
+  if (!code) return { ok: false, error: "Ingresa un código." };
 
   const giftCard = await prisma.giftCard.findUnique({
     where: { tenantId_code: { tenantId: tenant.id, code } },
@@ -517,7 +517,7 @@ export async function applyGiftCardAction(
   });
 
   if (!updated) {
-    return { ok: false, error: "El saldo de esta gift card cambió justo ahora — probá de nuevo." };
+    return { ok: false, error: "El saldo de esta gift card cambió justo ahora — prueba de nuevo." };
   }
 
   return {

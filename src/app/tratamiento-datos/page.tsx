@@ -15,14 +15,14 @@ export default function TratamientoDatosPage() {
         <p>
           Los datos de tus pacientes (ficha clínica, historial de citas) le pertenecen a tu negocio, no a
           RIME. Los usamos únicamente para operar la agenda, los recordatorios y los pagos
-          que vos configurás.
+          que tú configuras.
         </p>
         <p>
           Los campos de la ficha clínica son configurables por especialidad y quedan bajo tu control:
-          vos decidís qué información se recolecta de cada paciente.
+          tú decides qué información se recolecta de cada paciente.
         </p>
         <p>
-          Para ejercer derechos de acceso, corrección o eliminación de datos, escribinos a{" "}
+          Para ejercer derechos de acceso, corrección o eliminación de datos, escríbenos a{" "}
           <a className="shell-link" href="mailto:soporte@plataforma-agenda.com">
             soporte@plataforma-agenda.com
           </a>

@@ -19,7 +19,7 @@ export default async function ResetPasswordPage({
           <div className="auth-card">
             <h1 className="page-title text-2xl">Link inválido</h1>
             <p className="page-subtitle">
-              Este link de recuperación no es válido. Pedí uno nuevo desde{" "}
+              Este link de recuperación no es válido. Pide uno nuevo desde{" "}
               <Link href="/forgot-password" className="text-pine underline-offset-2 hover:underline">
                 ¿Olvidaste tu contraseña?
               </Link>
@@ -33,7 +33,7 @@ export default async function ResetPasswordPage({
 
   const errorMessage =
     error === "token-invalido"
-      ? "Este link ya no es válido — puede haber expirado o ya haberse usado. Pedí uno nuevo."
+      ? "Este link ya no es válido — puede haber expirado o ya haberse usado. Pide uno nuevo."
       : error;
 
   return (
@@ -45,7 +45,7 @@ export default async function ResetPasswordPage({
         </Link>
 
         <div className="auth-card">
-          <h1 className="page-title text-2xl">Elegí una nueva contraseña</h1>
+          <h1 className="page-title text-2xl">Elige una nueva contraseña</h1>
           <p className="page-subtitle">Este link expira 1 hora después de haberlo pedido.</p>
 
           <form action={resetPasswordAction.bind(null, token)} className="mt-6 space-y-4">

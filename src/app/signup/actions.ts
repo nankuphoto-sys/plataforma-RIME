@@ -126,7 +126,7 @@ export async function signUpTenantAction(formData: FormData): Promise<void> {
       const target = Array.isArray(err.meta?.target) ? (err.meta.target as string[]) : [];
       const message = target.includes("email")
         ? "Ese correo ya tiene una cuenta. Inicia sesión en vez de registrarte."
-        : "Ya existe un negocio con ese nombre — probá con otro.";
+        : "Ya existe un negocio con ese nombre — prueba con otro.";
       redirect(`/signup?error=${encodeURIComponent(message)}`);
     }
     throw err;

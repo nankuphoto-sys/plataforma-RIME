@@ -15,11 +15,11 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     await resend.emails.send({
       from: process.env.EMAIL_FROM ?? "RIME <onboarding@resend.dev>",
       to,
-      subject: "Restablecé tu contraseña — RIME",
+      subject: "Restablece tu contraseña — RIME",
       html: `
         <p>Recibimos un pedido para restablecer tu contraseña.</p>
-        <p><a href="${resetUrl}">Hacé clic acá para elegir una nueva contraseña</a>.</p>
-        <p>Este link expira en 1 hora. Si no pediste esto, podés ignorar este correo.</p>
+        <p><a href="${resetUrl}">Haz clic acá para elegir una nueva contraseña</a>.</p>
+        <p>Este link expira en 1 hora. Si no pediste esto, puedes ignorar este correo.</p>
       `,
     });
   } catch (error) {
@@ -47,7 +47,7 @@ export async function sendReviewInviteEmail(
       subject: `¿Cómo te fue en ${tenantName}?`,
       html: `
         <p>Gracias por tu visita a ${tenantName}.</p>
-        <p><a href="${reviewUrl}">Contanos cómo te fue</a> — te toma menos de un minuto.</p>
+        <p><a href="${reviewUrl}">Cuéntanos cómo te fue</a> — te toma menos de un minuto.</p>
         <p>Este link es personal y vence en 30 días.</p>
       `,
     });

@@ -105,7 +105,7 @@ export default async function InventoryPage({
               </div>
               <p className="mt-2 text-sm text-ink/60">
                 Cuando una salida de inventario deja un ítem en su umbral de stock bajo o por debajo en{" "}
-                {location.name}, se avisa por WhatsApp a este número. Cada sede tiene el suyo — dejalo
+                {location.name}, se avisa por WhatsApp a este número. Cada sede tiene el suyo — déjalo
                 vacío para desactivar las alertas de esta sede en particular.
               </p>
               <form

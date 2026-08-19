@@ -142,7 +142,7 @@ export async function updateLowStockAlertPhoneAction(
   }
 
   if (!normalizePhoneForWhatsapp(raw)) {
-    redirect(`${redirectPath}&error=${encodeURIComponent("Ese número no parece válido. Dejalo vacío para desactivar las alertas.")}`);
+    redirect(`${redirectPath}&error=${encodeURIComponent("Ese número no parece válido. Déjalo vacío para desactivar las alertas.")}`);
   }
 
   await prisma.location.update({ where: { id: location.id }, data: { lowStockAlertPhone: raw } });
@@ -261,7 +261,7 @@ export async function recordInventoryMovementAction(
       return;
     }
     if (err instanceof Error && err.message === "CONCURRENT_MODIFICATION") {
-      redirectWithError("Alguien más registró un movimiento de este ítem justo ahora — probá de nuevo.");
+      redirectWithError("Alguien más registró un movimiento de este ítem justo ahora — prueba de nuevo.");
       return;
     }
     throw err;
