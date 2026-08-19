@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
+import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 import "./globals.css";
 
 // Dirección "Booksy" (turquesa + Inter): Inter reemplaza a Plus Jakarta Sans
@@ -22,6 +23,17 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "RIME",
   description: "Agendamiento, CRM y pagos para negocios de salud y bienestar.",
+  // Habilita "Agregar a pantalla de inicio" / instalación como PWA — el
+  // contenido real vive en public/manifest.json (nombre, ícono, modo
+  // standalone). themeColor NO va acá: Next.js 15 lo movió al export
+  // `viewport` de abajo (ponerlo en metadata tira warning de build).
+  manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
+  // Turquesa-petróleo de marca (tailwind.config.ts -> colors.pine.DEFAULT)
+  // — color de la barra del navegador/status bar en modo standalone.
+  themeColor: "#1E7F95",
 };
 
 export default function RootLayout({
@@ -42,7 +54,10 @@ export default function RootLayout({
       // puntual, no afecta el resto del árbol.
       suppressHydrationWarning
     >
-      <body className="min-h-screen bg-paper font-sans text-ink antialiased">{children}</body>
+      <body className="min-h-screen bg-paper font-sans text-ink antialiased">
+        <RegisterServiceWorker />
+        {children}
+      </body>
     </html>
   );
 }

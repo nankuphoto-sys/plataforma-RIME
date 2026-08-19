@@ -1,0 +1,18 @@
+{
+  "name": "RIME",
+  "short_name": "RIME",
+  "description": "Agendamiento, CRM y pagos para negocios de salud y bienestar.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1E7F95",
+  "theme_color": "#1E7F95",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
