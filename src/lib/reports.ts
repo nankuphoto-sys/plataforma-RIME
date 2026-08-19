@@ -11,13 +11,20 @@ export function getDefaultReportRange(now: Date): { from: Date; to: Date } {
   return { from, to: now };
 }
 
-// Convierte un string "yyyy-mm-dd" de un query param a Date (00:00 UTC), o
-// null si no es válido/está vacío.
-export function parseReportDateParam(value: string | undefined): Date | null {
+// Convierte un string "yyyy-mm-dd" de un query param a Date (00:00 UTC por
+// defecto), o null si no es válido/está vacío. Para el límite superior de un
+// rango (`to`) hay que pasar endOfDay: true — si no, un filtro `lte: to`
+// deja afuera prácticamente todo el día seleccionado (todo excepto el
+// instante exacto 00:00:00.000Z), y las citas/pagos de ese día desaparecen
+// silenciosamente de reportes y exports.
+export function parseReportDateParam(
+  value: string | undefined,
+  options?: { endOfDay?: boolean }
+): Date | null {
   if (!value) return null;
   const match = /^\d{4}-\d{2}-\d{2}$/.test(value);
   if (!match) return null;
-  const date = new Date(`${value}T00:00:00.000Z`);
+  const date = new Date(`${value}T${options?.endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 

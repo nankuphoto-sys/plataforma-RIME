@@ -1,6 +1,7 @@
 import type { AppointmentStatus } from "@prisma/client";
 import { CalendarCheck, CheckCircle2, Clock, DollarSign, Download, FileDown, Filter, Save } from "lucide-react";
 import { requireReportsAccess } from "@/lib/auth-guards";
+import { prisma } from "@/lib/prisma";
 import {
   computeInventoryConsumption,
   computeReportData,
@@ -34,13 +35,23 @@ export default async function ReportsPage({
   // Rango inválido o incompleto -> se usa el default completo (no mezclamos
   // un `from` custom con un `to` default, o viceversa).
   const parsedFrom = parseReportDateParam(fromParam);
-  const parsedTo = parseReportDateParam(toParam);
+  const parsedTo = parseReportDateParam(toParam, { endOfDay: true });
   const { from, to } =
     parsedFrom && parsedTo ? { from: parsedFrom, to: parsedTo } : getDefaultReportRange(new Date());
 
+  // Todos los profesionales, no solo los activos (tenant.professionals del
+  // guard filtra active: true, correcto para el flujo de reserva) — un
+  // profesional desactivado puede seguir teniendo comisión pendiente de un
+  // período anterior, y desaparecer del reporte dejaría esa plata sin forma
+  // de marcarse como pagada desde el dashboard.
+  const allProfessionals = await prisma.professional.findMany({
+    where: { tenantId: tenant.id },
+    orderBy: { name: "asc" },
+  });
+
   const { statusCountsByStatus, revenueRows, commissionRows } = await computeReportData(
     tenant.id,
-    tenant.professionals,
+    allProfessionals,
     from,
     to
   );

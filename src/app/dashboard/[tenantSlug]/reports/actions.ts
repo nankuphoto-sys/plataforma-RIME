@@ -75,7 +75,7 @@ export async function markCommissionAsPaidAction(
   if (!professional) notFound();
 
   const parsedFrom = parseReportDateParam(fromRaw);
-  const parsedTo = parseReportDateParam(toRaw);
+  const parsedTo = parseReportDateParam(toRaw, { endOfDay: true });
   const { from, to } =
     parsedFrom && parsedTo ? { from: parsedFrom, to: parsedTo } : getDefaultReportRange(new Date());
 

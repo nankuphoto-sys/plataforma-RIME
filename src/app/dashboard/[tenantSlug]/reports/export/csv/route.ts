@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireReportsAccess } from "@/lib/auth-guards";
+import { prisma } from "@/lib/prisma";
 import {
   computeInventoryConsumption,
   computeReportData,
@@ -34,13 +35,21 @@ export async function GET(
   }
 
   const parsedFrom = parseReportDateParam(url.searchParams.get("from") ?? undefined);
-  const parsedTo = parseReportDateParam(url.searchParams.get("to") ?? undefined);
+  const parsedTo = parseReportDateParam(url.searchParams.get("to") ?? undefined, { endOfDay: true });
   const { from, to } =
     parsedFrom && parsedTo ? { from: parsedFrom, to: parsedTo } : getDefaultReportRange(new Date());
 
+  // Todos los profesionales, no solo los activos — ver el mismo comentario
+  // en reports/page.tsx: un profesional desactivado con comisión pendiente
+  // no debe desaparecer del export.
+  const allProfessionals = await prisma.professional.findMany({
+    where: { tenantId: tenant.id },
+    orderBy: { name: "asc" },
+  });
+
   const { statusCountsByStatus, revenueRows, commissionRows } = await computeReportData(
     tenant.id,
-    tenant.professionals,
+    allProfessionals,
     from,
     to
   );

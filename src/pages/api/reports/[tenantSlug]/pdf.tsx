@@ -158,7 +158,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     where: { slug: tenantSlug },
     include: {
       locations: true,
-      professionals: { where: { active: true }, orderBy: { name: "asc" } },
+      // Todos los profesionales, no solo los activos — uno desactivado con
+      // comisión pendiente de un período anterior no debe desaparecer del PDF.
+      professionals: { orderBy: { name: "asc" } },
     },
   });
   if (!tenant) {
@@ -198,7 +200,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const parsedFrom = parseReportDateParam(
     typeof req.query.from === "string" ? req.query.from : undefined
   );
-  const parsedTo = parseReportDateParam(typeof req.query.to === "string" ? req.query.to : undefined);
+  const parsedTo = parseReportDateParam(
+    typeof req.query.to === "string" ? req.query.to : undefined,
+    { endOfDay: true }
+  );
   const { from, to } =
     parsedFrom && parsedTo ? { from: parsedFrom, to: parsedTo } : getDefaultReportRange(new Date());
 

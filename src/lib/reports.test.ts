@@ -24,6 +24,12 @@ describe("parseReportDateParam", () => {
   it("devuelve null para un string que no tiene forma de fecha", () => {
     expect(parseReportDateParam("basura")).toBeNull();
   });
+
+  it("con endOfDay:true convierte a las 23:59:59.999 UTC, para no dejar afuera el último día del rango en un filtro `lte`", () => {
+    expect(parseReportDateParam("2026-08-15", { endOfDay: true })).toEqual(
+      new Date("2026-08-15T23:59:59.999Z")
+    );
+  });
 });
 
 describe("calculateCommissionAmount", () => {
