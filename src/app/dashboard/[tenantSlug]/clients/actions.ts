@@ -3,6 +3,7 @@
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { put } from "@vercel/blob";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizePhoneForWhatsapp } from "@/lib/whatsapp";
 import {
@@ -17,6 +18,7 @@ import {
 import { isProfessionalOnlyInTenant, type StaffLocationRoleRecord } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { getEffectiveClientFieldTemplate, type ClientFieldDefinition } from "@/lib/clientFieldTemplates";
+import { encryptCustomFields } from "@/lib/clientCustomFields";
 import { canRedeemSession } from "@/lib/packages";
 import { computeAvailableRewards } from "@/lib/loyalty";
 import { ALLOWED_CLIENT_PHOTO_TYPES, MAX_CLIENT_PHOTO_BYTES, MAX_CLIENT_PHOTO_LABEL } from "@/lib/clientPhotos";
@@ -62,16 +64,23 @@ function parseBaseFields(formData: FormData) {
 // al editar, para no compararlo contra sí mismo. El teléfono no se puede
 // comparar en la query de Prisma (está guardado como texto libre, sin
 // normalizar), así que se trae candidatos por tenant y se compara en JS.
-async function findDuplicateClient(
+//
+// Exportada (y con el 5º parámetro `client` opcional, default `prisma`) para
+// que la importación masiva desde CSV (clients/import/actions.ts) reuse
+// exactamente esta misma lógica de dedup en vez de una paralela — puede
+// pasar el `tx` de su propia transacción por lote para que la detección vea
+// los clientes recién creados en filas anteriores del mismo lote.
+export async function findDuplicateClient(
   tenantId: string,
   email: string | null,
   phone: string | null,
-  excludeClientId?: string
+  excludeClientId?: string,
+  client: PrismaClient | Prisma.TransactionClient = prisma
 ) {
   if (!email && !phone) return null;
   const normalizedPhone = phone ? normalizePhoneForWhatsapp(phone) : null;
 
-  const candidates = await prisma.client.findMany({
+  const candidates = await client.client.findMany({
     where: {
       tenantId,
       ...(excludeClientId ? { id: { not: excludeClientId } } : {}),
@@ -164,7 +173,7 @@ export async function createClientAction(tenantSlug: string, formData: FormData)
   const customFields = buildCustomFields(formData, fieldTemplate);
 
   const client = await prisma.client.create({
-    data: { tenantId: tenant.id, name, email, phone, birthdate, customFields },
+    data: { tenantId: tenant.id, name, email, phone, birthdate, customFields: encryptCustomFields(customFields) },
   });
 
   revalidatePath(`/dashboard/${tenantSlug}/clients`);
@@ -222,7 +231,7 @@ export async function updateClientAction(
 
   await prisma.client.update({
     where: { id: client.id },
-    data: { name, email, phone, birthdate, customFields },
+    data: { name, email, phone, birthdate, customFields: encryptCustomFields(customFields) },
   });
 
   revalidatePath(`/dashboard/${tenantSlug}/clients/${clientId}`);

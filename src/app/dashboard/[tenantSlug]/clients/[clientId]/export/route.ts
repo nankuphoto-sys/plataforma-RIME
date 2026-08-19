@@ -5,6 +5,7 @@ import { requireDashboardAccess } from "@/lib/auth-guards";
 import { isProfessionalOnlyInTenant } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { getEffectiveClientFieldTemplate } from "@/lib/clientFieldTemplates";
+import { decryptCustomFields } from "@/lib/clientCustomFields";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
 import { planIncludesModule } from "@/lib/planLimits";
 
@@ -64,7 +65,7 @@ export async function GET(
       : Promise.resolve([]),
   ]);
 
-  const customFieldsRaw = (client.customFields ?? {}) as Record<string, unknown>;
+  const customFieldsRaw = decryptCustomFields(client.customFields);
   // Se exportan con la etiqueta legible de cada campo (no la key camelCase
   // interna), pensado para que el archivo se pueda leer o importar en otro
   // negocio sin conocer el esquema interno de RIME.

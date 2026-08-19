@@ -9,6 +9,7 @@ import { requireDashboardAccess } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations, hasLocationAccess, isProfessionalOnlyInTenant } from "@/lib/authorization";
 import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { getEffectiveClientFieldTemplate } from "@/lib/clientFieldTemplates";
+import { decryptCustomFields } from "@/lib/clientCustomFields";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointmentStatus";
 import { planIncludesModule } from "@/lib/planLimits";
 import { canRedeemSession, remainingSessions } from "@/lib/packages";
@@ -103,7 +104,7 @@ export default async function ClientDetailPage({
   // campo de diagnóstico). Restringir eso requeriría notas por profesional,
   // un modelo de datos nuevo que queda fuera de esta fase.
   const fieldTemplate = await getEffectiveClientFieldTemplate(tenant.id, tenant.vertical);
-  const customFields = (client.customFields ?? {}) as Record<string, unknown>;
+  const customFields = decryptCustomFields(client.customFields);
 
   // Paquetes de sesiones: sección propia del cliente (como su historial de
   // citas), gateada por plan — oculta en vez de redirigir la página entera,
