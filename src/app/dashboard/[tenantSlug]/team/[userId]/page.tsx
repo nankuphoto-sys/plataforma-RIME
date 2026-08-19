@@ -42,7 +42,7 @@ export default async function TeamMemberDetailPage({
   let temporaryPassword: string | null = null;
   if (created === "1" || resetPw === "1") {
     const cookieStore = await cookies();
-    temporaryPassword = cookieStore.get("newUserTempPassword")?.value ?? null;
+    temporaryPassword = cookieStore.get(`newUserTempPassword_${userId}`)?.value ?? null;
   }
 
   return (

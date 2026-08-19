@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import type { Role } from "@prisma/client";
+import { Prisma, type Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireTeamManageAccess } from "@/lib/auth-guards";
@@ -126,25 +126,42 @@ export async function createTeamMemberAction(tenantSlug: string, formData: FormD
   const plainPassword = generateTemporaryPassword();
   const passwordHash = await bcrypt.hash(plainPassword, 10);
 
-  const user = await prisma.$transaction(async (tx) => {
-    const created = await tx.user.create({
-      data: { tenantId: tenant.id, name, email, passwordHash },
+  let user;
+  try {
+    user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: { tenantId: tenant.id, name, email, passwordHash },
+      });
+      await tx.staffLocationRole.createMany({
+        data: submittedRoles.map((entry) => ({
+          userId: created.id,
+          locationId: entry.locationId,
+          role: entry.role,
+        })),
+      });
+      return created;
     });
-    await tx.staffLocationRole.createMany({
-      data: submittedRoles.map((entry) => ({
-        userId: created.id,
-        locationId: entry.locationId,
-        role: entry.role,
-      })),
-    });
-    return created;
-  });
+  } catch (err) {
+    // El chequeo de existingUser de arriba queda afuera de esta transacción —
+    // dos invitaciones concurrentes al mismo correo (dos admins, o un doble
+    // click) podrían pasar ambas ese chequeo antes de que cualquiera escriba,
+    // y la segunda rompía el @unique de User.email sin capturarse, mostrando
+    // la pantalla de error genérica en vez de un mensaje entendible.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      redirect(
+        `/dashboard/${tenantSlug}/team/new?error=${encodeURIComponent(
+          "Ese correo ya tiene una cuenta — probá de nuevo o edítalo desde la lista."
+        )}`
+      );
+    }
+    throw err;
+  }
 
   // httpOnly + maxAge corto: es la única vez que la contraseña en texto
   // plano existe fuera de su hash — nunca en la URL/query param (quedaría en
   // el historial del navegador y en logs).
   const cookieStore = await cookies();
-  cookieStore.set("newUserTempPassword", plainPassword, {
+  cookieStore.set(`newUserTempPassword_${user.id}`, plainPassword, {
     httpOnly: true,
     maxAge: 60,
     path: "/dashboard",
@@ -181,6 +198,26 @@ export async function updateTeamMemberAction(
         "No puedes quitarte a ti mismo todo tu acceso."
       )}`
     );
+  }
+
+  // Si el usuario editado tiene OWNER hoy y el form ya no le asigna OWNER en
+  // ninguna sede, hay que asegurarse de que quede al menos otro OWNER en el
+  // tenant — si no, nadie podría volver a otorgar el rol OWNER nunca más
+  // (findRoleEscalationError le prohíbe asignarlo a cualquiera que no sea ya
+  // OWNER), dejando billing/settings/locations permanentemente inaccesibles.
+  const willLoseOwnerRole =
+    Boolean(targetAlreadyHasOwnerRole) && !submittedRoles.some((entry) => entry.role === "OWNER");
+  if (willLoseOwnerRole) {
+    const otherOwnerCount = await prisma.staffLocationRole.count({
+      where: { role: "OWNER", location: { tenantId: tenant.id }, userId: { not: userId } },
+    });
+    if (otherOwnerCount === 0) {
+      redirect(
+        `/dashboard/${tenantSlug}/team/${userId}?error=${encodeURIComponent(
+          "No se puede quitar el rol OWNER: es el único OWNER del negocio. Asigná OWNER a otra persona primero."
+        )}`
+      );
+    }
   }
 
   await applyTeamMemberRolesUpdate(userId, submittedRoles);
@@ -226,7 +263,7 @@ export async function resetTeamMemberPasswordAction(tenantSlug: string, userId: 
   // Misma cookie httpOnly de maxAge corto que ya usa createTeamMemberAction —
   // es la única vez que la contraseña en texto plano existe fuera de su hash.
   const cookieStore = await cookies();
-  cookieStore.set("newUserTempPassword", plainPassword, {
+  cookieStore.set(`newUserTempPassword_${userId}`, plainPassword, {
     httpOnly: true,
     maxAge: 60,
     path: "/dashboard",

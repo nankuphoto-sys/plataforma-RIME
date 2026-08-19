@@ -2,10 +2,10 @@
 
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
-import type { Plan, TenantVertical } from "@prisma/client";
+import { Prisma, type Plan, type TenantVertical } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-const DEFAULT_TIMEZONE = "America/Santiago";
+const DEFAULT_TIMEZONE = "America/Bogota";
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_PLANS: readonly Plan[] = ["INDIVIDUAL", "BASICO", "PREMIUM", "PRO"];
 const VALID_VERTICALS: readonly TenantVertical[] = [
@@ -14,7 +14,6 @@ const VALID_VERTICALS: readonly TenantVertical[] = [
   "NUTRICION",
   "FISIOTERAPIA",
   "ESTETICA",
-  "BARBERIA",
 ];
 
 function isValidPlan(value: string): value is Plan {
@@ -100,20 +99,38 @@ export async function signUpTenantAction(formData: FormData): Promise<void> {
   const slug = await generateUniqueSlug(businessName);
   const passwordHash = await bcrypt.hash(password, 10);
 
-  await prisma.$transaction(async (tx) => {
-    const tenant = await tx.tenant.create({
-      data: { name: businessName, slug, plan, vertical, status: "TRIAL" },
+  try {
+    await prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.create({
+        data: { name: businessName, slug, plan, vertical, status: "TRIAL" },
+      });
+      const location = await tx.location.create({
+        data: { tenantId: tenant.id, name: locationName, timezone },
+      });
+      const user = await tx.user.create({
+        data: { tenantId: tenant.id, name: ownerName, email, passwordHash },
+      });
+      await tx.staffLocationRole.create({
+        data: { userId: user.id, locationId: location.id, role: "OWNER" },
+      });
     });
-    const location = await tx.location.create({
-      data: { tenantId: tenant.id, name: locationName, timezone },
-    });
-    const user = await tx.user.create({
-      data: { tenantId: tenant.id, name: ownerName, email, passwordHash },
-    });
-    await tx.staffLocationRole.create({
-      data: { userId: user.id, locationId: location.id, role: "OWNER" },
-    });
-  });
+  } catch (err) {
+    // El chequeo de existingUser (arriba) y de slug libre (generateUniqueSlug)
+    // quedan afuera de esta misma transacción, así que un doble submit (doble
+    // click, reintento de red) puede colar dos requests que pasen ambos esos
+    // chequeos antes de que cualquiera escriba — sin este catch, la segunda
+    // transacción rompía el @unique de User.email o Tenant.slug y el usuario
+    // veía la pantalla de error genérica de Next.js en vez de un mensaje
+    // entendible.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const target = Array.isArray(err.meta?.target) ? (err.meta.target as string[]) : [];
+      const message = target.includes("email")
+        ? "Ese correo ya tiene una cuenta. Inicia sesión en vez de registrarte."
+        : "Ya existe un negocio con ese nombre — probá con otro.";
+      redirect(`/signup?error=${encodeURIComponent(message)}`);
+    }
+    throw err;
+  }
 
   redirect("/login?signup=success");
 }

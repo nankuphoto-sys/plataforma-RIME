@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireProfessionalsManageAccess } from "@/lib/auth-guards";
 import { getPlanLimits, hasReachedProfessionalLimit } from "@/lib/planLimits";
@@ -293,22 +294,31 @@ export async function inviteProfessionalAsUserAction(
   const plainPassword = generateTemporaryPassword();
   const passwordHash = await bcrypt.hash(plainPassword, 10);
 
-  await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: { tenantId: tenant.id, name, email, passwordHash },
+  try {
+    await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { tenantId: tenant.id, name, email, passwordHash },
+      });
+      await tx.staffLocationRole.createMany({
+        data: professional.professionalLocations.map((professionalLocation) => ({
+          userId: user.id,
+          locationId: professionalLocation.locationId,
+          role: "PROFESSIONAL",
+        })),
+      });
+      await tx.professional.update({ where: { id: professional.id }, data: { userId: user.id } });
     });
-    await tx.staffLocationRole.createMany({
-      data: professional.professionalLocations.map((professionalLocation) => ({
-        userId: user.id,
-        locationId: professionalLocation.locationId,
-        role: "PROFESSIONAL",
-      })),
-    });
-    await tx.professional.update({ where: { id: professional.id }, data: { userId: user.id } });
-  });
+  } catch (err) {
+    // El chequeo de existingUser de arriba queda afuera de esta transacción —
+    // ver el mismo comentario en team/actions.ts createTeamMemberAction.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      redirect(`${detailPath}?error=${encodeURIComponent("Ese correo ya tiene una cuenta — probá de nuevo.")}`);
+    }
+    throw err;
+  }
 
   const cookieStore = await cookies();
-  cookieStore.set("newUserTempPassword", plainPassword, {
+  cookieStore.set(`newUserTempPassword_${professionalId}`, plainPassword, {
     httpOnly: true,
     maxAge: 60,
     path: "/dashboard",

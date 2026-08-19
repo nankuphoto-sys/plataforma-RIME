@@ -3,7 +3,8 @@ import { getToken } from "next-auth/jwt";
 import { Document, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { hasAnyRoleInTenantLocations } from "@/lib/authorization";
+import { hasAnyRoleInTenantLocations, isProfessionalOnlyInTenant } from "@/lib/authorization";
+import { getLinkedProfessionalId } from "@/lib/professionalScope";
 import { planIncludesModule } from "@/lib/planLimits";
 
 // Vive en Pages Router por el mismo motivo ya documentado en detalle en
@@ -97,6 +98,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
+  // Mismo criterio "solo lo mío" que createPrescriptionAction y la página de
+  // detalle del cliente (src/app/dashboard/[tenantSlug]/clients/actions.ts):
+  // un usuario "solo profesional" no puede descargar la receta de un cliente
+  // con el que no tiene ninguna cita, aunque adivine el id en la URL — esta
+  // ruta reimplica la autorización a mano (ver comentario arriba del
+  // archivo) y por eso necesita repetir el chequeo, no lo hereda gratis.
+  const isProfessionalOnly = isProfessionalOnlyInTenant(userLocationRoles, locationIds);
+  if (isProfessionalOnly) {
+    const viewerProfessionalId = await getLinkedProfessionalId(token.userId as string);
+    const clientBelongsToViewer = await prisma.client.findFirst({
+      where: {
+        id: clientId,
+        tenantId: tenant.id,
+        appointments: { some: { professionalId: viewerProfessionalId ?? "__sin-profesional-vinculado__" } },
+      },
+    });
+    if (!clientBelongsToViewer) {
+      res.status(404).end();
+      return;
+    }
+  }
+
   // La receta debe pertenecer a este tenant Y a este cliente puntual — nunca
   // confiar solo en el id de la URL.
   const prescription = await prisma.prescription.findFirst({
@@ -108,7 +131,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  const issuedAtLabel = prescription.issuedAt.toLocaleDateString("es-CL", { dateStyle: "medium" });
+  const issuedAtLabel = prescription.issuedAt.toLocaleDateString("es-CO", { dateStyle: "medium" });
 
   const buffer = await renderToBuffer(
     <PrescriptionPdfDocument

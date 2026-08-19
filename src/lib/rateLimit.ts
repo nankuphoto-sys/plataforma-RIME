@@ -47,3 +47,25 @@ export async function isPasswordResetRateLimited(ip: string): Promise<boolean> {
 export async function recordPasswordResetAttempt(ip: string): Promise<void> {
   await prisma.passwordResetAttempt.create({ data: { ip } });
 }
+
+// Mismo mecanismo que el rate-limit de reseteo de contraseña, tabla aparte
+// (LoginAttempt) — loginAction no tenía ninguna capa de throttling antes de
+// esto: bcrypt.compare corría sin límite contra cualquier password
+// enviado, para cualquier email conocido.
+export async function isLoginRateLimited(ip: string): Promise<boolean> {
+  const windowStart = new Date(Date.now() - WINDOW_MINUTES * 60 * 1000);
+
+  await prisma.loginAttempt.deleteMany({
+    where: { ip, createdAt: { lt: windowStart } },
+  });
+
+  const attemptsInWindow = await prisma.loginAttempt.count({
+    where: { ip, createdAt: { gt: windowStart } },
+  });
+
+  return attemptsInWindow >= MAX_ATTEMPTS_PER_WINDOW;
+}
+
+export async function recordLoginAttempt(ip: string): Promise<void> {
+  await prisma.loginAttempt.create({ data: { ip } });
+}

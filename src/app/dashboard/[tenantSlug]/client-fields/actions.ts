@@ -2,7 +2,7 @@
 
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import type { CustomClientFieldType } from "@prisma/client";
+import { Prisma, type CustomClientFieldType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireClientFieldsManageAccess } from "@/lib/auth-guards";
 import { getClientFieldTemplate } from "@/lib/clientFieldTemplates";
@@ -104,9 +104,20 @@ export async function createClientFieldAction(tenantSlug: string, formData: Form
   });
   const order = lastField ? lastField.order + 1 : 0;
 
-  await prisma.tenantClientField.create({
-    data: { tenantId: tenant.id, key, label, type, options, order },
-  });
+  try {
+    await prisma.tenantClientField.create({
+      data: { tenantId: tenant.id, key, label, type, options, order },
+    });
+  } catch (err) {
+    // El chequeo de `existing` de arriba queda afuera de este create — ver el
+    // mismo comentario en team/actions.ts createTeamMemberAction.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      redirect(
+        `${newPath}?error=${encodeURIComponent("Ya existe un campo personalizado con esa clave. Probá con otro nombre.")}`
+      );
+    }
+    throw err;
+  }
 
   revalidatePath(`/dashboard/${tenantSlug}/client-fields`);
   redirect(`/dashboard/${tenantSlug}/client-fields`);

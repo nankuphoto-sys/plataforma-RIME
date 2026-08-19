@@ -56,7 +56,7 @@ export default async function ProfessionalDetailPage({
   let temporaryPassword: string | null = null;
   if (invited === "1") {
     const cookieStore = await cookies();
-    temporaryPassword = cookieStore.get("newUserTempPassword")?.value ?? null;
+    temporaryPassword = cookieStore.get(`newUserTempPassword_${professionalId}`)?.value ?? null;
   }
 
   return (
