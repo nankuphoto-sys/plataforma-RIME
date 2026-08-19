@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyWompiWebhookChecksum } from "@/lib/wompi";
 import { applyWompiTransactionStatus, type WompiTransactionStatus } from "@/lib/wompiPayment";
+import { logError } from "@/lib/errorLog";
 
 interface WompiWebhookEvent {
   event: string;
@@ -139,11 +140,21 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const { reference, status } = event.data.transaction;
 
-  const payment = await prisma.payment.findFirst({ where: { providerRef: reference } });
-  if (payment) {
-    await applyWompiTransactionStatus(reference, status);
-  } else {
-    await handleSubscriptionChargeUpdate(reference, status);
+  // Todo el procesamiento post-checksum va envuelto en su propio try/catch,
+  // mismo criterio que webhooks/stripe: este webhook mueve plata real, así
+  // que una excepción acá (ej. la base caída a mitad de una actualización)
+  // no debe desaparecer sin dejar rastro más allá del log efímero de Vercel.
+  try {
+    const payment = await prisma.payment.findFirst({ where: { providerRef: reference } });
+    if (payment) {
+      await applyWompiTransactionStatus(reference, status);
+    } else {
+      await handleSubscriptionChargeUpdate(reference, status);
+    }
+  } catch (err) {
+    console.error(`[webhooks/wompi] error procesando evento ${event.event} (reference ${reference}):`, err);
+    await logError(err, { eventType: event.event, reference });
+    return NextResponse.json({ error: "Error interno procesando el evento." }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
