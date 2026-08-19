@@ -36,8 +36,22 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
 
   for (const notification of due) {
+    // Reclamo atómico antes de mandar nada: si el cron se solapó con otra
+    // corrida (reintento de Vercel por timeout, o el endpoint invocado dos
+    // veces), la segunda corrida encuentra esta fila ya en SENDING (no
+    // SCHEDULED), no la reclama, y no manda el mismo WhatsApp dos veces.
+    const claim = await prisma.notificationQueue.updateMany({
+      where: { id: notification.id, status: "SCHEDULED" },
+      data: { status: "SENDING" },
+    });
+    if (claim.count === 0) {
+      skipped += 1;
+      continue;
+    }
+
     const payload = (notification.payload ?? {}) as Record<string, unknown>;
 
     if (!notification.appointment || notification.appointment.status === "CANCELLED") {
@@ -81,5 +95,5 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({ processed: due.length, sent, failed });
+  return NextResponse.json({ processed: due.length, sent, failed, skipped });
 }

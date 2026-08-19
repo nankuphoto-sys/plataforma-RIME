@@ -39,8 +39,20 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
 
   for (const notification of due) {
+    // Reclamo atómico antes de mandar nada — ver el mismo comentario en
+    // send-reminders/route.ts.
+    const claim = await prisma.notificationQueue.updateMany({
+      where: { id: notification.id, status: "SCHEDULED" },
+      data: { status: "SENDING" },
+    });
+    if (claim.count === 0) {
+      skipped += 1;
+      continue;
+    }
+
     const payload = (notification.payload ?? {}) as Record<string, unknown>;
 
     const result =
@@ -79,5 +91,5 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({ processed: due.length, sent, failed });
+  return NextResponse.json({ processed: due.length, sent, failed, skipped });
 }

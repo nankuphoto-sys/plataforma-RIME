@@ -27,9 +27,37 @@ export async function GET(request: Request): Promise<NextResponse> {
     },
   });
 
+  let charged = 0;
+  let skipped = 0;
+  let failed = 0;
+
   for (const tenant of due) {
-    await chargeTenantWompiSubscription(tenant);
+    // Si ya hay un cobro PENDING para este tenant (cron reintentado por
+    // Vercel mientras el anterior seguía en vuelo, o el webhook todavía no
+    // resolvió la transacción previa), no disparamos un segundo cobro real
+    // contra Wompi — wompiNextChargeAt solo lo avanza el webhook, así que sin
+    // este chequeo un reintento del cron cobraría dos veces.
+    const pendingCharge = await prisma.tenantWompiCharge.findFirst({
+      where: { tenantId: tenant.id, status: "PENDING" },
+    });
+    if (pendingCharge) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      await chargeTenantWompiSubscription(tenant);
+      charged += 1;
+    } catch (error) {
+      // Un tenant con error de red/API no debe frenar el cobro del resto del
+      // lote — sin este catch, una excepción acá propagaba fuera del GET y
+      // todos los tenants siguientes en `due` se quedaban sin cobrar en esta
+      // corrida (recién se reintentarían cuando wompiNextChargeAt volviera a
+      // cumplirse, días después).
+      console.error(`[charge-wompi-subscriptions] fallo cobrando tenant ${tenant.id}:`, error);
+      failed += 1;
+    }
   }
 
-  return NextResponse.json({ processed: due.length });
+  return NextResponse.json({ processed: due.length, charged, skipped, failed });
 }

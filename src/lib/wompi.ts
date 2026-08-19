@@ -48,7 +48,15 @@ export function verifyWompiWebhookChecksum(event: {
   const concatenated = `${concatenatedValues}${event.timestamp}${secret}`;
   const expectedChecksum = crypto.createHash("sha256").update(concatenated).digest("hex");
 
-  return expectedChecksum === event.signature.checksum;
+  // Comparación en tiempo constante — con === un atacante podría, en teoría,
+  // inferir el checksum válido byte a byte midiendo tiempos de respuesta.
+  // timingSafeEqual exige buffers del mismo largo; un checksum recibido con
+  // largo distinto al esperado (64 hex de un SHA256) ya es inválido sin
+  // necesidad de comparar nada más.
+  const expected = Buffer.from(expectedChecksum, "hex");
+  const received = Buffer.from(event.signature.checksum, "hex");
+  if (expected.length !== received.length) return false;
+  return crypto.timingSafeEqual(expected, received);
 }
 
 interface WompiMerchantResponse {

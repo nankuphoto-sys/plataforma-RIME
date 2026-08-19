@@ -206,6 +206,19 @@ model PasswordResetAttempt {
   @@index([ip, createdAt])
 }
 
+// Mismo criterio que PasswordResetAttempt: un registro por cada intento de
+// login (sin importar el resultado), solo para el rate-limit por IP en
+// src/lib/rateLimit.ts — loginAction no tenía ninguna capa de throttling
+// antes de esto, así que un password se podía probar sin límite contra
+// cualquier email conocido, a la velocidad que bcrypt.compare lo permitiera.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+}
+
 // ------------------------------
 // Modelos requeridos por el Prisma adapter de Auth.js (@auth/prisma-adapter).
 // Con el provider de Credentials + sesión JWT no se usan en el login actual,
@@ -672,6 +685,7 @@ enum MarketingCampaignSegment {
 
 enum NotificationStatus {
   SCHEDULED
+  SENDING
   SENT
   FAILED
 }
