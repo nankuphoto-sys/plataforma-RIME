@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
 import { consumeBackupCode, verifyTotpCode } from "@/lib/twoFactor";
 import { provisionTenantForOAuthUser } from "@/lib/tenantProvisioning";
+import { logError } from "@/lib/errorLog";
 
 // Errores distinguibles que puede tirar authorize() cuando el usuario tiene
 // 2FA activo (ver el bloque más abajo). CredentialsSignin es la única clase
@@ -150,74 +151,94 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // con OAuthAccountNotLinked un email que existe como Credentials sin
     // vincular (comportamiento previo, sin cambios).
     async signIn({ user, account }) {
-      if (account?.provider && account.provider !== "credentials") {
-        const email = user.email ?? "";
-        if (!email) return false;
+      // Instrumentado a propósito (2026-08-20): el login por Google está
+      // fallando en producción con 500 y CERO log de ningún tipo en Vercel
+      // (ni siquiera un stack trace) — así que este try/catch registra
+      // cualquier error acá directo en ErrorLog (nuestra propia base, no
+      // depende de que Vercel capture stdout) antes de volver a lanzarlo,
+      // para encontrar la causa real. Sacar este bloque una vez resuelto.
+      try {
+        if (account?.provider && account.provider !== "credentials") {
+          const email = user.email ?? "";
+          if (!email) return false;
 
-        const existing = await prisma.user.findUnique({ where: { email } });
-        if (!existing && account.providerAccountId) {
-          await provisionTenantForOAuthUser({
-            email,
-            name: user.name?.trim() || email.split("@")[0],
-            image: typeof user.image === "string" ? user.image : null,
-            account: {
-              type: account.type,
-              provider: account.provider,
-              providerAccountId: account.providerAccountId,
-              access_token: typeof account.access_token === "string" ? account.access_token : null,
-              refresh_token: typeof account.refresh_token === "string" ? account.refresh_token : null,
-              expires_at: typeof account.expires_at === "number" ? account.expires_at : null,
-              token_type: typeof account.token_type === "string" ? account.token_type : null,
-              scope: typeof account.scope === "string" ? account.scope : null,
-              id_token: typeof account.id_token === "string" ? account.id_token : null,
-              session_state: typeof account.session_state === "string" ? account.session_state : null,
-            },
-          });
+          const existing = await prisma.user.findUnique({ where: { email } });
+          if (!existing && account.providerAccountId) {
+            await provisionTenantForOAuthUser({
+              email,
+              name: user.name?.trim() || email.split("@")[0],
+              image: typeof user.image === "string" ? user.image : null,
+              account: {
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                access_token: typeof account.access_token === "string" ? account.access_token : null,
+                refresh_token: typeof account.refresh_token === "string" ? account.refresh_token : null,
+                expires_at: typeof account.expires_at === "number" ? account.expires_at : null,
+                token_type: typeof account.token_type === "string" ? account.token_type : null,
+                scope: typeof account.scope === "string" ? account.scope : null,
+                id_token: typeof account.id_token === "string" ? account.id_token : null,
+                session_state:
+                  typeof account.session_state === "string" ? account.session_state : null,
+              },
+            });
+          }
         }
+        return true;
+      } catch (error) {
+        await logError(error, { where: "auth.signIn", provider: account?.provider ?? null });
+        throw error;
       }
-      return true;
     },
     async jwt({ token, user, account }) {
       if (user) {
-        // Login por Credentials ya trae tenantId/locationRoles/
-        // passwordChangedAt resueltos en el authorize() de arriba. Login por
-        // Google (OAuth) no los trae — el profile() default del provider
-        // solo devuelve id/name/email/image — hay que resolverlos acá
-        // contra la base por email (el callback signIn de arriba ya
-        // garantiza que solo llega acá un email que YA existe como User).
-        let tenantId = user.tenantId;
-        let locationRoles = user.locationRoles;
-        let passwordChangedAt = user.passwordChangedAt;
+        // Mismo motivo que el try/catch del signIn callback de arriba —
+        // instrumentación temporal para encontrar el 500 sin logs del
+        // login por Google (2026-08-20). Sacar una vez resuelto.
+        try {
+          // Login por Credentials ya trae tenantId/locationRoles/
+          // passwordChangedAt resueltos en el authorize() de arriba. Login por
+          // Google (OAuth) no los trae — el profile() default del provider
+          // solo devuelve id/name/email/image — hay que resolverlos acá
+          // contra la base por email (el callback signIn de arriba ya
+          // garantiza que solo llega acá un email que YA existe como User).
+          let tenantId = user.tenantId;
+          let locationRoles = user.locationRoles;
+          let passwordChangedAt = user.passwordChangedAt;
 
-        if (account?.provider && account.provider !== "credentials") {
-          const dbUser = await prisma.user.findUnique({
-            where: { email: user.email ?? "" },
-            include: { locationRoles: true },
-          });
-          if (!dbUser) return null;
-          tenantId = dbUser.tenantId;
-          locationRoles = dbUser.locationRoles.map((role) => ({
-            locationId: role.locationId,
-            role: role.role,
-          }));
-          passwordChangedAt = dbUser.passwordChangedAt;
+          if (account?.provider && account.provider !== "credentials") {
+            const dbUser = await prisma.user.findUnique({
+              where: { email: user.email ?? "" },
+              include: { locationRoles: true },
+            });
+            if (!dbUser) return null;
+            tenantId = dbUser.tenantId;
+            locationRoles = dbUser.locationRoles.map((role) => ({
+              locationId: role.locationId,
+              role: role.role,
+            }));
+            passwordChangedAt = dbUser.passwordChangedAt;
+          }
+
+          // user.id es opcional en el tipo base de Auth.js (pensado para
+          // providers OAuth donde podría faltar transitoriamente) — acá
+          // siempre viene seteado porque lo devuelve nuestro propio
+          // authorize() de Credentials con el id real de Prisma, o el adapter
+          // de Prisma con el id real del User existente para Google.
+          token.userId = user.id as string;
+          token.tenantId = tenantId;
+          token.locationRoles = locationRoles;
+          // Sella en el token el `passwordChangedAt` vigente al momento del
+          // login — se compara contra el valor actual en cada request
+          // siguiente (más abajo) para poder invalidar el token si la
+          // contraseña cambió mientras tanto (otro dispositivo, reset por
+          // email, o reseteo asistido por un ADMIN/OWNER).
+          token.passwordCheckedAt = passwordChangedAt.getTime();
+          return token;
+        } catch (error) {
+          await logError(error, { where: "auth.jwt.firstLogin", provider: account?.provider ?? null });
+          throw error;
         }
-
-        // user.id es opcional en el tipo base de Auth.js (pensado para
-        // providers OAuth donde podría faltar transitoriamente) — acá
-        // siempre viene seteado porque lo devuelve nuestro propio
-        // authorize() de Credentials con el id real de Prisma, o el adapter
-        // de Prisma con el id real del User existente para Google.
-        token.userId = user.id as string;
-        token.tenantId = tenantId;
-        token.locationRoles = locationRoles;
-        // Sella en el token el `passwordChangedAt` vigente al momento del
-        // login — se compara contra el valor actual en cada request
-        // siguiente (más abajo) para poder invalidar el token si la
-        // contraseña cambió mientras tanto (otro dispositivo, reset por
-        // email, o reseteo asistido por un ADMIN/OWNER).
-        token.passwordCheckedAt = passwordChangedAt.getTime();
-        return token;
       }
 
       // Requests siguientes (sin `user`, o sea no es el login en sí):
