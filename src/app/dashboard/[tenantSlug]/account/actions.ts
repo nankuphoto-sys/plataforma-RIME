@@ -86,6 +86,16 @@ export async function changePasswordAction(tenantSlug: string, formData: FormDat
   // La sesión JWT no trae el hash — hay que ir a buscar el User completo.
   const user = await prisma.user.findUniqueOrThrow({ where: { id: session.user.id } });
 
+  // Cuentas creadas por "Registrarte con Google" no tienen contraseña
+  // propia (passwordHash null, ver signIn callback en src/lib/auth.ts).
+  if (!user.passwordHash) {
+    redirect(
+      `/dashboard/${tenantSlug}/account?error=${encodeURIComponent(
+        "Tu cuenta usa acceso con Google — no tiene una contraseña propia para cambiar."
+      )}`
+    );
+  }
+
   const currentPasswordMatches = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!currentPasswordMatches) {
     redirect(

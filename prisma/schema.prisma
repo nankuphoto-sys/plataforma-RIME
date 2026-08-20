@@ -168,9 +168,14 @@ model User {
   tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   email             String    @unique
   emailVerified     DateTime? // requerido por el Prisma adapter de Auth.js
-  image             String? // idem — solo se usa si más adelante se agregan providers OAuth
+  image             String? // foto de perfil (subida a mano) o avatar de Google en cuentas creadas por OAuth
   name              String
-  passwordHash      String
+  // Null para cuentas creadas por "Registrarte con Google" (ver signIn
+  // callback en src/lib/auth.ts) — esas cuentas solo pueden entrar por
+  // Google, nunca por Credentials. authorize() y changePasswordAction
+  // rechazan explícitamente un login/cambio de contraseña si esto es null,
+  // en vez de dejar que bcrypt.compare reciba un valor no-string.
+  passwordHash      String?
   createdAt         DateTime  @default(now())
   // Se actualiza cada vez que cambia la contraseña (propio, admin-asistido o
   // reset por email). El callback `jwt` de Auth.js compara este valor contra

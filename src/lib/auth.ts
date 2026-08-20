@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
 import { consumeBackupCode, verifyTotpCode } from "@/lib/twoFactor";
+import { provisionTenantForOAuthUser } from "@/lib/tenantProvisioning";
 
 // Errores distinguibles que puede tirar authorize() cuando el usuario tiene
 // 2FA activo (ver el bloque más abajo). CredentialsSignin es la única clase
@@ -59,7 +60,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { email },
           include: { locationRoles: true },
         });
-        if (!user) return null;
+        // passwordHash es null en cuentas creadas por "Registrarte con
+        // Google" (ver signIn callback más abajo) — esas nunca tienen
+        // contraseña, así que Credentials nunca puede autenticarlas.
+        if (!user || !user.passwordHash) return null;
 
         const isValidPassword = await bcrypt.compare(password, user.passwordHash);
         if (!isValidPassword) return null;
@@ -118,15 +122,58 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // acá con account.provider !== "credentials" — Auth.js llama a este
     // callback para todos los providers, pero para Credentials siempre
     // devuelve true sin más chequeos, el trabajo pesado ya lo hizo
-    // authorize()). El modelo User de este proyecto es tenant-scoped
-    // (tenantId NOT NULL, se crea siempre vía invitación del equipo) — un
-    // login de Google con un email que no exista todavía como User rompería
-    // al adapter de Prisma intentando crear un User sin tenantId. Se
-    // rechaza ese caso acá en vez de dejar que reviente más abajo.
+    // authorize()).
+    //
+    // El modelo User de este proyecto es tenant-scoped (tenantId NOT
+    // NULL) — Auth.js, si este callback devuelve true y no existe todavía
+    // ni User ni Account para este login, intenta crear el User él mismo
+    // vía adapter.createUser() con el shape default de OAuth (name/email/
+    // image), sin tenantId, lo que rompería contra el NOT NULL. Por eso
+    // NUNCA se deja que Auth.js cree el User: si el email no existe
+    // todavía, se aprovisiona acá mismo un negocio de prueba completo
+    // (Tenant + Location + User + StaffLocationRole OWNER) DENTRO de este
+    // callback, más el Account (mismo provider/providerAccountId que
+    // Auth.js va a buscar después en handleLoginOrRegister vía
+    // getUserByAccount) — así, cuando Auth.js sigue su flujo normal
+    // después de este callback, encuentra el Account ya vinculado y solo
+    // abre sesión, sin volver a intentar crear nada. Verificado leyendo
+    // node_modules/@auth/core/lib/actions/callback/{index,handle-login}.js
+    // el 2026-08-20 para confirmar el orden exacto de estas llamadas.
+    //
+    // Nombre/rubro/plan son genéricos a propósito — el dueño los edita
+    // después desde Configuración. Alcance elegido por el usuario en vez
+    // de armar un formulario de dos pasos (Google -> completar datos ->
+    // crear cuenta), que hubiera sido bastante más grande de construir.
+    //
+    // Si el email SÍ existe ya (con o sin Account de Google vinculada),
+    // no se toca nada acá — Auth.js sigue su flujo normal, que YA rechaza
+    // con OAuthAccountNotLinked un email que existe como Credentials sin
+    // vincular (comportamiento previo, sin cambios).
     async signIn({ user, account }) {
       if (account?.provider && account.provider !== "credentials") {
-        const existing = await prisma.user.findUnique({ where: { email: user.email ?? "" } });
-        if (!existing) return false;
+        const email = user.email ?? "";
+        if (!email) return false;
+
+        const existing = await prisma.user.findUnique({ where: { email } });
+        if (!existing && account.providerAccountId) {
+          await provisionTenantForOAuthUser({
+            email,
+            name: user.name?.trim() || email.split("@")[0],
+            image: typeof user.image === "string" ? user.image : null,
+            account: {
+              type: account.type,
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              access_token: typeof account.access_token === "string" ? account.access_token : null,
+              refresh_token: typeof account.refresh_token === "string" ? account.refresh_token : null,
+              expires_at: typeof account.expires_at === "number" ? account.expires_at : null,
+              token_type: typeof account.token_type === "string" ? account.token_type : null,
+              scope: typeof account.scope === "string" ? account.scope : null,
+              id_token: typeof account.id_token === "string" ? account.id_token : null,
+              session_state: typeof account.session_state === "string" ? account.session_state : null,
+            },
+          });
+        }
       }
       return true;
     },

@@ -4,8 +4,8 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { Prisma, type Plan, type TenantVertical } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_TIMEZONE, generateUniqueSlug } from "@/lib/tenantProvisioning";
 
-const DEFAULT_TIMEZONE = "America/Bogota";
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_PLANS: readonly Plan[] = ["INDIVIDUAL", "BASICO", "PREMIUM", "PRO"];
 const VALID_VERTICALS: readonly TenantVertical[] = [
@@ -22,37 +22,6 @@ function isValidPlan(value: string): value is Plan {
 
 function isValidVertical(value: string): value is TenantVertical {
   return (VALID_VERTICALS as readonly string[]).includes(value);
-}
-
-// Rango Unicode de marcas diacríticas combinantes (U+0300 a U+036F), armado
-// vía fromCharCode para evitar escapes \\u ambiguos en el fuente.
-const COMBINING_MARKS_PATTERN = new RegExp(
-  `[${String.fromCharCode(768)}-${String.fromCharCode(879)}]`,
-  "g"
-);
-
-// Slugify básico: minúsculas, sin acentos, espacios/símbolos a guiones.
-function slugify(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(COMBINING_MARKS_PATTERN, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-// Si el slug base ya existe, agrega un sufijo numérico incremental hasta
-// encontrar uno libre — detalle interno, nunca falla el signup por esto.
-async function generateUniqueSlug(businessName: string): Promise<string> {
-  const base = slugify(businessName) || "negocio";
-  let candidate = base;
-  let suffix = 2;
-  while (await prisma.tenant.findUnique({ where: { slug: candidate } })) {
-    candidate = `${base}-${suffix}`;
-    suffix += 1;
-  }
-  return candidate;
 }
 
 export async function signUpTenantAction(formData: FormData): Promise<void> {
