@@ -73,11 +73,20 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
   redirect(`/dashboard/${user.tenant.slug}`);
 }
 
-// Botón "Continuar con Google" en /login — solo se renderiza si
-// isGoogleAuthEnabled (ver src/lib/auth.ts) es true. signIn("google") ya
-// redirige por su cuenta (comportamiento default, a diferencia de
-// loginAction que usa redirect: false para Credentials), así que esta acción
-// nunca necesita devolver nada.
+// Botón "Continuar con Google"/"Registrarte con Google" en /login y /signup
+// — solo se renderiza si isGoogleAuthEnabled (ver src/lib/auth.ts) es true.
+// signIn("google") ya redirige por su cuenta (comportamiento default, a
+// diferencia de loginAction que usa redirect: false para Credentials), así
+// que esta acción nunca necesita devolver nada.
+//
+// redirectTo explícito: sin esto, Auth.js vuelve a la MISMA página desde la
+// que se llamó (login o signup) en vez de entrar al dashboard — ahí se ve
+// como si el login/registro no hubiera hecho nada. No se puede calcular acá
+// el slug del tenant (esta función corre ANTES de que exista la sesión, el
+// login con Google recién pasa después del round-trip a Google), así que se
+// manda a /dashboard, una ruta genérica que resuelve el tenant de la sesión
+// recién creada y redirige a /dashboard/[tenantSlug] — funciona igual para
+// un login normal y para un registro con Google recién aprovisionado.
 export async function signInWithGoogleAction(): Promise<void> {
-  await signIn("google");
+  await signIn("google", { redirectTo: "/dashboard" });
 }
