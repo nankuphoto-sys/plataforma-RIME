@@ -1,6 +1,7 @@
 {
   "regions": ["gru1"],
   "crons": [
+    { "path": "/api/cron/keep-db-warm", "schedule": "*/4 * * * *" },
     { "path": "/api/cron/send-reminders", "schedule": "0 5 * * *" },
     { "path": "/api/cron/send-followup-reminders", "schedule": "0 8 * * *" },
     { "path": "/api/cron/detect-inactive-clients", "schedule": "0 6 * * *" },
