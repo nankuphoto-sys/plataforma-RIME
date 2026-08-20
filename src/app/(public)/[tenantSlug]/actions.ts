@@ -10,6 +10,7 @@ import { computeReminderScheduledFor, formatAppointmentDateTimeLabel } from "@/l
 import { computeChargeAmount } from "@/lib/depositPolicy";
 import { computeRedemptionAmount, isGiftCardRedeemable } from "@/lib/giftCards";
 import { ALLOWED_STATUS_TRANSITIONS } from "@/lib/appointmentStatus";
+import { notifyStaff } from "@/lib/staffNotifications";
 import {
   generateAvailableSlots,
   getDayBoundsUtc,
@@ -238,6 +239,15 @@ export async function createAppointmentAction(
         },
       });
     }
+
+    // Push al staff: mismo criterio que el WhatsApp de arriba, fuera de la
+    // transacción y fire-and-forget — un canal de "mejor esfuerzo" nunca
+    // debe demorar ni romper la confirmación de la reserva al cliente.
+    void notifyStaff(tenant.id, "notifyNewAppointment", {
+      title: "Nueva cita reservada",
+      body: `${name} — ${service.name}, ${formatAppointmentDateTimeLabel(startsAt, location.timezone)}`,
+      url: `/dashboard/${input.tenantSlug}/agenda`,
+    });
 
     return {
       ok: true,

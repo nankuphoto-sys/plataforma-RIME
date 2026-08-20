@@ -189,6 +189,17 @@ model User {
   twoFactorEnabled     Boolean @default(false)
   twoFactorBackupCodes String?
 
+  // Preferencias de notificaciones push (Web Push) — cada usuario elige qué
+  // recibir, independiente de si tiene alguna suscripción de navegador
+  // activa (ver PushSubscription). Defaults iguales a los del mockup
+  // (RIME Movil.dc.html, pantalla Cuenta): todo activado salvo el resumen
+  // diario. Un usuario sin PushSubscription simplemente no recibe nada,
+  // tenga estas preferencias en true o no.
+  notifyNewAppointment      Boolean @default(true)
+  notifyAppointmentReminder Boolean @default(true)
+  notifyLowStock            Boolean @default(true)
+  notifyDailySummary        Boolean @default(false)
+
   locationRoles       StaffLocationRole[]
   professionalProfile Professional?
   accounts            Account[]

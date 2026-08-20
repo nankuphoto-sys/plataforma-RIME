@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendWhatsAppTemplateMessage } from "@/lib/whatsapp";
+import { notifyStaff } from "@/lib/staffNotifications";
 
 const MAX_BATCH_SIZE = 50;
 
@@ -29,7 +30,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       status: "SCHEDULED",
       scheduledFor: { lte: new Date() },
     },
-    include: { appointment: true },
+    include: { appointment: true, tenant: { select: { slug: true } } },
     take: MAX_BATCH_SIZE,
     orderBy: { scheduledFor: "asc" },
   });
@@ -83,6 +84,14 @@ export async function GET(request: Request): Promise<NextResponse> {
         },
       });
       sent += 1;
+
+      // Push al staff, mismo evento que el WhatsApp que le acaba de llegar
+      // al cliente — fire-and-forget, no debe frenar el resto del batch.
+      void notifyStaff(notification.tenantId, "notifyAppointmentReminder", {
+        title: "Recordatorio de cita mañana",
+        body: `${String(payload.clientName ?? "")} — ${String(payload.serviceName ?? "")}, ${String(payload.startsAtLabel ?? "")}`,
+        url: `/dashboard/${notification.tenant.slug}/agenda`,
+      });
     } else {
       await prisma.notificationQueue.update({
         where: { id: notification.id },

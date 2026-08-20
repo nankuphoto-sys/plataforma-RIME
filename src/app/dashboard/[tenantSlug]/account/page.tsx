@@ -4,7 +4,7 @@ import { requireDashboardAccess } from "@/lib/auth-guards";
 import { hasAnyOfRolesInTenantLocations } from "@/lib/authorization";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { MAX_PROFILE_IMAGE_LABEL } from "@/lib/profileImage";
-import { changePasswordAction, removeProfilePhotoAction } from "./actions";
+import { changePasswordAction, removeProfilePhotoAction, updateNotificationPreferencesAction } from "./actions";
 import { ProfilePhotoUploadForm } from "./ProfilePhotoUploadForm";
 import { TwoFactorPanel } from "./TwoFactorPanel";
 import { DeleteAccountPanel } from "./DeleteAccountPanel";
@@ -24,15 +24,30 @@ export default async function AccountPage({
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ error?: string; saved?: string; photoError?: string; savedPhoto?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    saved?: string;
+    photoError?: string;
+    savedPhoto?: string;
+    savedNotifs?: string;
+  }>;
 }) {
   const { tenantSlug } = await params;
-  const { error, saved, photoError, savedPhoto } = await searchParams;
+  const { error, saved, photoError, savedPhoto, savedNotifs } = await searchParams;
   const { session, tenant } = await requireDashboardAccess(tenantSlug);
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: session.user.id },
-    select: { name: true, email: true, image: true, twoFactorEnabled: true },
+    select: {
+      name: true,
+      email: true,
+      image: true,
+      twoFactorEnabled: true,
+      notifyNewAppointment: true,
+      notifyAppointmentReminder: true,
+      notifyLowStock: true,
+      notifyDailySummary: true,
+    },
   });
 
   // "Descargar mis datos" es el respaldo completo del NEGOCIO (todos los
@@ -164,6 +179,59 @@ export default async function AccountPage({
       <TwoFactorPanel tenantSlug={tenantSlug} initialEnabled={user.twoFactorEnabled} />
 
       <PushNotificationToggle tenantSlug={tenantSlug} />
+
+      <div className="panel mt-4">
+        <p className="section-title text-sm">Qué te avisamos</p>
+        <p className="mt-1 text-xs text-ink/50">
+          Solo aplica si tienes las notificaciones push activadas arriba.
+        </p>
+
+        {savedNotifs && <p className="msg-success mt-3">Preferencias guardadas.</p>}
+
+        <form
+          action={updateNotificationPreferencesAction.bind(null, tenantSlug)}
+          className="mt-4 space-y-3"
+        >
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="notifyNewAppointment"
+              defaultChecked={user.notifyNewAppointment}
+              className="field-checkbox"
+            />
+            Citas nuevas — cuando un cliente reserva desde la web
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="notifyAppointmentReminder"
+              defaultChecked={user.notifyAppointmentReminder}
+              className="field-checkbox"
+            />
+            Recordatorios — 24 h antes de cada cita
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="notifyLowStock"
+              defaultChecked={user.notifyLowStock}
+              className="field-checkbox"
+            />
+            Stock bajo — cuando un insumo llega al umbral
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="notifyDailySummary"
+              defaultChecked={user.notifyDailySummary}
+              className="field-checkbox"
+            />
+            Resumen diario — cada mañana a las 7:00
+          </label>
+
+          <SubmitButton pendingLabel="Guardando…">Guardar preferencias</SubmitButton>
+        </form>
+      </div>
 
       {isOwner && (
         <div className="panel mt-4">

@@ -9,6 +9,7 @@
     { "path": "/api/cron/send-review-requests", "schedule": "0 11 * * *" },
     { "path": "/api/cron/send-marketing-campaign-emails", "schedule": "0 12 * * *" },
     { "path": "/api/cron/backup-tenants", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/delete-requested-tenants", "schedule": "0 3 * * *" }
+    { "path": "/api/cron/delete-requested-tenants", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/send-daily-summary", "schedule": "0 12 * * *" }
   ]
 }

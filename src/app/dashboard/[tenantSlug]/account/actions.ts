@@ -277,3 +277,31 @@ export async function disableTwoFactorAction(
   revalidatePath(`/dashboard/${tenantSlug}/account`);
   return { ok: true };
 }
+
+// ------------------------------
+// Preferencias de notificaciones push
+// ------------------------------
+// Los 4 eventos que ya existían como toggles en el mockup (RIME Movil.dc.html,
+// pantalla Cuenta). Solo controlan SI se manda el push cuando ocurre el
+// evento (ver src/lib/staffNotifications.ts) — no tienen efecto si el
+// usuario nunca activó notificaciones push del navegador (PushNotificationToggle,
+// más arriba en esta misma página).
+export async function updateNotificationPreferencesAction(
+  tenantSlug: string,
+  formData: FormData
+): Promise<void> {
+  const { session } = await requireDashboardAccess(tenantSlug);
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: {
+      notifyNewAppointment: formData.get("notifyNewAppointment") === "on",
+      notifyAppointmentReminder: formData.get("notifyAppointmentReminder") === "on",
+      notifyLowStock: formData.get("notifyLowStock") === "on",
+      notifyDailySummary: formData.get("notifyDailySummary") === "on",
+    },
+  });
+
+  revalidatePath(`/dashboard/${tenantSlug}/account`);
+  redirect(`/dashboard/${tenantSlug}/account?savedNotifs=1`);
+}

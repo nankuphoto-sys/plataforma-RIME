@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizePhoneForWhatsapp, sendLowStockAlertWhatsAppMessage } from "@/lib/whatsapp";
+import { notifyStaff } from "@/lib/staffNotifications";
 
 // Un movimiento de salida "cruza" el umbral de stock bajo solo si el stock
 // ANTES del movimiento estaba por encima del umbral y el de DESPUÉS quedó en
@@ -108,21 +109,33 @@ export async function maybeSendLowStockAlerts(candidates: LowStockAlertCandidate
 
   const location = await prisma.location.findUnique({
     where: { id: locationId },
-    select: { name: true, lowStockAlertPhone: true },
+    select: { name: true, lowStockAlertPhone: true, tenantId: true },
   });
 
   const normalizedPhone = location?.lowStockAlertPhone
     ? normalizePhoneForWhatsapp(location.lowStockAlertPhone)
     : null;
-  if (!normalizedPhone) return;
 
   for (const candidate of candidates) {
-    await sendLowStockAlertWhatsAppMessage({
-      to: normalizedPhone,
-      itemName: candidate.itemName,
-      currentStock: candidate.newQuantity,
-      unit: candidate.unit,
-      locationName: location?.name ?? "tu sede",
-    });
+    if (normalizedPhone) {
+      await sendLowStockAlertWhatsAppMessage({
+        to: normalizedPhone,
+        itemName: candidate.itemName,
+        currentStock: candidate.newQuantity,
+        unit: candidate.unit,
+        locationName: location?.name ?? "tu sede",
+      });
+    }
+
+    // Push al staff: independiente del WhatsApp de arriba (ese depende de
+    // que la sede tenga lowStockAlertPhone configurado; el push depende de
+    // que cada usuario tenga notifyLowStock activado y al menos un
+    // navegador suscrito) — así que va fuera del `if (normalizedPhone)`.
+    if (location) {
+      void notifyStaff(location.tenantId, "notifyLowStock", {
+        title: `Stock bajo: ${candidate.itemName}`,
+        body: `Quedan ${candidate.newQuantity} ${candidate.unit} en ${location.name}.`,
+      });
+    }
   }
 }
