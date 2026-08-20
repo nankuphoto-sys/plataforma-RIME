@@ -5,6 +5,10 @@ const txTenantCreate = vi.fn();
 const txLocationCreate = vi.fn();
 const txUserCreate = vi.fn();
 const txStaffLocationRoleCreate = vi.fn();
+const txServiceCreate = vi.fn();
+const txProfessionalCreate = vi.fn();
+const txProfessionalServiceCreate = vi.fn();
+const txProfessionalLocationCreate = vi.fn();
 const txAccountCreate = vi.fn();
 const transactionMock = vi.fn();
 
@@ -22,6 +26,10 @@ const tx = {
   location: { create: (...args: unknown[]) => txLocationCreate(...args) },
   user: { create: (...args: unknown[]) => txUserCreate(...args) },
   staffLocationRole: { create: (...args: unknown[]) => txStaffLocationRoleCreate(...args) },
+  service: { create: (...args: unknown[]) => txServiceCreate(...args) },
+  professional: { create: (...args: unknown[]) => txProfessionalCreate(...args) },
+  professionalService: { create: (...args: unknown[]) => txProfessionalServiceCreate(...args) },
+  professionalLocation: { create: (...args: unknown[]) => txProfessionalLocationCreate(...args) },
   account: { create: (...args: unknown[]) => txAccountCreate(...args) },
 };
 
@@ -60,6 +68,10 @@ describe("provisionTenantForOAuthUser", () => {
     txLocationCreate.mockReset();
     txUserCreate.mockReset();
     txStaffLocationRoleCreate.mockReset();
+    txServiceCreate.mockReset();
+    txProfessionalCreate.mockReset();
+    txProfessionalServiceCreate.mockReset();
+    txProfessionalLocationCreate.mockReset();
     txAccountCreate.mockReset();
     transactionMock.mockReset();
   });
@@ -77,11 +89,13 @@ describe("provisionTenantForOAuthUser", () => {
     session_state: null,
   };
 
-  it("crea Tenant + Location + User (sin password) + StaffLocationRole OWNER + Account", async () => {
+  it("crea Tenant + Location + User (sin password) + StaffLocationRole OWNER + Service/Professional placeholder + Account", async () => {
     tenantFindUnique.mockResolvedValueOnce(null); // slug libre
     txTenantCreate.mockResolvedValueOnce({ id: "tenant-1" });
     txLocationCreate.mockResolvedValueOnce({ id: "loc-1" });
     txUserCreate.mockResolvedValueOnce({ id: "user-1" });
+    txServiceCreate.mockResolvedValueOnce({ id: "service-1" });
+    txProfessionalCreate.mockResolvedValueOnce({ id: "pro-1" });
     transactionMock.mockImplementationOnce(async (cb: (txArg: typeof tx) => Promise<void>) => cb(tx));
 
     await provisionTenantForOAuthUser({
@@ -114,6 +128,18 @@ describe("provisionTenantForOAuthUser", () => {
     });
     expect(txStaffLocationRoleCreate).toHaveBeenCalledWith({
       data: { userId: "user-1", locationId: "loc-1", role: "OWNER" },
+    });
+    expect(txServiceCreate).toHaveBeenCalledWith({
+      data: { tenantId: "tenant-1", name: "Consulta general", durationMinutes: 45, price: 50000 },
+    });
+    expect(txProfessionalCreate).toHaveBeenCalledWith({
+      data: { tenantId: "tenant-1", userId: "user-1", name: "Ana Pérez", active: true },
+    });
+    expect(txProfessionalServiceCreate).toHaveBeenCalledWith({
+      data: { professionalId: "pro-1", serviceId: "service-1" },
+    });
+    expect(txProfessionalLocationCreate).toHaveBeenCalledWith({
+      data: { professionalId: "pro-1", locationId: "loc-1" },
     });
     expect(txAccountCreate).toHaveBeenCalledWith({
       data: {
