@@ -2372,8 +2372,16 @@ todavía.
 Vercel (sin `.vercel/`, sin remoto de git) — primer deploy real de
 `plataforma-agenda`.
 
-**URL de producción**: `https://plataforma-agenda.vercel.app` (dominio
-gratuito de Vercel — sin dominio propio configurado todavía). Proyecto
+**URL de producción**: `https://plataforma-agenda.vercel.app` al momento de
+este deploy inicial (dominio gratuito de Vercel — sin dominio propio
+configurado todavía). **Corrección (encontrado el 21 ago 2026, sesión de
+Claude Code): ya hay un dominio propio conectado, `https://plataforma-agenda.blog`**
+— es la URL real que usa producción hoy (confirmado por los logs reales de
+Vercel: todo el tráfico de usuarios llega por ese dominio, no por
+`*.vercel.app`). No hay ningún commit ni nota previa que documente cuándo
+ni cómo se conectó (es una acción del dashboard de Vercel, no de código) —
+si hace falta el detalle, hay que preguntarle al dueño o revisarlo en
+Vercel → Settings → Domains. Proyecto
 `rime2/plataforma-agenda` en la cuenta de Vercel de Jonta
 (`nankuphoto-7399`). Deploy hecho por CLI directo (`vercel deploy --prod`),
 sin conectar un repositorio de GitHub — decisión explícita para arrancar
@@ -2438,24 +2446,33 @@ este entorno no tiene**:
 1. **Webhooks de Stripe y Wompi** siguen apuntando a donde estuvieran
    configurados antes (probablemente `stripe listen` local o ninguno real
    todavía) — hay que registrar los endpoints de producción
-   (`https://plataforma-agenda.vercel.app/api/webhooks/stripe` y
-   `/api/webhooks/wompi`) en sus paneles respectivos. Si se crea un webhook
+   (`https://plataforma-agenda.blog/api/webhooks/stripe` y
+   `/api/webhooks/wompi` — dominio actualizado, ver la corrección más arriba
+   en esta sección) en sus paneles respectivos. Sin verificar en la sesión
+   del 21 ago si esto ya se hizo. Si se crea un webhook
    *nuevo* en Stripe, su signing secret es distinto al que ya está cargado
    en Vercel (`STRIPE_WEBHOOK_SECRET`) — hay que actualizarlo con
    `vercel env add STRIPE_WEBHOOK_SECRET production --force` si cambia.
-2. **RESEND_API_KEY** sigue sin configurar — crear la cuenta de Resend y
-   cargar la key (mismo pendiente que ya existía en local, ver la fase de
-   "Recuperación y cambio de contraseña" más arriba en este archivo).
+2. ~~**RESEND_API_KEY** sigue sin configurar~~ → **resuelto** — confirmado
+   con `vercel env ls production` (21 ago 2026) que está cargada en
+   Production (marcada "Sensitive"). No verificado en esta pasada si el
+   envío real de emails (reset de contraseña, aviso de comisión pagada,
+   etc.) ya funciona de punta a punta contra Resend — solo que la
+   credencial está presente.
 3. **Plantillas de WhatsApp** (`recordatorio_cita`, `seguimiento_recompra`,
    `alerta_stock_bajo`, `alerta_paquete_vencimiento`, `cupo_lista_espera`)
    siguen sin aprobación de Meta — ya documentado en fases anteriores, no
-   es nuevo de este deploy.
-4. **Sin dominio propio** — la URL sigue siendo `*.vercel.app`; conectar un
-   dominio real es un paso aparte en el dashboard de Vercel (Settings →
-   Domains) cuando Jonta tenga uno listo.
-5. **Sin repo de Git conectado** — cada deploy nuevo requiere correr
-   `vercel deploy --prod` a mano desde esta carpeta; no hay auto-deploy en
-   cada push todavía.
+   es nuevo de este deploy. **Actualización (ver "WhatsApp Business: número
+   real y 6 plantillas a revisión" más abajo)**: el número real ya se
+   registró y las 6 plantillas se mandaron a revisión el 16 ago 2026 — este
+   punto pasó de "no iniciado" a "en trámite con Meta".
+4. ~~**Sin dominio propio**~~ → **resuelto** — `plataforma-agenda.blog` ya
+   está conectado y es el dominio real que sirve producción (ver la
+   corrección más arriba en esta misma sección).
+5. **Sin repo de Git conectado** — sigue vigente al 21 ago 2026: cada
+   deploy nuevo requiere correr `vercel deploy --prod` a mano desde esta
+   carpeta (confirmado, es como se desplegaron todos los fixes de la sesión
+   del 21 ago); no hay auto-deploy en cada push todavía.
 
 ## Identidad visual: dirección "Booksy" reemplazó a "cronógrafo" (verde pino → turquesa)
 
@@ -2588,3 +2605,573 @@ la base duplicado en cada navegación del dashboard. Unificado en
 compartan la misma consulta dentro del mismo request. Medido: ~20-25% más
 rápido en las páginas simples (Clientes, Inventario, Servicios, Agenda) en
 producción local.
+
+## ⚠️ Nota meta: este archivo estuvo desactualizado 10 días (11→21 ago 2026)
+
+La última actualización real de CLAUDE.md fue el 11 de agosto (sección de
+arriba, "Verificación de gating por plan y facturación"). Entre esa fecha y
+el 21 de agosto se hicieron **49 commits más** — features grandes enteras
+(gift cards, marketing, reseñas, fidelidad, marketplace, 2FA, login con
+Google, PWA + push, cifrado de la ficha de salud, Copiloto RIME, cambio de
+moneda a COP nativo, entre otras) que nunca quedaron documentadas acá. Se
+detectó al arrancar una sesión de Claude Code el 21 de agosto que iba a
+analizar "cuánto le falta al proyecto" y encontró el archivo desalineado
+con `git log`.
+
+Todas las secciones nuevas de abajo (hasta el bug de Google y el arreglo de
+backups, que sí se hicieron y verificaron en la sesión del 21 de agosto)
+se reconstruyeron **leyendo el código real y los diffs de los commits**,
+no repitiendo verificación en vivo — donde el propio commit o comentario
+del código ya documentaba una verificación en vivo previa, se cita como
+tal; donde no, se marca explícitamente como "confirmado por código, no
+re-verificado en vivo en esta pasada". Si algo de lo que sigue no coincide
+con el comportamiento real, confiar en el código antes que en esta nota.
+
+## Seguridad y cuenta (2FA, baja con período de gracia, cifrado, monitoreo, backups)
+
+Bloque de features de "feature-completeness" agregadas en una sola sesión
+(commit raíz `0a48a7d`, "Base de feature-completeness: schema... y
+cifrado", 19 ago 2026). Confirmado por código, no re-verificado en vivo en
+esta pasada.
+
+**Verificación en dos pasos (2FA por TOTP)** — `User.twoFactorSecret`
+(cifrado en reposo)/`twoFactorEnabled`/`twoFactorBackupCodes` (JSON de
+hashes SHA-256). `src/lib/twoFactor.ts` (lógica pura sobre `otplib`) +
+`src/lib/crypto.ts` (AES-256-GCM, `APP_ENCRYPTION_KEY` de 32 bytes) para
+cifrar el secreto. Flujo en dos pasos desde `account/actions.ts`
+(`startTwoFactorSetupAction` genera y guarda el secreto cifrado sin activar
+todavía → el usuario escanea el QR → `confirmTwoFactorSetupAction` valida
+un código real y recién ahí activa el 2FA, entregando 8 backup codes de un
+solo uso que se muestran **una sola vez** y se guardan solo hasheados).
+Tolerancia de reloj ±30s. `disableTwoFactorAction` exige un código vigente
+(no alcanza con la sesión abierta). `src/lib/auth.ts` distingue "falta el
+2FA" (`TwoFactorRequiredError`) de "credenciales inválidas"
+(`TwoFactorInvalidError`) vía el campo `code` de la excepción (el único
+que Auth.js no pisa). Nota de trade-off ya documentada en el propio código:
+`allowDangerousEmailAccountLinking` (ver login con Google más abajo)
+permite entrar sin pasar por 2FA si alguien controla el Gmail vinculado —
+decisión consciente del dueño, no un descuido.
+
+**Eliminar cuenta con período de gracia** — `Tenant.deletionRequestedAt`/
+`deletionRequestedByEmail`, estado nuevo `DELETION_REQUESTED` en
+`TenantStatus`. Solo OWNER, pide escribir el nombre exacto del negocio
+(comparación case-sensitive sin trim, a propósito, para no debilitar la
+fricción — `src/lib/accountDeletion.ts`). Período de gracia: **30 días**
+(`GRACE_PERIOD_DAYS`). Arrepentirse (`cancelAccountDeletionAction`) vuelve
+el tenant a `ACTIVE` siempre, nunca al `TRIAL` original si partía de ahí —
+caso borde simplificado a propósito. Cron diario
+`src/app/api/cron/delete-requested-tenants/route.ts` borra definitivamente
+(`prisma.tenant.delete()`, cascade completo) los tenants que ya cumplieron
+los 30 días. Un tenant en baja no recibe backups nuevos (ver abajo).
+
+**Cifrado de la ficha de salud del cliente** — `Client.customFields` sigue
+siendo `Json` (sin migración de schema): `src/lib/clientCustomFields.ts`
+envuelve el objeto como `{ "_enc": "<base64 AES-256-GCM>" }` antes de
+persistir, vía `encryptField`/`decryptField` de `src/lib/crypto.ts` (mismo
+cifrado que el secreto TOTP). Aplicado en crear/editar cliente y en el
+import de CSV. `decryptCustomFields` **nunca lanza** — ciphertext corrupto
+o de otra clave devuelve `{}` en vez de tumbar la página con un 500; datos
+legados sin la forma `{_enc}` se devuelven tal cual (compatibilidad hacia
+atrás). Backfill puntual para los clientes ya existentes:
+`prisma/backfill-encrypt-custom-fields.ts` (idempotente, salta los ya
+migrados).
+
+**Monitoreo de errores interno (`ErrorLog`)** — `src/lib/errorLog.ts`
+(`logError`/`logWarning`, nunca lanza — si falla la propia escritura del
+log, solo hace `console.error` para no tumbar al llamador, que suele ser
+un catch de webhook de pago). Página de solo lectura en
+`dashboard/[tenantSlug]/errores/` (últimos 50, orden descendente), acceso
+restringido a OWNER porque puede exponer stack traces. **A propósito sin
+link en el nav todavía** — ruta directa sin lugar obvio asignado en el
+menú. Es la infraestructura que después usó la sesión del 21 de agosto
+para cazar el 500 de Google (ver más abajo) — aunque en ese caso particular
+resultó no capturar nada porque el crash pasaba fuera de cualquier
+`try/catch` propio, ver esa sección para el detalle.
+
+**Backups automáticos** — `src/lib/tenantExport.ts`
+(`buildTenantExportPayload`, compartido con el export manual de "Mi
+cuenta") + cron diario `src/app/api/cron/backup-tenants/route.ts`. Exporta
+el JSON completo del negocio (sedes, equipo, profesionales, servicios,
+clientes con ficha ya descifrada y etiquetas legibles, citas, inventario,
+paquetes, gift cards, reseñas) y lo sube a **Vercel Blob**
+(`backups/{tenantId}/{fecha-ISO}.json`, `access: "private"`). Excluye
+tenants `DELETION_REQUESTED`. Un tenant que falla no frena el resto del
+lote. **Retención: no implementada** — el propio código deja pendiente
+decidir una política (ej. "últimos 30 días") antes de que el volumen de
+blobs crezca sin límite; sigue sin resolver al 21 ago 2026. Este cron
+estuvo fallando en producción desde que existe (sin `BLOB_READ_WRITE_TOKEN`
+configurado en Vercel — nunca se había creado la cuenta de Blob) hasta que
+se arregló en la sesión del 21 de agosto (ver "Backups automáticos
+arreglados" más abajo).
+
+**"Descargar mis datos" — dos exports distintos, no confundir**: (A)
+negocio completo, `dashboard/[tenantSlug]/account/export/route.ts`, reusa
+`buildTenantExportPayload` (mismo código que el backup automático), solo
+OWNER. (B) un cliente puntual (portabilidad),
+`dashboard/[tenantSlug]/clients/[clientId]/export/route.ts`, ya
+documentado antes en este archivo en la fase de "Ficha de preferencias +
+portabilidad de cliente" — accesible a cualquiera con `requireDashboardAccess`
+pero con el mismo scoping "solo lo mío" de siempre para un login
+profesional-only.
+
+Fuera de esta fase: rotación/borrado de backups viejos, envío real de
+email de confirmación al pedir la baja de cuenta (el flujo es 100% dentro
+del dashboard, sin aviso externo).
+
+## PWA instalable + notificaciones push (VAPID)
+
+Commit raíz `47e5d42`. Confirmado por código, no re-verificado en vivo.
+
+`public/manifest.json` (PWA `standalone`, ícono SVG único, colores de
+marca) + `public/sw.js` (service worker con dos responsabilidades: cache
+de assets estáticos same-origin —red-primero para navegación, cache-primero
+para `_next/static` por ser inmutable por hash—, sin sincronización offline
+de datos de negocio; y recepción de push/click). Modelo nuevo
+`PushSubscription` (`endpoint` único, `p256dh`/`auth`, `tenantId`/`userId`).
+`User` ganó 4 toggles de preferencia: `notifyNewAppointment`/
+`notifyAppointmentReminder`/`notifyLowStock` (default `true` los tres) y
+`notifyDailySummary` (default `false`).
+
+`src/lib/webPush.ts` envuelve la librería `web-push` — nunca lanza, y si el
+push service devuelve 410/404 (suscripción caducada) la borra sola.
+`src/lib/staffNotifications.ts` (`notifyStaff`) es el punto central que
+manda push a todo el equipo del tenant con esa preferencia activa. Cuatro
+eventos reales ya conectados (no solo la infraestructura sin usar):
+nueva reserva pública → `notifyNewAppointment`; mismo momento que el
+recordatorio de WhatsApp 24h antes → `notifyAppointmentReminder`; insumo
+cruza el umbral de stock bajo → `notifyLowStock`; cron diario de resumen
+(ver abajo) → `notifyDailySummary`. El componente de UI
+(`PushNotificationToggle.tsx`) para que un usuario active/desactive push
+en su navegador existe pero **no está insertado en ninguna página
+todavía** — "autocontenido, listo para usar".
+
+**Resumen diario — ojo, es push, no email**: cron
+`src/app/api/cron/send-daily-summary/route.ts` cuenta las citas del día
+(excluyendo `CANCELLED`) y manda `"Hoy tienes N cita(s) agendada(s)"` por
+push a quien tenga `notifyDailySummary: true` y al menos una
+`PushSubscription` — nunca un email pese al nombre.
+
+## Importar clientes desde CSV
+
+Commit raíz `106de25`. Confirmado por código, no re-verificado en vivo.
+
+`src/lib/clientImport.ts` (parseo con `papaparse`) +
+`dashboard/[tenantSlug]/clients/import/` (wizard de 3 pasos: subir →
+previsualizar → resultado, un solo client component). Tope 5MB / 5000
+filas. Auto-detección de columnas nombre/email/teléfono por heurística de
+sinónimos normalizados. Solo el nombre es obligatorio por fila. El CSV
+**nunca trae ficha personalizada** (`customFields` queda vacío-cifrado para
+cada fila importada). Dedup reusa exactamente `findDuplicateClient` (mismo
+helper que crear/editar a mano) por email o teléfono normalizado — un
+duplicado se salta, nunca se actualiza. Lotes de 25 filas por transacción
+(cada fila necesita su propia consulta de dedup antes de decidir, así que
+no vale una transacción gigante para todo el archivo). Bloqueado para un
+login "solo profesional", mismo criterio que crear un cliente a mano.
+
+## Gift cards, Marketing por email, Reseñas, Fidelidad, Marketplace, Depósito para reservar
+
+Bloque de 6 features de crecimiento/monetización, commits raíz `fc4a742`
+(gift cards), `ba784dc` (marketing), `12cb11a` (reseñas). Todas detrás de
+guards `require*Access` en `auth-guards.ts` con el mismo patrón
+OWNER/ADMIN + gating de plan que el resto del dashboard. Confirmado por
+código, no re-verificado en vivo en esta pasada.
+
+**Gift cards** — `GiftCard` (`code` tipo `RIME-XXXX-XXXX` autogenerado sin
+caracteres ambiguos, no hasheado porque hay que poder compartirlo,
+`initialAmount`/`balance`, `status: ACTIVE/DEPLETED/CANCELLED`, `expiresAt`
+opcional) + `GiftCardRedemption` (1:1 con `Appointment`). `Payment` ganó el
+provider `GIFT_CARD`. Se emite a mano desde el dashboard (el cobro real
+—efectivo, transferencia— queda fuera de la app, sin checkout). Al
+reservar, el cliente canjea el código: cubre hasta el monto adeudado o
+hasta el saldo disponible, nunca más; si sobra resto se paga por
+Stripe/Wompi normalmente, y si cubre el 100% el `Payment` se crea `PAID`
+directo sin depender de ningún webhook externo. El descuento de saldo usa
+compare-and-swap para evitar sobre-redención por checkouts concurrentes
+(ver sección de condiciones de carrera más abajo).
+
+**Marketing por email** — `MarketingCampaign` (`subject`/`body` texto
+plano, `segment: ALL_CLIENTS | INACTIVE_60_DAYS`, `recipientCount`
+congelado al crear, **inmutable**: sin edición ni reenvío). Reusa
+`NotificationQueue` (`kind: MARKETING_CAMPAIGN`). `Client.marketingOptOut`
+(baja permanente de email, default implícito = sí recibe) vs.
+`Client.whatsappMarketingOptIn` (checkbox nuevo y explícito en la reserva
+pública, "Quiero recibir novedades y promociones por WhatsApp") — la
+distinción existe porque Meta clasifica plantillas de recompra/reseña como
+Marketing (no Utility) y exige consentimiento expreso, capturado solo al
+crear el cliente, sin retocarse después.
+
+**Reseñas** — `Review` es 1:1 con `Appointment` (la fila ES la invitación:
+`tokenHash` único, `expiresAt`, campos de respuesta nulos hasta contestar,
+`visible: true` por defecto). Se crea al marcar una cita `COMPLETED`. Cron
+`send-review-requests` prioriza EMAIL sobre WhatsApp (WhatsApp solo si hay
+`whatsappMarketingOptIn`). Formulario público en `/resena`. **Sin
+moderación previa** — se publica automático porque la verificación viene
+de estar atada a una cita real, no de aprobación manual; el OWNER puede
+ocultarla después desde el dashboard.
+
+**Fidelidad (sellos)** — `Tenant.loyaltyEnabled`/`loyaltyStampsRequired`
+(default 10)/`loyaltyRewardDescription`; `Client.loyaltyStamps` (acumulado
+de por vida)/`loyaltyRewardsRedeemed`. 100% automático: un sello por cita
+`COMPLETED` (gateado por el módulo de plan `"loyalty"`), sin la ambigüedad
+de "a cuál aplicar" que sí tienen los paquetes de sesiones. Premios
+disponibles = `floor(stamps/stampsRequired) - rewardsRedeemed`, calculado
+al vuelo, nunca guardado; canje manual desde la ficha del cliente. Sin
+aviso al cliente — decisión explícita de producto.
+
+**Marketplace** — `Tenant.marketplaceListed` (default `false`, opt-in
+explícito)/`marketplaceDescription`. Ruta pública `/explorar` (top-level,
+no bajo `[tenantSlug]`): lista tenants `TRIAL`/`ACTIVE` con
+`marketplaceListed: true`, búsqueda por nombre, filtro por vertical,
+promedio/conteo de reseñas visibles, linkea a `/{slug}?from=marketplace`.
+
+**Depósito para reservar** — `Tenant.depositPolicy`
+(`NONE | DEPOSIT | FULL_PAYMENT`, default `FULL_PAYMENT` para no romper
+tenants existentes)/`depositType` (`PERCENTAGE | FIXED`)/`depositValue`.
+`Payment.kind` (`FULL | DEPOSIT`) distingue qué se cobró. Lógica central en
+`src/lib/depositPolicy.ts` (`computeChargeAmount`), siempre acotada a
+`[0.01, price]`. Interactúa con gift cards: si la card cubre menos que el
+monto del cargo, se cobra el resto por Stripe/Wompi normalmente.
+
+## Copiloto RIME (IA de solo lectura, Reportes e Inventario)
+
+Commit raíz `74a9781`, 19 ago 2026. Confirmado por código, no
+re-verificado en vivo (nunca se probó una conversación real contra la API
+de Anthropic en esta pasada — solo se confirmó que el código y el gating
+están bien armados).
+
+Chat de preguntas y respuestas embebido directamente en el contenido de
+Reportes e Inventario (`AskCopilotBox.tsx`, compartido) — no un panel
+flotante. Usa la **API de Anthropic (Claude)** vía el Vercel AI SDK
+(`@ai-sdk/anthropic` + `ai`, modelo fijo `claude-sonnet-4-5`), clave en
+`ANTHROPIC_API_KEY` (presente en `.env`, no documentada todavía en
+`.env.example`). Lógica central en `src/lib/copilot.ts`.
+
+"Nivel 1, solo lectura" es literal: el modelo solo tiene *tool calls* de
+lectura (`findMany` de Prisma, nunca mutaciones), y cada caja recibe
+únicamente las herramientas de su propio dominio (Reportes:
+`getRevenueSummary`; Inventario: `getCurrentStock`/`getLowStockItems`/
+`getInventoryConsumption`) — el aislamiento entre módulos es estructural
+(las tools de un dominio ni existen en el otro), no solo una instrucción de
+prompt. `tenantId`/`locationId` nunca se le exponen al modelo: quedan
+cerrados como closures sobre las tools, ya resueltos por la Server Action
+tras pasar por `requireReportsAccess`/`requireInventoryAccess`. No se le
+manda un dump de datos — decide qué tool llamar según la pregunta
+(`stopWhen: stepCountIs(3)`, máximo 3 pasos), cada tool consulta Prisma en
+el momento.
+
+Gating: además del guard normal del módulo, cada acción chequea
+`planIncludesModule(tenant.plan, "aiAssistant")` — nuevo módulo de plan,
+solo `PREMIUM`/`PRO` en `true`.
+
+**Hueco real detectado en esta investigación, sin resolver**: no hay
+ningún rate limiting ni control de costo sobre el copiloto —
+`src/lib/rateLimit.ts` existe en el proyecto (usado en login/
+forgot-password) pero no está conectado acá. Un tenant PREMIUM/PRO podría
+mandar mensajes sin límite, cada uno gastando tokens reales de la cuenta de
+Anthropic del proyecto.
+
+## Moneda nativa COP (fin del USD implícito con conversión mockeada)
+
+Commit raíz `df4ae65`, 19 ago 2026. El más grande de este bloque en
+términos de impacto de datos. Confirmado por código; el backfill en
+particular fue revisado "fila por fila con el usuario" según el propio
+commit, no solo por fórmula ciega — cito esa afirmación del commit, no la
+re-verifiqué yo mismo en esta pasada.
+
+**Antes**: `Service.price`/`SessionPackage.price`/`GiftCard.balance`/
+`InventoryItem.unitCost` se guardaban en USD implícito sin campo de moneda
+propio, y solo el checkout de Wompi convertía con un
+`MOCK_USD_TO_COP_RATE = 4000` hardcodeado — Stripe cobraba en USD real y
+Wompi en COP convertido, así que el mismo servicio costaba montos
+distintos según la pasarela (esto ya estaba señalado como deuda en
+versiones anteriores de este archivo).
+
+**Ahora**: COP es la moneda canónica real en toda la base.
+`MOCK_USD_TO_COP_RATE` eliminado — Wompi ya no convierte nada, el monto ya
+está en pesos. Stripe pasó de `currency: "usd"` a `"cop"` (confirmado
+contra la API real de Stripe que COP no es zero-decimal como JPY/KRW, así
+que `Math.round(amount * 100)` para centavos sigue siendo correcto).
+`Payment.currency` default cambió de `"USD"` a `"COP"` (migración). Los 4
+Prices de suscripción de Stripe ya estaban en COP real (no una conversión
+×4000 genérica). Pagos históricos (`Payment`, `TenantWompiCharge`) **no se
+tocaron** — nunca se reescribe un pago ya asentado. Backfill puntual y
+acotado (`prisma/backfill-convert-usd-to-cop.ts`, corrida única): de 6
+registros de precio/costo en la base de demo, solo 2 estaban realmente en
+escala USD y se corrigieron (un `Service` y una `GiftCard`); los otros 4 ya
+estaban en COP, y cada update valida el valor exacto antes de escribir
+(se salta si no coincide, no es una fórmula que pisa todo). Nuevo
+`src/lib/currency.ts` (`formatCOP`/`formatCOPNumber`, es-CO sin decimales)
+centraliza el formato — reportes/PDF/CSV tenían "USD" y 2 decimales
+hardcodeados, corregidos.
+
+## Hardening: condiciones de carrera, autorización y crons atómicos
+
+Tres commits seguidos el 18 de agosto (`ddec965`, `86cc151`, `67b68be`),
+una sola sesión de refuerzo de concurrencia. Confirmado por código.
+
+**Condiciones de carrera cerradas** (patrón: leer-luego-escribir →
+compare-and-swap con `updateMany({where: {..., campoLeído: valorLeído}})`
+verificando `count > 0`): saldo de gift card, `usedSessions`/`status` de
+paquetes de sesiones, `loyaltyRewardsRedeemed` de fidelidad, `quantity` de
+`InventoryStock` en movimientos manuales, doble submit de reseñas (CAS
+contra `submittedAt: null`), y reclamo de `PasswordResetToken` antes de
+tocar la contraseña (evita que un doble submit del mismo link pise en
+silencio una contraseña ya guardada).
+
+**Autorización**: PDF de recetas ahora aplica el scoping "solo lo mío"
+(antes no lo tenía); un OWNER ya no puede perder su propio rol OWNER si es
+el único OWNER del tenant; la cookie de contraseña temporal pasó de un
+nombre fijo (`newUserTempPassword`) a uno por usuario/profesional (antes
+podía mostrarle la contraseña temporal a la persona equivocada si se
+invitaba a dos usuarios seguidos); varios flujos de creación (signup,
+equipo, profesionales, campos de cliente) ahora capturan la violación de
+unicidad de Prisma (P2002) en vez de reventar con un 500 genérico ante dos
+requests concurrentes con el mismo email/clave; login ganó rate limiting
+por IP (`LoginAttempt`, mismo mecanismo que ya tenía forgot-password).
+
+**Crons**: nuevo estado `SENDING` en `NotificationStatus` — los 5 crons de
+notificaciones ahora reclaman la fila (`updateMany` condicionado a
+`SCHEDULED`, se saltan si `count === 0`) antes de enviar, en vez de leerla
+sin marcarla — cierra un bug real de doble envío ante una corrida
+solapada (reintento de Vercel, invocación doble). `charge-wompi-subscriptions`
+chequea si ya hay un cobro `PENDING` para el tenant antes de disparar uno
+nuevo (evita doble cobro real), y aísla el fallo de un tenant del resto del
+lote. Verificación del checksum del webhook de Wompi pasó de `===` a
+`crypto.timingSafeEqual` (comparación en tiempo constante).
+
+## Bugs de visibilidad y consistencia corregidos (11-18 ago 2026)
+
+Confirmado por código.
+
+- **Reportes**: el filtro `to` de un rango de fechas se interpretaba como
+  `00:00:00.000Z`, excluyendo casi todo el último día del rango en
+  reportes/CSV/PDF/comisiones — corregido a `23:59:59.999Z`. Los
+  profesionales **desactivados** desaparecían de reportes/comisiones junto
+  con sus comisiones pendientes — ahora se consultan aparte, sin el filtro
+  `active: true` que sí aplica el resto del dashboard.
+- **Agenda interna**: citas de fin de semana quedaban invisibles (la grilla
+  usaba el rango lunes-viernes pensado para la reserva pública). Una cita
+  fuera de la ventana visual fija 9-18 podía quedar completamente recortada
+  sin aviso (clamp de altura mínima agregado).
+- **Fidelidad**: si el negocio subía el umbral de sellos después de que un
+  cliente ya había canjeado con el umbral viejo, el progreso podía mostrar
+  números negativos — `Math.max(0, ...)`.
+- **Marketplace**: un `vertical` inválido en la URL (`/explorar?vertical=x`)
+  tiraba 500 (Prisma no acepta cualquier string para un filtro de enum) —
+  ahora se ignora el filtro si no matchea ninguna vertical real.
+- **Cliente duplicado en reserva pública**: el matching por email era
+  case-sensitive a diferencia del dashboard, fragmentando historial/
+  fidelidad/inactividad de un mismo cliente entre mayúsculas y minúsculas —
+  corregido a `insensitive`.
+- **Choque de `Payment` en gift cards**: si ya existía un `Payment`
+  `PENDING` de un checkout abandonado, aplicar una gift card después
+  violaba el `@unique` de `appointmentId` sin manejarlo — ahora hace
+  `update()` si existe, `create()` si no.
+- **Consistencia de locale/moneda/timezone**: `es-CL` → `es-CO` en
+  formateo de fecha/hora (~15 archivos, antes media pantalla mostraba un
+  formato distinto a la otra para la misma cita); timezone default de sede
+  nueva `America/Santiago` → `America/Bogota`; gauges de stock sin ancho
+  negativo.
+- **Español neutro latinoamericano**: barrido completo de voseo rioplatense
+  ("tenés", "podés") a tuteo neutro ("tienes", "puedes") en ~40 archivos de
+  UI/emails/legales — solo texto, sin cambios de lógica.
+
+## Inventario: categoría/proveedor, alerta por sede, borrado acotado, aviso de comisión
+
+Confirmado por código.
+
+- `InventoryItem` ganó `category`/`supplier` (texto libre, sin catálogo
+  aparte — mismo criterio que `unit`).
+- **Cambio de alcance importante**: `Tenant.lowStockAlertPhone` se
+  **eliminó** y pasó a `Location.lowStockAlertPhone` — la alerta de stock
+  bajo ahora es por sede, no un único número por tenant avisando de todas.
+  Migración con backfill (copia el valor viejo del tenant a cada una de sus
+  sedes antes de `DROP COLUMN`).
+- **Matiz al criterio "nunca se borra, solo se desactiva"** (no una
+  contradicción, una excepción acotada y documentada en el propio commit):
+  desactivar un `InventoryItem` ahora desvincula automático sus
+  `ServiceInventoryItem` (antes seguía descontándose de servicios ya
+  desactivado); borrar un movimiento **manual** revierte su efecto sobre el
+  stock (los movimientos automáticos de citas completadas siguen sin poder
+  borrarse, se tratan como historial real); borrar un `InventoryItem`
+  completo solo se permite si nunca tuvo ningún movimiento — con historial,
+  la única opción sigue siendo desactivar.
+- **Aviso de comisión pagada por email**: al marcar comisiones como
+  pagadas, se le manda un email al `User` vinculado al profesional (nuevo
+  `sendCommissionPaidEmail` en `src/lib/email.ts`) — fire-and-forget, si
+  falla el pago ya quedó registrado igual. No pasa por `NotificationQueue`
+  (es aviso interno del negocio a su equipo, no a un cliente).
+
+## Infra y UX menores (11-21 ago 2026)
+
+Confirmado por código.
+
+- **Región de Vercel**: `vercel.json` ganó `"regions": ["gru1"]` (São
+  Paulo) — las funciones corrían en `iad1` (Washington, default) mientras
+  Neon está en `sa-east-1`, pagando el viaje intercontinental en cada
+  query.
+- **Pantalla de "función no disponible en tu plan" rediseñada**
+  (`plan-required/page.tsx`) — ahora muestra el ícono específico de la
+  función bloqueada con candado, el plan actual vs. el requerido con precio
+  real (`PLAN_OPTIONS`/`describePlan`), y un botón primario a Facturación.
+- **Redirect de `/login`/`/signup` si ya hay sesión activa** — causa real:
+  un usuario logueado en el negocio A veía el botón de Google, que
+  apuntaba a una cuenta ya vinculada al negocio B, dando un
+  `OAuthAccountNotLinked` confuso. Ahora ambas páginas resuelven la sesión
+  primero y redirigen directo al dashboard si ya existe.
+- **Addi y Sistecrédito en Facturación** — deliberadamente **solo
+  interfaz**: badge "Próximamente" + botón deshabilitado, sin integración
+  real ni credenciales.
+- Botón de mostrar/ocultar contraseña en el login (trivial, UI).
+
+## WhatsApp Business: número real y 6 plantillas a revisión (16 ago 2026)
+
+No investigado en profundidad en esta pasada (solo confirmado por título
+de commit, sin leer el diff) — el commit "Registrar número real de
+WhatsApp y enviar las 6 plantillas a revisión de Meta" (16 ago) y
+"Corregir guía de WhatsApp: Meta reclasificó 2 plantillas de Utility a
+Marketing" (mismo día) sugieren que el trámite de producción de WhatsApp
+(documentado como pendiente desde la sesión de Cowork de julio) avanzó de
+"número de prueba only" a "número real registrado, plantillas en
+revisión". Ver `guia-aprobacion-whatsapp-business-meta.md` en la raíz del
+repo, que probablemente se actualizó en el mismo commit. Si hace falta el
+estado exacto de aprobación de cada plantilla, confirmar en Meta Business
+Suite — no hay forma de verificarlo desde el código.
+
+## Bug crítico de producción: 500 en login/registro con Google — encontrado y resuelto (21 ago 2026)
+
+✅ hecho y **verificado en vivo end-to-end** por Claude Code, sesión del 21
+de agosto (no una sesión de Cowork — este entorno sí tuvo acceso real a
+producción vía Vercel CLI + una base de datos real, sin navegador propio,
+pero con el dueño probando en su navegador real y compartiendo capturas/
+URLs en tiempo real).
+
+**Contexto**: entre el 20 y el 21 de agosto hubo una cacería larga y
+finalmente infructuosa del error (ver los ~20 commits de "Instrumentar.../
+Diagnóstico.../Encontrada la causa real..." del 20-21 ago) — se probaron y
+descartaron varias teorías (reintento de Prisma dentro de una transacción
+abierta, cold start de Neon, handlers globales de proceso) sin resolverlo
+del todo. El propio `src/lib/prisma.ts` documenta la última teoría
+intentada (subir `connect_timeout`/`pool_timeout` a 20s) — **esa teoría
+NO era la causa real**, confirmado con logs reales de producción: el 500
+seguía ocurriendo minutos después de ese deploy.
+
+**Causa real, encontrada reinstrumentando con más precisión** (envolviendo
+`PrismaAdapter` completo + `jwt.encode`/`decode` con `console.error`, en
+vez de solo los callbacks propios): Auth.js arma el token de sesión con
+`picture: user.image` **antes** de que corra el callback `jwt` de este
+proyecto. Para un login por Google de una cuenta que ya había subido una
+foto de perfil, `User.image` tiene la foto guardada como **base64 directo
+en la columna** (stopgap ya documentado como "no apto para casos grandes"
+en `src/lib/profileImage.ts`) — confirmado en producción un JWT resultante
+de **3.6MB**. Eso no entra en las cookies chunked de Auth.js dentro del
+límite de tamaño de headers de la plataforma (Vercel/Lambda): el request se
+corta ahí, **antes de llegar a cualquier código propio del proyecto** — por
+eso ningún `try/catch`, ni `logError`, ni los handlers globales de
+`unhandledRejection`/`uncaughtException` que se probaron el día anterior
+vieron nunca nada.
+
+**Fix** (`src/lib/auth.ts`, callback `jwt`): `delete token.picture;` antes
+de devolver el token en el primer login. `session.user.image` no se usa en
+ningún lado de la UI (la foto se lee directo de la base cuando hace
+falta), así que sacarlo del token no tiene costo. Verificado en vivo:
+login por Google funcionando de punta a punta después del fix, con la
+cuenta real que antes crasheaba consistentemente.
+
+**Falsa alarma aparte, aclarada en la misma sesión**: después del fix, el
+dueño reportó que la sesión "seguía mostrando el mismo correo" al probar
+con otra cuenta — investigado y confirmado que **no era un bug de sesión
+cruzada entre usuarios**: la cuenta de Google del dueño (`nankuphoto@gmail.com`)
+tiene como nombre real "Jonathan Mena Ríos", y el negocio de prueba
+auto-provisionado para esa cuenta se llama "Negocio de Jonathan Mena Ríos"
+(`provisionTenantForOAuthUser` arma el nombre así) — coincidencia
+confusa con otro usuario real del sistema (`jonathanmena@gmail.com`, un
+tenant completamente distinto), no un cruce real. Ese tenant de prueba
+(quedó en `PAST_DUE` por un cobro de Wompi fallido de pruebas previas) se
+borró (cascade completo, confirmado sin dejar rastro).
+
+**Limpieza posterior**: toda la instrumentación de diagnóstico agregada
+para cazar este bug (`withAdapterLogging`, `loggingJwtEncode`/`Decode`,
+`src/instrumentation.ts` con los handlers globales, los `console.error` de
+checkpoint en `signIn`/`jwt`) se sacó una vez confirmado el fix — queda
+solo el `try/catch` + `logError` en `signIn`/`jwt` como monitoreo
+permanente (mismo criterio que el resto del proyecto para flujos
+críticos), y el `delete token.picture` con su comentario recortado a lo
+permanente. `tsc`, los 218 tests y el build de producción corrieron limpios
+en cada paso antes de cada deploy.
+
+**Fuera de esta fase / deuda técnica detectada pero NO resuelta**: el
+stopgap de foto de perfil en base64 (`profileImage.ts`) sigue existiendo
+tal cual para el flujo normal de "subir foto de perfil" — el fix solo evitó
+que ESA foto entrara al JWT, no cambió cómo se guarda. Si crece mucho más
+(un usuario con una foto de varios MB) podría eventualmente volver a ser un
+problema en otro lugar que si lea `User.image` completo sin cuidado.
+
+## ⚠️ Deuda técnica sin resolver: reintento de conexión a Neon sacado por completo
+
+Detectado en la investigación del 21 de agosto, **no resuelto todavía —
+queda como pendiente explícito**. El middleware `$use` de
+`src/lib/prisma.ts` que reintentaba automáticamente una query cuando Neon
+cortaba una conexión inactiva (agregado el 20 de agosto, commit `89d2a5a`)
+se sacó **por completo** un rato después (`59090cd`, mismo día) al
+investigar el 500 de Google — en ese momento parecía buen sospechoso
+porque reabría una conexión a mitad de una transacción interactiva. La
+causa real terminó siendo otra (la foto en el JWT, ver arriba), así que
+sacar el reintento no era necesario para resolver el bug — pero nunca se
+restauró. El propio mensaje de ese commit dice textualmente
+**"Restaurar (con más cuidado) una vez resuelto"** y eso nunca pasó.
+
+Estado actual real de `src/lib/prisma.ts`: solo queda la subida de
+`connect_timeout`/`pool_timeout` a 20s (vía query params en la URL de
+conexión) — **sin ningún reintento automático de queries** ante un corte de
+conexión transitorio de Neon. Esto afecta a **todo** el proyecto, no solo
+al login — cualquier query en cualquier página/acción/cron que pegue justo
+en el momento en que Neon cierra una conexión inactiva ahora falla directo
+en vez de reintentarse una vez. Antes de este período (ver "Bug real
+encontrado y corregido en el camino", sesión del 11 ago más arriba en este
+archivo) ya se sabía que esto pasaba bajo carga real. Antes de dar por
+cerrado el capítulo de estabilidad de esta sesión, valdría la pena
+restaurar un reintento — esta vez con el guard correcto de nunca
+reintentar dentro de una transacción interactiva (`params.runInTransaction`),
+que sí se había encontrado y que es la lección real que dejó esa
+investigación.
+
+## Backups automáticos arreglados: creación del store de Vercel Blob (21 ago 2026)
+
+✅ hecho y verificado en vivo. Al investigar por qué el cron
+`backup-tenants` fallaba en producción, se confirmó que **nunca había
+existido una cuenta de Vercel Blob para este proyecto** — `BLOB_READ_WRITE_TOKEN`
+no existía ni en `.env` local ni en Vercel (contradice una afirmación
+incorrecta hecha de pasada en esta misma sesión antes de revisarlo bien —
+corregida acá). Esto también dejaba sin funcionar "Línea de tiempo de
+fotos" (estética), el único de los 8 módulos de nicho del roadmap que
+CLAUDE.md ya marcaba como no verificado contra el servicio real por este
+mismo motivo.
+
+Se creó el store (`plataforma-agenda`, acceso público, región `iad1`, vía
+`vercel blob create-store --access public --yes`), quedó conectado
+automáticamente a Production/Preview/Development, y se redesplegó.
+Verificado con una subida y borrado reales contra el store de producción
+usando el SDK `@vercel/blob` directo (`put`/`del`) — funciona.
+
+**Nota**: el store se creó con acceso `public` a nivel de store (necesario
+para que "Línea de tiempo de fotos" funcione sin URLs firmadas, como ya
+asume su código). El SDK de `@vercel/blob` acepta `access: "public"` o
+`"private"` **por llamada individual** (`put()`), no solo a nivel de
+store — el código de `backup-tenants` ya pide `access: "private"` por
+archivo, así que en teoría conviven bien en el mismo store. **No se
+verificó en vivo que un `put()` con `access: "private"` sobre un store de
+acceso `public` efectivamente produzca una URL no accesible sin
+autenticación** — si en algún momento se sospecha que los backups
+(contienen la ficha de salud completa de los clientes, aunque cifrada a
+nivel de campo) están accesibles sin auth, hay que confirmar esto
+puntualmente contra la documentación de Vercel Blob o crear un segundo
+store dedicado y privado solo para backups.
+
+Pendiente sin cerrar: no se pudo disparar el cron `backup-tenants` real vía
+HTTP con el `CRON_SECRET` de producción por un problema de escape de
+caracteres al extraerlo del `.env` pulled por la CLI en este entorno
+Windows — no se investigó más porque la prueba directa contra el SDK de
+Blob ya confirmaba el fix real. El cron corre solo, diario — confirmar
+mañana revisando `ErrorLog` que no vuelva a aparecer el error de token
+faltante.
