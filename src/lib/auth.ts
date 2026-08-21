@@ -2,6 +2,12 @@ import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import {
+  encode as defaultJwtEncode,
+  decode as defaultJwtDecode,
+  type JWTEncodeParams,
+  type JWTDecodeParams,
+} from "next-auth/jwt";
 import type { Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
@@ -9,6 +15,46 @@ import { decryptField } from "@/lib/crypto";
 import { consumeBackupCode, verifyTotpCode } from "@/lib/twoFactor";
 import { provisionTenantForOAuthUser } from "@/lib/tenantProvisioning";
 import { logError } from "@/lib/errorLog";
+
+// Instrumentado a propósito (2026-08-21), un paso más allá de
+// withAdapterLogging (ver más abajo): con esa instrumentación ya se
+// confirmó en producción que TODO nuestro código (signIn, jwt, y las
+// llamadas al adapter que hace Auth.js) termina bien — el log real de un
+// intento real de Google mostró "[auth.jwt] terminó ok" y ahí se corta, sin
+// ninguna excepción atrapada por nada de lo que ya envolvimos. Lo único que
+// queda entre eso y la respuesta final es la firma del JWT de sesión
+// (jwt.encode, acá abajo) y el armado de las cookies chunked — Auth.js deja
+// reemplazar encode/decode por los propios, así que este wrapper llama a la
+// implementación default (jose/@auth/core) tal cual, solo agregando
+// console.error antes/después. Si esto también sale "ok" en el próximo
+// intento, se descarta también este último tramo de nuestro control y el
+// sospechoso pasa a ser la plataforma (Vercel/Lambda) en sí, no nuestro
+// código ni el de Auth.js. Sacar una vez resuelto el 500.
+async function loggingJwtEncode(params: JWTEncodeParams): Promise<string> {
+  const startedAt = Date.now();
+  console.error("[auth.jwt.encode] llamado");
+  try {
+    const result = await defaultJwtEncode(params);
+    console.error(`[auth.jwt.encode] ok en ${Date.now() - startedAt}ms, largo=${result.length}`);
+    return result;
+  } catch (error) {
+    console.error(`[auth.jwt.encode] FALLÓ tras ${Date.now() - startedAt}ms:`, error);
+    throw error;
+  }
+}
+
+async function loggingJwtDecode(params: JWTDecodeParams) {
+  const startedAt = Date.now();
+  console.error("[auth.jwt.decode] llamado");
+  try {
+    const result = await defaultJwtDecode(params);
+    console.error(`[auth.jwt.decode] ok en ${Date.now() - startedAt}ms`);
+    return result;
+  } catch (error) {
+    console.error(`[auth.jwt.decode] FALLÓ tras ${Date.now() - startedAt}ms:`, error);
+    throw error;
+  }
+}
 
 // Instrumentado a propósito (2026-08-21), para el mismo 500 de Google que
 // documenta el comentario largo del callback signIn más abajo: el adapter de
@@ -78,6 +124,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // El provider de Credentials no soporta sesiones de base de datos en
   // Auth.js — JWT es obligatorio acá.
   session: { strategy: "jwt" },
+  jwt: { encode: loggingJwtEncode, decode: loggingJwtDecode },
   pages: { signIn: "/login" },
   trustHost: true,
   providers: [
