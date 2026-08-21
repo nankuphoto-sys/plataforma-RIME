@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { isGoogleAuthEnabled } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { auth, isGoogleAuthEnabled } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { PLAN_OPTIONS, describePlan } from "@/lib/planDisplay";
 import { signInWithGoogleAction } from "../login/actions";
 import { signUpTenantAction } from "./actions";
@@ -21,6 +23,17 @@ export default async function SignupPage({
   const defaultVertical = VERTICAL_OPTIONS.some((option) => option.value === vertical)
     ? vertical
     : "GENERAL";
+
+  // Mismo motivo que en /login (ver el comentario ahí): con sesión activa,
+  // ni el botón de Google ni el formulario deberían mostrarse acá.
+  const session = await auth();
+  if (session?.user?.tenantId) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: session.user.tenantId },
+      select: { slug: true },
+    });
+    if (tenant) redirect(`/dashboard/${tenant.slug}`);
+  }
 
   return (
     <main className="auth-shell">
