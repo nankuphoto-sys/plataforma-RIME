@@ -9,6 +9,7 @@ import { crossedLowStockThreshold, maybeSendLowStockAlerts } from "@/lib/invento
 import { normalizePhoneForWhatsapp } from "@/lib/whatsapp";
 import { planIncludesModule } from "@/lib/planLimits";
 import { askInventoryCopilot } from "@/lib/copilot";
+import { isCopilotRateLimited, recordCopilotAttempt } from "@/lib/rateLimit";
 
 function parseItemFields(formData: FormData) {
   const name = formData.get("name")?.toString().trim() ?? "";
@@ -399,6 +400,16 @@ export async function askInventoryCopilotAction(
   if (!trimmed) {
     return { ok: false, error: "Escribe una pregunta." };
   }
+
+  // Mismo cupo por usuario que Reportes (comparten costo/riesgo real) — ver
+  // src/lib/rateLimit.ts.
+  if (await isCopilotRateLimited(session.user.id)) {
+    return {
+      ok: false,
+      error: "Alcanzaste el límite de preguntas al Copiloto por esta hora. Intenta de nuevo más tarde.",
+    };
+  }
+  await recordCopilotAttempt(session.user.id);
 
   try {
     const answer = await askInventoryCopilot(tenant.id, location.id, trimmed);

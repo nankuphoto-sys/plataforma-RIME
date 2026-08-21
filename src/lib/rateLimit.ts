@@ -69,3 +69,32 @@ export async function isLoginRateLimited(ip: string): Promise<boolean> {
 export async function recordLoginAttempt(ip: string): Promise<void> {
   await prisma.loginAttempt.create({ data: { ip } });
 }
+
+const COPILOT_WINDOW_MINUTES = 60;
+const COPILOT_MAX_QUESTIONS_PER_WINDOW = 20;
+
+// Distinto de los de arriba en dos cosas: por userId (no por IP — el
+// Copiloto solo es alcanzable ya logueado) y ventana de 1 hora en vez de
+// 15 minutos (esto no es un intento de fuerza bruta a frenar rápido, es un
+// control de costo — cada pregunta real gasta tokens de la cuenta de
+// Anthropic del proyecto, así que el objetivo es un tope generoso de uso
+// normal, no throttling agresivo). Reportes e Inventario cuentan contra el
+// mismo cupo (mismo costo/riesgo real, sin importar desde qué caja se
+// pregunte).
+export async function isCopilotRateLimited(userId: string): Promise<boolean> {
+  const windowStart = new Date(Date.now() - COPILOT_WINDOW_MINUTES * 60 * 1000);
+
+  await prisma.copilotQuestionAttempt.deleteMany({
+    where: { userId, createdAt: { lt: windowStart } },
+  });
+
+  const attemptsInWindow = await prisma.copilotQuestionAttempt.count({
+    where: { userId, createdAt: { gt: windowStart } },
+  });
+
+  return attemptsInWindow >= COPILOT_MAX_QUESTIONS_PER_WINDOW;
+}
+
+export async function recordCopilotAttempt(userId: string): Promise<void> {
+  await prisma.copilotQuestionAttempt.create({ data: { userId } });
+}

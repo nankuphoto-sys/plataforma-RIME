@@ -8,6 +8,7 @@ import { calculateCommissionAmount, getDefaultReportRange, parseReportDateParam 
 import { sendCommissionPaidEmail } from "@/lib/email";
 import { planIncludesModule } from "@/lib/planLimits";
 import { askReportsCopilot } from "@/lib/copilot";
+import { isCopilotRateLimited, recordCopilotAttempt } from "@/lib/rateLimit";
 
 function formatDateLabel(date: Date): string {
   return date.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -150,7 +151,7 @@ export async function askReportsCopilotAction(
   tenantSlug: string,
   question: string
 ): Promise<{ ok: true; answer: string } | { ok: false; error: string }> {
-  const { tenant } = await requireReportsAccess(tenantSlug);
+  const { session, tenant } = await requireReportsAccess(tenantSlug);
 
   if (!planIncludesModule(tenant.plan, "aiAssistant")) {
     return { ok: false, error: "Esta función no está disponible en tu plan." };
@@ -160,6 +161,19 @@ export async function askReportsCopilotAction(
   if (!trimmed) {
     return { ok: false, error: "Escribe una pregunta." };
   }
+
+  // Antes de llamar al modelo (que cuesta real): tope de uso por usuario,
+  // compartido con Inventario (ver src/lib/rateLimit.ts). Mismo criterio
+  // que login/forgot-password: el chequeo NO cuenta como intento nuevo,
+  // se registra recién acá, una vez confirmado que se va a llamar al
+  // modelo de verdad.
+  if (await isCopilotRateLimited(session.user.id)) {
+    return {
+      ok: false,
+      error: "Alcanzaste el límite de preguntas al Copiloto por esta hora. Intenta de nuevo más tarde.",
+    };
+  }
+  await recordCopilotAttempt(session.user.id);
 
   try {
     const answer = await askReportsCopilot(tenant.id, trimmed);

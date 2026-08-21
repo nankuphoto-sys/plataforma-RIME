@@ -294,6 +294,22 @@ model LoginAttempt {
   @@index([ip, createdAt])
 }
 
+// Rate limit del Copiloto RIME (src/lib/copilot.ts) — cada pregunta real
+// que llega a llamar al modelo (Reportes o Inventario, cuentan juntas
+// contra el mismo cupo por ser el mismo costo/riesgo) registra una fila
+// acá. Por userId, no por IP (a diferencia de LoginAttempt/
+// PasswordResetAttempt, que son de acceso público sin sesión) — el
+// Copiloto solo es alcanzable ya logueado, así que el usuario real es la
+// clave natural, no la IP (que en un negocio con varios empleados en la
+// misma red podría compartirse entre personas distintas).
+model CopilotQuestionAttempt {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
 // ------------------------------
 // Modelos requeridos por el Prisma adapter de Auth.js (@auth/prisma-adapter).
 // Con el provider de Credentials + sesión JWT no se usan en el login actual,
