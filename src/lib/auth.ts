@@ -327,6 +327,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             passwordChangedAt = dbUser.passwordChangedAt;
           }
 
+          // CAUSA REAL del 500 de Google, encontrada el 2026-08-21 con
+          // loggingJwtEncode (ver arriba): Auth.js arma el token inicial acá
+          // con `picture: user.image` ANTES de que este callback corra —
+          // para un login por Google, `user.image` es el valor que ya está
+          // en la base (User.image), y ese campo guarda la foto de perfil
+          // como base64 directo en la columna (ver src/lib/profileImage.ts,
+          // que ya advierte que ese stopgap "no es apto" para casos
+          // grandes). Confirmado en vivo: un JWT de 3.6MB (la foto entera
+          // adentro) no entra en las cookies chunked de Auth.js dentro del
+          // límite de headers de la plataforma — el request se corta ahí,
+          // ANTES de llegar a cualquier código nuestro, por eso ningún
+          // try/catch ni handler global lo vio nunca. `session.user.image`
+          // no se usa en ningún lado de la UI (la foto de perfil se lee
+          // directo de la base cuando hace falta, no de la sesión), así que
+          // sacarlo del token es gratis.
+          delete token.picture;
+
           // user.id es opcional en el tipo base de Auth.js (pensado para
           // providers OAuth donde podría faltar transitoriamente) — acá
           // siempre viene seteado porque lo devuelve nuestro propio
