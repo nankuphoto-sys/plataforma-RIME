@@ -95,52 +95,60 @@ export async function provisionTenantForOAuthUser(params: {
   const slug = await generateUniqueSlug(businessName);
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const tenant = await tx.tenant.create({
-        data: { name: businessName, slug, plan: "INDIVIDUAL", vertical: "GENERAL", status: "TRIAL" },
-      });
-      const location = await tx.location.create({
-        data: { tenantId: tenant.id, name: "Sede Principal", timezone: DEFAULT_TIMEZONE },
-      });
-      const newUser = await tx.user.create({
-        data: { tenantId: tenant.id, name, email, passwordHash: null, image: image ?? null },
-      });
-      await tx.staffLocationRole.create({
-        data: { userId: newUser.id, locationId: location.id, role: "OWNER" },
-      });
-      const service = await tx.service.create({
-        data: {
-          tenantId: tenant.id,
-          name: "Consulta general",
-          durationMinutes: DEFAULT_SERVICE_DURATION_MINUTES,
-          price: DEFAULT_SERVICE_PRICE_COP,
-        },
-      });
-      const professional = await tx.professional.create({
-        data: { tenantId: tenant.id, userId: newUser.id, name, active: true },
-      });
-      await tx.professionalService.create({
-        data: { professionalId: professional.id, serviceId: service.id },
-      });
-      await tx.professionalLocation.create({
-        data: { professionalId: professional.id, locationId: location.id },
-      });
-      await tx.account.create({
-        data: {
-          userId: newUser.id,
-          type: account.type,
-          provider: account.provider,
-          providerAccountId: account.providerAccountId,
-          access_token: account.access_token ?? null,
-          refresh_token: account.refresh_token ?? null,
-          expires_at: account.expires_at ?? null,
-          token_type: account.token_type ?? null,
-          scope: account.scope ?? null,
-          id_token: account.id_token ?? null,
-          session_state: account.session_state ?? null,
-        },
-      });
-    });
+    // timeout generoso (default de Prisma: 5s) — son 9 escrituras seguidas
+    // (tenant, sede, usuario, rol, servicio, profesional y sus dos vínculos,
+    // más la Account) sobre una conexión que puede estar recién saliendo del
+    // reposo de Neon; verificado en vivo el 2026-08-21 que el request entero
+    // podía tardar ~6s en el peor caso, ya pegado al default.
+    await prisma.$transaction(
+      async (tx) => {
+        const tenant = await tx.tenant.create({
+          data: { name: businessName, slug, plan: "INDIVIDUAL", vertical: "GENERAL", status: "TRIAL" },
+        });
+        const location = await tx.location.create({
+          data: { tenantId: tenant.id, name: "Sede Principal", timezone: DEFAULT_TIMEZONE },
+        });
+        const newUser = await tx.user.create({
+          data: { tenantId: tenant.id, name, email, passwordHash: null, image: image ?? null },
+        });
+        await tx.staffLocationRole.create({
+          data: { userId: newUser.id, locationId: location.id, role: "OWNER" },
+        });
+        const service = await tx.service.create({
+          data: {
+            tenantId: tenant.id,
+            name: "Consulta general",
+            durationMinutes: DEFAULT_SERVICE_DURATION_MINUTES,
+            price: DEFAULT_SERVICE_PRICE_COP,
+          },
+        });
+        const professional = await tx.professional.create({
+          data: { tenantId: tenant.id, userId: newUser.id, name, active: true },
+        });
+        await tx.professionalService.create({
+          data: { professionalId: professional.id, serviceId: service.id },
+        });
+        await tx.professionalLocation.create({
+          data: { professionalId: professional.id, locationId: location.id },
+        });
+        await tx.account.create({
+          data: {
+            userId: newUser.id,
+            type: account.type,
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+            access_token: account.access_token ?? null,
+            refresh_token: account.refresh_token ?? null,
+            expires_at: account.expires_at ?? null,
+            token_type: account.token_type ?? null,
+            scope: account.scope ?? null,
+            id_token: account.id_token ?? null,
+            session_state: account.session_state ?? null,
+          },
+        });
+      },
+      { timeout: 20000, maxWait: 10000 }
+    );
   } catch (err) {
     // Carrera entre dos requests con el mismo email nuevo (doble clic, dos
     // pestañas): el segundo choca contra el @unique de User.email — no es

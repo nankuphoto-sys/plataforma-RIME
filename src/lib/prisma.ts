@@ -50,6 +50,20 @@ function createPrismaClient(): PrismaClient {
   });
   const MAX_ATTEMPTS = 3;
   client.$use(async (params, next) => {
+    // Nunca reintentar una query que es parte de una transacción interactiva
+    // (prisma.$transaction(async (tx) => {...}), como el aprovisionamiento
+    // de negocio de provisionTenantForOAuthUser en tenantProvisioning.ts —
+    // 9 escrituras seguidas). Confirmado en vivo el 2026-08-21: reintentar
+    // acá adentro reabre la conexión reemplazando la de la transacción ya
+    // abierta, dejando a Prisma en un estado inconsistente — coincide
+    // exactamente con el crash de proceso (FUNCTION_INVOCATION_FAILED, sin
+    // ningún stack trace ni siquiera con unhandledRejection/uncaughtException
+    // atrapados) que tumbaba el login por Google justo en esa transacción.
+    // Dejar que la query original falle: Prisma aborta toda la transacción
+    // de forma limpia y el error sí llega como excepción normal de JS al
+    // código que llamó a $transaction.
+    if (params.runInTransaction) return next(params);
+
     let lastError: unknown;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
