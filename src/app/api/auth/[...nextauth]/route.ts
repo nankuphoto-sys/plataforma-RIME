@@ -3,34 +3,24 @@ import { handlers } from "@/lib/auth";
 import { logError } from "@/lib/errorLog";
 
 // Instrumentado a propósito (2026-08-21): el login por Google sigue dando
-// 500 en /api/auth/callback/google en producción, y NADA de lo agregado
-// hasta ahora dejó rastro — ni el try/catch en signIn/jwt, ni el wrapper
-// de acá abajo que envuelve el handler entero, ni ampliar el reintento de
-// conexión de Prisma (ver src/lib/prisma.ts). Eso descarta un throw común
-// de JS que se nos esté escapando por un catch mal puesto — apunta a que
-// el proceso se corta de raíz (timeout de la función, o una promesa
-// rechazada que nadie espera dentro de Auth.js/el adapter, que Node
-// reporta como unhandledRejection en vez de propagarse por el await
-// normal). Se agregan: (1) maxDuration explícito, por si el default de
-// Vercel se está quedando corto con el login por Google (adapter +
-// nuestras propias queries, todas seguidas); (2) handlers globales de
-// unhandledRejection/uncaughtException que loguean ANTES de que el
-// proceso pueda morir sin dejar nada escrito. Sacar todo este bloque una
-// vez resuelto.
+// 500 (FUNCTION_INVOCATION_FAILED) en /api/auth/callback/google en
+// producción. Hubo acá un par de process.on("unhandledRejection"/
+// "uncaughtException", ...) para intentar cazar el error — se sacaron:
+// Node, por default, si un error no queda atrapado por NADA, corta el
+// proceso al toque y limpio. En cuanto vos registrás tu propio listener
+// para esos eventos, Node deja de cortar solo — el proceso sigue vivo en
+// un estado que sus propios docs describen como ya no seguro para seguir
+// operando, esperando que VOS lo termines (con process.exit) — cosa que
+// nuestro handler no hacía, solo intentaba loguear con `void` (fire and
+// forget) y seguía de largo. En un entorno serverless eso es
+// contraproducente: en vez de un crash limpio e inmediato, el proceso
+// queda colgado en un estado roto hasta que la plataforma lo mata desde
+// afuera — coincide con el patrón visto (siempre ~5s, siempre sin ningún
+// rastro, sin cambios pese a arreglar por separado el reintento de
+// Prisma). maxDuration se deja (no hace daño, por si el problema real
+// termina siendo de tiempo). Sacar el resto de este comentario una vez
+// resuelto.
 export const maxDuration = 60;
-
-let processHandlersInstalled = false;
-function installProcessErrorHandlers(): void {
-  if (processHandlersInstalled) return;
-  processHandlersInstalled = true;
-  process.on("unhandledRejection", (reason) => {
-    void logError(reason, { where: "auth.route.unhandledRejection" });
-  });
-  process.on("uncaughtException", (err) => {
-    void logError(err, { where: "auth.route.uncaughtException" });
-  });
-}
-installProcessErrorHandlers();
 
 async function withErrorLogging(
   handler: (request: NextRequest) => Promise<Response>,
