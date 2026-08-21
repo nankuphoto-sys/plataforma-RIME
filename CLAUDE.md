@@ -2863,12 +2863,25 @@ Gating: además del guard normal del módulo, cada acción chequea
 `planIncludesModule(tenant.plan, "aiAssistant")` — nuevo módulo de plan,
 solo `PREMIUM`/`PRO` en `true`.
 
-**Hueco real detectado en esta investigación, sin resolver**: no hay
-ningún rate limiting ni control de costo sobre el copiloto —
-`src/lib/rateLimit.ts` existe en el proyecto (usado en login/
-forgot-password) pero no está conectado acá. Un tenant PREMIUM/PRO podría
-mandar mensajes sin límite, cada uno gastando tokens reales de la cuenta de
-Anthropic del proyecto.
+**Hueco detectado y resuelto en la misma sesión (21 ago 2026)**: no había
+ningún rate limiting ni control de costo sobre el copiloto — un tenant
+PREMIUM/PRO podía mandar mensajes sin límite, cada uno gastando tokens
+reales de la cuenta de Anthropic del proyecto. Se agregó
+`CopilotQuestionAttempt` (mismo patrón que `LoginAttempt`/
+`PasswordResetAttempt` en `src/lib/rateLimit.ts`) con
+`isCopilotRateLimited`/`recordCopilotAttempt`, pero por `userId` en vez de
+IP (el Copiloto solo es alcanzable ya logueado) y ventana de **1 hora**
+con tope de **20 preguntas** (control de costo, no throttling de fuerza
+bruta como login/reset). Reportes e Inventario comparten el mismo cupo por
+usuario — mismo costo/riesgo real sin importar desde qué caja se
+pregunte. El chequeo corre antes de llamar al modelo (evita el costo si ya
+está limitado) y el intento se registra apenas se confirma que va a llamar
+de verdad, no solo si responde bien. Verificado en vivo contra la base
+real: el tope bloquea a partir del intento 21, y la limpieza perezosa de
+filas fuera de la ventana funciona. Migración
+(`20260821140000_add_copilot_question_attempt`) aplicada con `prisma
+migrate deploy` directo (sin `migrate dev`, para no tocar ninguna shadow
+database contra la Neon real).
 
 ## Moneda nativa COP (fin del USD implícito con conversión mockeada)
 
