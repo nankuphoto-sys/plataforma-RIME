@@ -3107,34 +3107,37 @@ que ESA foto entrara al JWT, no cambió cómo se guarda. Si crece mucho más
 (un usuario con una foto de varios MB) podría eventualmente volver a ser un
 problema en otro lugar que si lea `User.image` completo sin cuidado.
 
-## ⚠️ Deuda técnica sin resolver: reintento de conexión a Neon sacado por completo
+## ✅ Resuelto: reintento de conexión a Neon restaurado (21 ago 2026, más tarde el mismo día)
 
-Detectado en la investigación del 21 de agosto, **no resuelto todavía —
-queda como pendiente explícito**. El middleware `$use` de
-`src/lib/prisma.ts` que reintentaba automáticamente una query cuando Neon
-cortaba una conexión inactiva (agregado el 20 de agosto, commit `89d2a5a`)
-se sacó **por completo** un rato después (`59090cd`, mismo día) al
-investigar el 500 de Google — en ese momento parecía buen sospechoso
-porque reabría una conexión a mitad de una transacción interactiva. La
-causa real terminó siendo otra (la foto en el JWT, ver arriba), así que
-sacar el reintento no era necesario para resolver el bug — pero nunca se
-restauró. El propio mensaje de ese commit dice textualmente
-**"Restaurar (con más cuidado) una vez resuelto"** y eso nunca pasó.
+Detectado como deuda técnica horas antes (sección de arriba tal cual quedó
+al principio del día) y cerrado en la misma sesión. El middleware `$use`
+de `src/lib/prisma.ts` que reintentaba automáticamente una query cuando
+Neon cortaba una conexión inactiva (agregado el 20 de agosto, commit
+`89d2a5a`) se había sacado **por completo** un rato después (`59090cd`,
+mismo día) al investigar el 500 de Google — la causa real de ese bug
+terminó siendo otra (la foto en el JWT, ver arriba), así que sacar el
+reintento no era necesario para resolverlo, pero nunca se había restaurado
+pese a que el propio commit decía "Restaurar (con más cuidado) una vez
+resuelto".
 
-Estado actual real de `src/lib/prisma.ts`: solo queda la subida de
-`connect_timeout`/`pool_timeout` a 20s (vía query params en la URL de
-conexión) — **sin ningún reintento automático de queries** ante un corte de
-conexión transitorio de Neon. Esto afecta a **todo** el proyecto, no solo
-al login — cualquier query en cualquier página/acción/cron que pegue justo
-en el momento en que Neon cierra una conexión inactiva ahora falla directo
-en vez de reintentarse una vez. Antes de este período (ver "Bug real
-encontrado y corregido en el camino", sesión del 11 ago más arriba en este
-archivo) ya se sabía que esto pasaba bajo carga real. Antes de dar por
-cerrado el capítulo de estabilidad de esta sesión, valdría la pena
-restaurar un reintento — esta vez con el guard correcto de nunca
-reintentar dentro de una transacción interactiva (`params.runInTransaction`),
-que sí se había encontrado y que es la lección real que dejó esa
-investigación.
+Se restauró la versión más refinada que ya había existido antes de
+sacarse (3 intentos, códigos `P1001/P1002/P1008/P1017` + mensajes de
+conexión transitoria) **con el guard que sí se había encontrado y
+confirmado en vivo**: nunca reintentar una query que es parte de una
+transacción interactiva (`params.runInTransaction`) — reintentar ahí
+adentro reabre la conexión a mitad de la transacción y deja a Prisma en un
+estado inconsistente capaz de tumbar el proceso entero, que fue justo la
+falsa pista que llevó a sacar el middleware entero en primer lugar. La
+subida de `connect_timeout`/`pool_timeout` a 20s (agregada más temprano el
+mismo día) se mantuvo sin cambios, conviven bien.
+
+Verificado por `tsc --noEmit` limpio, los 218 tests en verde, build de
+producción sin errores, y desplegado — no se forzó en vivo un corte de
+conexión real de Neon para probarlo (sería necesario esperar a que Neon
+efectivamente duerma la base y disparar una query justo en ese momento,
+no reproducible a demanda), así que queda verificado por revisión de
+código contra el comportamiento ya confirmado en vivo el 20-21 de agosto,
+no por una repetición live de esta sesión puntual.
 
 ## Backups automáticos arreglados: creación del store de Vercel Blob (21 ago 2026)
 
