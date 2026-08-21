@@ -30,12 +30,8 @@ export class TwoFactorInvalidError extends CredentialsSignin {
 // declarado sin clientId/clientSecret. isGoogleAuthEnabled se reexporta para
 // que el login (Server Component) sepa si debe mostrar el botón "Continuar
 // con Google" sin tener que adivinar leyendo el array de providers.
-// Apagado temporal a pedido del dueño (2026-08-21) para forzar un ciclo
-// completo de apagado/prendido del provider mientras se sigue investigando
-// el FUNCTION_INVOCATION_FAILED del callback — volver a "process.env..." en
-// ambas líneas para reactivarlo.
-const googleClientId = undefined; // process.env.GOOGLE_CLIENT_ID;
-const googleClientSecret = undefined; // process.env.GOOGLE_CLIENT_SECRET;
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 export const isGoogleAuthEnabled = Boolean(googleClientId && googleClientSecret);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
