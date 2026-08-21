@@ -114,8 +114,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
     // Ver el comentario de isGoogleAuthEnabled arriba: sin credenciales
     // reales, el spread queda vacío y el array de providers no cambia.
+    //
+    // allowDangerousEmailAccountLinking (decisión explícita del dueño,
+    // 2026-08-21, tras probarlo en producción): sin esto, Auth.js rechaza
+    // con OAuthAccountNotLinked cualquier login por Google cuyo email ya
+    // tenga cuenta por Credentials (contraseña) en RIME, sin importar que
+    // el email esté verificado por Google. El dueño prefirió la comodidad
+    // de entrar directo con Google sobre el riesgo que esto habilita: quien
+    // controle esa cuenta de Google (ej. alguien que recupere acceso al
+    // Gmail) entra a RIME sin conocer la contraseña ni pasar el 2FA. No es
+    // el default seguro de Auth.js — es un trade-off aceptado a propósito.
     ...(googleClientId && googleClientSecret
-      ? [Google({ clientId: googleClientId, clientSecret: googleClientSecret })]
+      ? [
+          Google({
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
+            allowDangerousEmailAccountLinking: true,
+          }),
+        ]
       : []),
   ],
   callbacks: {

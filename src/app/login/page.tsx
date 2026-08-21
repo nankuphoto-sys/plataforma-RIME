@@ -7,17 +7,17 @@ import { LoginForm } from "./LoginForm";
 // signInWithGoogleAction en actions.ts — usa el redirect default, no
 // redirect: false, así que cualquier error de ahí vuelve como query param en
 // vez de como valor de retorno). AccessDenied es el código que emite Auth.js
-// cuando el callback `signIn` de src/lib/auth.ts devuelve `false` (el email
-// de Google no existe todavía como User en RIME). OAuthAccountNotLinked es
-// el que emite el propio núcleo de Auth.js cuando el email SÍ existe pero
-// como cuenta de Credentials, y no hay allowDangerousEmailAccountLinking
-// (a propósito, ver el comentario junto a isGoogleAuthEnabled) — mismo caso,
-// mensaje distinto porque acá sí puede resolverlo solo con su contraseña.
+// cuando el callback `signIn` de src/lib/auth.ts devuelve `false` — hoy solo
+// pasa si el perfil de Google no trae email (caso borde, casi nunca).
+// OAuthAccountNotLinked ya no puede pasar con Google (se activó
+// allowDangerousEmailAccountLinking, ver el comentario junto a
+// isGoogleAuthEnabled) pero se deja el mensaje por si algún día se agrega
+// otro provider OAuth sin esa opción.
 const GOOGLE_LOGIN_ERROR_MESSAGES: Record<string, string> = {
   OAuthAccountNotLinked:
     "Ya existe una cuenta con este email. Inicia sesión con tu contraseña — no la vinculamos automáticamente por seguridad.",
   AccessDenied:
-    "Ese email no tiene una cuenta en RIME todavía. Pide que te inviten al equipo, o regístrate.",
+    "No pudimos obtener tu email desde Google. Revisá los permisos de la cuenta e intentá de nuevo.",
 };
 
 export default async function LoginPage({
