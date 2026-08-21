@@ -3168,26 +3168,54 @@ Se creó el store (`plataforma-agenda`, acceso público, región `iad1`, vía
 `vercel blob create-store --access public --yes`), quedó conectado
 automáticamente a Production/Preview/Development, y se redesplegó.
 Verificado con una subida y borrado reales contra el store de producción
-usando el SDK `@vercel/blob` directo (`put`/`del`) — funciona.
+usando el SDK `@vercel/blob` directo (`put`/`del`) — funciona, pero **esa
+prueba usó `access: "public"`, no el `access: "private"` que de verdad usa
+`backup-tenants`** — ver el cierre real más abajo.
 
-**Nota**: el store se creó con acceso `public` a nivel de store (necesario
-para que "Línea de tiempo de fotos" funcione sin URLs firmadas, como ya
-asume su código). El SDK de `@vercel/blob` acepta `access: "public"` o
-`"private"` **por llamada individual** (`put()`), no solo a nivel de
-store — el código de `backup-tenants` ya pide `access: "private"` por
-archivo, así que en teoría conviven bien en el mismo store. **No se
-verificó en vivo que un `put()` con `access: "private"` sobre un store de
-acceso `public` efectivamente produzca una URL no accesible sin
-autenticación** — si en algún momento se sospecha que los backups
-(contienen la ficha de salud completa de los clientes, aunque cifrada a
-nivel de campo) están accesibles sin auth, hay que confirmar esto
-puntualmente contra la documentación de Vercel Blob o crear un segundo
-store dedicado y privado solo para backups.
+## ✅ Cerrado: backups movidos a un store de Blob dedicado y realmente privado (21 ago 2026, mismo día)
 
-Pendiente sin cerrar: no se pudo disparar el cron `backup-tenants` real vía
-HTTP con el `CRON_SECRET` de producción por un problema de escape de
-caracteres al extraerlo del `.env` pulled por la CLI en este entorno
-Windows — no se investigó más porque la prueba directa contra el SDK de
-Blob ya confirmaba el fix real. El cron corre solo, diario — confirmar
-mañana revisando `ErrorLog` que no vuelva a aparecer el error de token
-faltante.
+Al verificar más a fondo (siguiendo con "asegurar los backups en Blob"
+como pendiente explícito) se encontró que la nota de arriba tenía razón en
+dudar: **`access: "private"` por llamada individual NO funciona contra un
+store creado con `--access public`** — confirmado en vivo, el SDK tira
+`BlobError: Cannot use private access on a public store. The store must be
+configured with private access.` El acceso es una propiedad del store
+entero en Vercel Blob, no algo que se elija libremente por archivo pese a
+que la firma de `put()` acepta el parámetro — así que **`backup-tenants`
+llevaba desde el día del "fix" fallando de nuevo, con un error distinto**
+(antes: token inexistente; después del store público: `BlobError` por
+mezclar accesos).
+
+Fix real: se creó un **segundo store dedicado**, `plataforma-agenda-backups`
+(`--access private`), y se conectó al proyecto con
+`vercel integration-resource connect plataforma-agenda-backups
+plataforma-agenda --prefix BACKUPS_ --yes` — hizo falta el prefijo porque
+la CLI no deja conectar un segundo store de Blob con el nombre de variable
+por default (`BLOB_READ_WRITE_TOKEN` ya estaba tomado por el store
+público de fotos). Quedó como `BACKUPS_READ_WRITE_TOKEN`.
+`src/app/api/cron/backup-tenants/route.ts` ahora lo usa explícito
+(`token: blobToken` en el `put()`), en vez del token por default. El
+store público (`plataforma-agenda`, `BLOB_READ_WRITE_TOKEN`) sigue siendo
+el que usa "Línea de tiempo de fotos" — sin cambios ahí, es exactamente el
+comportamiento que necesita (`<img src>` público sin login).
+
+**Verificado en vivo, esta vez con el path real**: subir un blob con
+`access: "private"` al store dedicado y después hacer un `fetch()` sin
+ningún header de autenticación a la URL devuelta dio **403** — confirmado
+que un backup real (nombres/emails/teléfonos/citas/montos del negocio; la
+ficha de salud del cliente ya viene cifrada a nivel de campo, pero el
+resto de los datos del backup no) queda inaccesible sin auth.
+
+**Sobre el `CRON_SECRET` que no dejaba disparar el cron a mano** (la nota
+anterior de esta sección lo atribuía a "un problema de escape de
+caracteres en Windows" — **esa explicación era incorrecta**, corregida
+acá): `CRON_SECRET` está marcado como **"Sensitive"** en Vercel
+(confirmado con `vercel env ls production`) — Vercel directamente no deja
+leer el valor real de una variable Sensitive, ni por `vercel env pull` ni
+por el dashboard (mismo caso ya documentado en este archivo para
+`DATABASE_URL`). No es un bug de shell ni algo que se pueda resolver
+extrayendo el valor con más cuidado — es una limitación de diseño de
+Vercel. El cron sigue sin dispararse a mano desde este entorno por ese
+motivo; corre solo en su horario (`0 4 * * *`) y se puede confirmar que
+funciona revisando `ErrorLog` (sin la fila de "token no configurado") o el
+conteo de blobs del store `plataforma-agenda-backups` al día siguiente.
