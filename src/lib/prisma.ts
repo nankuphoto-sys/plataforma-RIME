@@ -11,11 +11,21 @@ import { PrismaClient } from "@prisma/client";
 // con un 500 crudo si el corte pasaba justo ahí — encontrado en vivo el
 // 2026-08-20 con el login por Google fallando de forma intermitente.
 //
-// Reintentar UNA vez alcanza casi siempre: el intento fallido ya gatilla
-// que Prisma reabra la conexión, así que el reintento inmediato de la
-// MISMA query casi siempre pasa limpio. No se reintenta nada que no sea
-// este error puntual — un error real de la app (constraint violado, dato
-// inválido) sigue lanzando en el primer intento, sin reintentos de más.
+// Reintentar alcanza casi siempre: el intento fallido ya gatilla que Prisma
+// reabra la conexión, así que el reintento inmediato de la MISMA query casi
+// siempre pasa limpio. No se reintenta nada que no sea un error de conexión
+// transitorio — un error real de la app (constraint violado, dato inválido)
+// sigue lanzando en el primer intento, sin reintentos de más.
+//
+// Ampliado (2026-08-21): el 500 de login por Google seguía apareciendo SIN
+// ningún rastro ni siquiera en ErrorLog — nuestro propio logError también
+// depende de esta conexión, así que si el error de conexión no entraba en
+// este chequeo, ni el intento original ni el intento de loguearlo llegaban a
+// escribir nada. P1017/ECONNRESET (conexión cerrada) era el único caso
+// cubierto; se agregan P1001 (no se pudo alcanzar el server), P1002/P1008
+// (timeout) y ETIMEDOUT/ECONNREFUSED — todos transitorios por naturaleza,
+// nunca errores de datos/constraints. Dos reintentos en vez de uno, por si
+// el primer reintento cae justo en el mismo hueco de reconexión.
 //
 // $use (no $extends): $extends cambia el tipo del cliente resultante, lo
 // que rompe la compatibilidad con Prisma.TransactionClient en decenas de
@@ -23,25 +33,33 @@ import { PrismaClient } from "@prisma/client";
 // proyecto. $use es la API de middleware "clásica" (deprecada a favor de
 // $extends pero todavía soportada en Prisma 5.x) — no toca el tipo del
 // cliente, así que no hace falta retocar ningún otro archivo.
-function isClosedConnectionError(error: unknown): boolean {
-  if (error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "P1017") {
-    return true;
+const RETRYABLE_PRISMA_CODES = new Set(["P1001", "P1002", "P1008", "P1017"]);
+
+function isTransientConnectionError(error: unknown): boolean {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string" && RETRYABLE_PRISMA_CODES.has(code)) return true;
   }
   const message = error instanceof Error ? error.message : String(error);
-  return /closed|econnreset/i.test(message);
+  return /closed|econnreset|econnrefused|etimedout|can't reach database|timed out/i.test(message);
 }
 
 function createPrismaClient(): PrismaClient {
   const client = new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
+  const MAX_ATTEMPTS = 3;
   client.$use(async (params, next) => {
-    try {
-      return await next(params);
-    } catch (error) {
-      if (!isClosedConnectionError(error)) throw error;
-      return await next(params);
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        return await next(params);
+      } catch (error) {
+        lastError = error;
+        if (attempt === MAX_ATTEMPTS || !isTransientConnectionError(error)) throw error;
+      }
     }
+    throw lastError;
   });
   return client;
 }
