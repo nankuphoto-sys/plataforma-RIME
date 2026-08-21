@@ -2,12 +2,6 @@ import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import {
-  encode as defaultJwtEncode,
-  decode as defaultJwtDecode,
-  type JWTEncodeParams,
-  type JWTDecodeParams,
-} from "next-auth/jwt";
 import type { Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
@@ -15,85 +9,6 @@ import { decryptField } from "@/lib/crypto";
 import { consumeBackupCode, verifyTotpCode } from "@/lib/twoFactor";
 import { provisionTenantForOAuthUser } from "@/lib/tenantProvisioning";
 import { logError } from "@/lib/errorLog";
-
-// Instrumentado a propósito (2026-08-21), un paso más allá de
-// withAdapterLogging (ver más abajo): con esa instrumentación ya se
-// confirmó en producción que TODO nuestro código (signIn, jwt, y las
-// llamadas al adapter que hace Auth.js) termina bien — el log real de un
-// intento real de Google mostró "[auth.jwt] terminó ok" y ahí se corta, sin
-// ninguna excepción atrapada por nada de lo que ya envolvimos. Lo único que
-// queda entre eso y la respuesta final es la firma del JWT de sesión
-// (jwt.encode, acá abajo) y el armado de las cookies chunked — Auth.js deja
-// reemplazar encode/decode por los propios, así que este wrapper llama a la
-// implementación default (jose/@auth/core) tal cual, solo agregando
-// console.error antes/después. Si esto también sale "ok" en el próximo
-// intento, se descarta también este último tramo de nuestro control y el
-// sospechoso pasa a ser la plataforma (Vercel/Lambda) en sí, no nuestro
-// código ni el de Auth.js. Sacar una vez resuelto el 500.
-async function loggingJwtEncode(params: JWTEncodeParams): Promise<string> {
-  const startedAt = Date.now();
-  console.error("[auth.jwt.encode] llamado");
-  try {
-    const result = await defaultJwtEncode(params);
-    console.error(`[auth.jwt.encode] ok en ${Date.now() - startedAt}ms, largo=${result.length}`);
-    return result;
-  } catch (error) {
-    console.error(`[auth.jwt.encode] FALLÓ tras ${Date.now() - startedAt}ms:`, error);
-    throw error;
-  }
-}
-
-async function loggingJwtDecode(params: JWTDecodeParams) {
-  const startedAt = Date.now();
-  console.error("[auth.jwt.decode] llamado");
-  try {
-    const result = await defaultJwtDecode(params);
-    console.error(`[auth.jwt.decode] ok en ${Date.now() - startedAt}ms`);
-    return result;
-  } catch (error) {
-    console.error(`[auth.jwt.decode] FALLÓ tras ${Date.now() - startedAt}ms:`, error);
-    throw error;
-  }
-}
-
-// Instrumentado a propósito (2026-08-21), para el mismo 500 de Google que
-// documenta el comentario largo del callback signIn más abajo: el adapter de
-// Prisma (PrismaAdapter(prisma), justo debajo) hace sus propias llamadas
-// crudas a la base (getUserByAccount, linkAccount, etc.) DESDE DENTRO de
-// Auth.js — nunca pasan por nuestro signIn/jwt, así que el try/catch que ya
-// tienen esos dos callbacks (con logError, que escribe a nuestra propia
-// tabla) nunca las ve. En particular, linkAccount (activado por
-// allowDangerousEmailAccountLinking, agregado hoy mismo) es sospechoso
-// directo: es un `prisma.account.create()` suelto, sin ninguna protección
-// nuestra alrededor. Este wrapper intercepta CADA método del adapter con un
-// try/catch que loguea con console.error (no con logError/Prisma — si la
-// causa real es un problema de conexión a la base, un logError metería
-// exactamente la misma consulta que ya está fallando) antes de relanzar el
-// error tal cual, sin cambiar el comportamiento normal. Sacar una vez
-// resuelto el 500.
-function withAdapterLogging<T extends object>(adapter: T): T {
-  const wrapped: Record<string, unknown> = {};
-  for (const key of Object.keys(adapter) as (keyof T)[]) {
-    const original = adapter[key];
-    if (typeof original !== "function") {
-      wrapped[key as string] = original;
-      continue;
-    }
-    wrapped[key as string] = async (...args: unknown[]) => {
-      const startedAt = Date.now();
-      console.error(`[auth.adapter.${String(key)}] llamado`);
-      try {
-        const result = await (original as (...a: unknown[]) => unknown).apply(adapter, args);
-        console.error(`[auth.adapter.${String(key)}] ok en ${Date.now() - startedAt}ms`);
-        return result;
-      } catch (error) {
-        console.error(`[auth.adapter.${String(key)}] FALLÓ tras ${Date.now() - startedAt}ms:`, error);
-        throw error;
-      }
-    };
-  }
-  return wrapped as T;
-}
 
 // Errores distinguibles que puede tirar authorize() cuando el usuario tiene
 // 2FA activo (ver el bloque más abajo). CredentialsSignin es la única clase
@@ -120,11 +35,10 @@ const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 export const isGoogleAuthEnabled = Boolean(googleClientId && googleClientSecret);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: withAdapterLogging(PrismaAdapter(prisma)),
+  adapter: PrismaAdapter(prisma),
   // El provider de Credentials no soporta sesiones de base de datos en
   // Auth.js — JWT es obligatorio acá.
   session: { strategy: "jwt" },
-  jwt: { encode: loggingJwtEncode, decode: loggingJwtDecode },
   pages: { signIn: "/login" },
   trustHost: true,
   providers: [
@@ -253,20 +167,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // con OAuthAccountNotLinked un email que existe como Credentials sin
     // vincular (comportamiento previo, sin cambios).
     async signIn({ user, account }) {
-      // Instrumentado a propósito (2026-08-20): el login por Google está
-      // fallando en producción con 500 y CERO log de ningún tipo en Vercel
-      // (ni siquiera un stack trace) — así que este try/catch registra
-      // cualquier error acá directo en ErrorLog (nuestra propia base, no
-      // depende de que Vercel capture stdout) antes de volver a lanzarlo,
-      // para encontrar la causa real. Sacar este bloque una vez resuelto.
+      // try/catch con logError (no solo para diagnóstico puntual, queda
+      // como monitoreo permanente de este flujo — mismo criterio que los
+      // webhooks de pago): si algo falla acá, queda registrado en ErrorLog
+      // antes de relanzar el error tal cual.
       try {
         if (account?.provider && account.provider !== "credentials") {
-          console.error(`[auth.signIn] arrancó, provider=${account.provider}`);
           const email = user.email ?? "";
           if (!email) return false;
 
           const existing = await prisma.user.findUnique({ where: { email } });
-          console.error(`[auth.signIn] existing=${existing ? "sí" : "no"}`);
           if (!existing && account.providerAccountId) {
             await provisionTenantForOAuthUser({
               email,
@@ -288,20 +198,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             });
           }
         }
-        console.error(`[auth.signIn] terminó ok`);
         return true;
       } catch (error) {
-        console.error(`[auth.signIn] FALLÓ:`, error);
         await logError(error, { where: "auth.signIn", provider: account?.provider ?? null });
         throw error;
       }
     },
     async jwt({ token, user, account }) {
       if (user) {
-        // Mismo motivo que el try/catch del signIn callback de arriba —
-        // instrumentación temporal para encontrar el 500 sin logs del
-        // login por Google (2026-08-20). Sacar una vez resuelto.
-        console.error(`[auth.jwt] arrancó, provider=${account?.provider ?? "credentials"}`);
+        // Mismo criterio que el try/catch del signIn callback de arriba:
+        // monitoreo permanente de este flujo vía logError, no diagnóstico
+        // puntual.
         try {
           // Login por Credentials ya trae tenantId/locationRoles/
           // passwordChangedAt resueltos en el authorize() de arriba. Login por
@@ -327,21 +234,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             passwordChangedAt = dbUser.passwordChangedAt;
           }
 
-          // CAUSA REAL del 500 de Google, encontrada el 2026-08-21 con
-          // loggingJwtEncode (ver arriba): Auth.js arma el token inicial acá
-          // con `picture: user.image` ANTES de que este callback corra —
-          // para un login por Google, `user.image` es el valor que ya está
-          // en la base (User.image), y ese campo guarda la foto de perfil
-          // como base64 directo en la columna (ver src/lib/profileImage.ts,
-          // que ya advierte que ese stopgap "no es apto" para casos
-          // grandes). Confirmado en vivo: un JWT de 3.6MB (la foto entera
-          // adentro) no entra en las cookies chunked de Auth.js dentro del
-          // límite de headers de la plataforma — el request se corta ahí,
-          // ANTES de llegar a cualquier código nuestro, por eso ningún
-          // try/catch ni handler global lo vio nunca. `session.user.image`
-          // no se usa en ningún lado de la UI (la foto de perfil se lee
-          // directo de la base cuando hace falta, no de la sesión), así que
-          // sacarlo del token es gratis.
+          // Auth.js arma el token inicial con `picture: user.image` ANTES de
+          // que este callback corra. Para un login por Google, `user.image`
+          // es el valor ya guardado en User.image, que puede tener la foto
+          // de perfil como base64 directo en la columna (stopgap de
+          // src/lib/profileImage.ts, marcado ahí mismo como no apto para
+          // casos grandes). Un JWT con esa foto adentro puede pesar varios
+          // MB y no entra en las cookies chunked de Auth.js dentro del
+          // límite de headers de la plataforma — causó un 500
+          // (FUNCTION_INVOCATION_FAILED) en producción, ver historial de
+          // este archivo. `session.user.image` no se usa en ningún lado de
+          // la UI (la foto de perfil se lee directo de la base cuando hace
+          // falta), así que sacarlo del token es gratis.
           delete token.picture;
 
           // user.id es opcional en el tipo base de Auth.js (pensado para
@@ -358,10 +262,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // contraseña cambió mientras tanto (otro dispositivo, reset por
           // email, o reseteo asistido por un ADMIN/OWNER).
           token.passwordCheckedAt = passwordChangedAt.getTime();
-          console.error(`[auth.jwt] terminó ok`);
           return token;
         } catch (error) {
-          console.error(`[auth.jwt] FALLÓ:`, error);
           await logError(error, { where: "auth.jwt.firstLogin", provider: account?.provider ?? null });
           throw error;
         }
