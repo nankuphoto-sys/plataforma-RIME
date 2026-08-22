@@ -10,6 +10,16 @@ import { ProductPreviewSection } from "@/components/marketing/ProductPreviewSect
 import { SpecialtyGrid } from "@/components/marketing/SpecialtyGrid";
 import { StatsBar } from "@/components/marketing/StatsBar";
 import { Testimonials } from "@/components/marketing/Testimonials";
+import type { Metadata } from "next";
+
+// Verificación de dominio en Meta Business Suite (requisito para
+// completar la verificación de negocio de WhatsApp) — Meta solo la busca
+// en el <head> de la página de inicio.
+export const metadata: Metadata = {
+  other: {
+    "facebook-domain-verification": "qscjytkjtjtrdzs27r9i93rcj2pe3i",
+  },
+};
 
 export default function HomePage() {
   return (
