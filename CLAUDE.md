@@ -2343,28 +2343,40 @@ limpio con la dependencia real `@vercel/blob` instalada y usada (no un
 mock) — confirma que la llamada a `put()` está tipada correctamente contra
 el SDK real.
 
-**Lo que NO se pudo verificar en esta sesión, honestamente, y por qué**:
-este proyecto no tiene una cuenta de Vercel Blob creada — `BLOB_READ_WRITE_TOKEN`
-no existe en `.env`. A diferencia de TODOS los demás módulos de esta sesión
-(donde siempre hubo una base de datos real contra la cual probar, aunque
-fuera sin sesión HTTP), acá no hay ningún servicio real disponible para
-ejercitar — ni siquiera parcialmente. `uploadClientPhotoAction` nunca se
-llamó ni una vez, real o simulado; no hay confirmación de que `put()` con
-estos parámetros exactos funcione contra la API real de Vercel Blob (el
-tipado y la forma de la llamada están verificados contra el paquete
-instalado, no su comportamiento en runtime). **Antes de dar este módulo por
-terminado de verdad hace falta**: crear un Blob store en el dashboard de
-Vercel, cargar `BLOB_READ_WRITE_TOKEN` en `.env`, y subir una foto real por
-la UI para confirmar que `blob.url` queda guardada y la imagen carga en la
-grilla. Fuera de esta fase además: borrar una foto ya subida (ni de la base
-ni de Blob — nunca se implementó ningún delete), reordenar/destacar una
-foto como "antes/después" par, y comprimir/redimensionar la imagen antes de
-subir (hoy se sube tal cual la eligió el usuario, hasta 5MB).
+**Corrección (sesión de Claude Code, 22 ago 2026): esto ya se verificó contra
+el servicio real, ver "Fotos de cliente verificadas contra Vercel Blob real"
+más abajo.** La nota original decía que faltaba crear el Blob store y probar
+`put()` de verdad — ambas cosas ya pasaron (el store se creó el 21 de agosto
+al arreglar los backups automáticos, ver esa sección) y quedó pendiente solo
+la subida real de una foto, cerrada al día siguiente.
+
+Fuera de esta fase sigue: borrar una foto ya subida (ni de la base ni de
+Blob — nunca se implementó ningún delete), reordenar/destacar una foto como
+"antes/después" par, y comprimir/redimensionar la imagen antes de subir (hoy
+se sube tal cual la eligió el usuario, hasta 5MB).
 
 Con esto, los 8 módulos de nicho del roadmap de producto quedan resueltos
-en el código — 7 verificados en vivo contra datos reales, 1 (este) sin
-verificar contra el servicio externo real por no tener la cuenta creada
-todavía.
+en el código y verificados en vivo — los 7 anteriores contra datos reales,
+este último (ver más abajo) contra el servicio real de almacenamiento.
+
+## Fotos de cliente verificadas contra Vercel Blob real (22 ago 2026)
+
+✅ cerrado. Único punto que quedaba abierto de "Línea de tiempo de fotos"
+(ver sección más arriba) — nunca se había subido un archivo real desde que
+se creó el store de Blob (21 ago). Verificado con un script descartable
+(`prisma/qa-client-photo-upload.mjs`, corrido una vez y borrado al
+terminar) contra la base y el Blob store **reales** de producción, sin
+pasar por sesión HTTP (este entorno no tiene navegador): tenant QA PREMIUM
++ cliente, subida real de `public/images/specialties/psicologia.jpg`
+(47.9KB) vía `put()` con el token real, confirmado que la URL pública
+devuelve HTTP 200 con `content-type: image/jpeg` y los mismos bytes
+exactos que el archivo original; `ClientPhoto` creado y encontrado por la
+misma query que usa `clients/[clientId]/page.tsx`; confirmado el scoping
+por tenant (un `tenantId` incorrecto no encuentra la foto); `del()` borró
+el blob real y la URL quedó en 404 después. Tenant QA borrado al terminar
+(cascade). No se tocó la UI (`ClientPhotoUploadForm.tsx`,
+`uploadClientPhotoAction`) — la llamada a `put()` que se probó es
+exactamente la misma forma/parámetros que ya usa ese código.
 
 ## Deploy a producción (Vercel) — primera vez
 
