@@ -78,6 +78,9 @@ interface BookingWizardProps {
   // del negocio. Se guarda tal cual en Appointment.source (AppointmentSource
   // ya tenía el valor MARKETPLACE en el enum, sin conectar hasta esta fase).
   source: "WEBSITE" | "MARKETPLACE";
+  // Ver src/lib/featureFlags.ts — Stripe sigue funcionando por dentro
+  // (handlePay("stripe") intacto), esto solo oculta su botón.
+  stripeEnabled: boolean;
 }
 
 type Step = "location" | "service" | "professional" | "datetime" | "client" | "confirmation";
@@ -141,6 +144,7 @@ export function BookingWizard({
   professionals,
   depositPolicy,
   source,
+  stripeEnabled,
 }: BookingWizardProps) {
   const hasLocationStep = locations.length > 1;
   const defaultLocationId = locations.length === 1 ? locations[0].id : null;
@@ -428,10 +432,17 @@ export function BookingWizard({
                 </span>
               </p>
               <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                <button type="button" onClick={() => handlePay("stripe")} disabled={isPending} className="btn-primary">
-                  {isPending ? "Redirigiendo…" : "Tarjeta internacional (Stripe)"}
-                </button>
-                <button type="button" onClick={() => handlePay("wompi")} disabled={isPending} className="btn-secondary">
+                {stripeEnabled && (
+                  <button type="button" onClick={() => handlePay("stripe")} disabled={isPending} className="btn-primary">
+                    {isPending ? "Redirigiendo…" : "Tarjeta internacional (Stripe)"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handlePay("wompi")}
+                  disabled={isPending}
+                  className={stripeEnabled ? "btn-secondary" : "btn-primary"}
+                >
                   {isPending ? "Redirigiendo…" : "Wompi (Colombia)"}
                 </button>
               </div>

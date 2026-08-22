@@ -19,7 +19,7 @@ const FEATURES: { title: string; description: string; icon: LucideIcon }[] = [
   },
   {
     title: "Pagos con confirmación instantánea",
-    description: "Stripe y Wompi, confirmados por webhook en tiempo real.",
+    description: "Wompi, confirmado por webhook en tiempo real.",
     icon: CreditCard,
   },
   {

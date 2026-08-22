@@ -3,6 +3,7 @@ import { ArrowRightLeft, Banknote, CreditCard, RefreshCw, Settings, Wallet, XCir
 import { prisma } from "@/lib/prisma";
 import { requireBillingAccess } from "@/lib/auth-guards";
 import { getPlanLimits } from "@/lib/planLimits";
+import { STRIPE_ENABLED } from "@/lib/featureFlags";
 import { PLAN_OPTIONS, describePlan } from "@/lib/planDisplay";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -133,9 +134,19 @@ export default async function BillingPage({
         </div>
       </div>
 
-      {!hasWompiSubscription && (
+      {/* STRIPE_ENABLED solo bloquea ofrecer una suscripción NUEVA de Stripe
+          (Colombia no es país soportado hoy) — un tenant que YA tenga una
+          suscripción de Stripe activa desde antes sigue pudiendo
+          gestionarla vía el Billing Portal, sin importar el flag. */}
+      {!hasWompiSubscription && (hasStripeSubscription || STRIPE_ENABLED) && (
         <div className="mt-6">
-          {!hasStripeSubscription || stripeNeedsReactivation ? (
+          {hasStripeSubscription && !stripeNeedsReactivation ? (
+            <form action={createBillingPortalSessionAction.bind(null, tenantSlug)}>
+              <SubmitButton icon={<Settings className="h-4 w-4" />} pendingLabel="Abriendo…" className="btn-secondary">
+                Gestionar suscripción / actualizar método de pago
+              </SubmitButton>
+            </form>
+          ) : STRIPE_ENABLED ? (
             <form action={createSubscriptionCheckoutAction.bind(null, tenantSlug)}>
               <SubmitButton
                 icon={
@@ -150,13 +161,7 @@ export default async function BillingPage({
                 {stripeNeedsReactivation ? "Reactivar suscripción (Stripe)" : "Configurar cobro automático (Stripe)"}
               </SubmitButton>
             </form>
-          ) : (
-            <form action={createBillingPortalSessionAction.bind(null, tenantSlug)}>
-              <SubmitButton icon={<Settings className="h-4 w-4" />} pendingLabel="Abriendo…" className="btn-secondary">
-                Gestionar suscripción / actualizar método de pago
-              </SubmitButton>
-            </form>
-          )}
+          ) : null}
         </div>
       )}
 

@@ -5,7 +5,7 @@ import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 // así que esos dos quedan estáticos en vez de forzar la animación en todos.
 const STATS = [
   { display: "24/7", label: "Agenda pública de reservas" },
-  { value: 2, label: "Pasarelas de pago: Stripe y Wompi" },
+  { display: "100%", label: "Pagos con confirmación instantánea por webhook" },
   { value: 4, label: "Especialidades con ficha clínica propia" },
   { display: "0", label: "Costos ocultos en recordatorios por WhatsApp" },
 ] as const;

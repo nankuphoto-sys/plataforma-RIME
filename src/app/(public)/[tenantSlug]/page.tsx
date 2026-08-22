@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
+import { STRIPE_ENABLED } from "@/lib/featureFlags";
 import { BookingWizard } from "./BookingWizard";
 import { PostCheckoutStatus, type PostCheckoutAppointment } from "./PostCheckoutStatus";
 import { confirmWompiTransactionById } from "@/lib/wompiPayment";
@@ -148,6 +149,7 @@ export default async function PublicBookingPage({
                   value: tenant.depositValue?.toString() ?? null,
                 }}
                 source={bookingSource}
+                stripeEnabled={STRIPE_ENABLED}
               />
             ) : (
               <p className="mt-8 text-sm text-ink/40">

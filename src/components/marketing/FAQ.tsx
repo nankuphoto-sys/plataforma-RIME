@@ -7,7 +7,7 @@ const FAQS = [
   {
     question: "¿Hay costos ocultos por usar WhatsApp o pasarela de pago?",
     answer:
-      "No. Los recordatorios por WhatsApp y los pagos con Stripe o Wompi están incluidos en tu plan mensual, sin comisión adicional por cita ni cargo sorpresa.",
+      "No. Los recordatorios por WhatsApp y los pagos con Wompi están incluidos en tu plan mensual, sin comisión adicional por cita ni cargo sorpresa.",
   },
   {
     question: "¿Puedo migrar mis pacientes desde otro software o desde Excel?",

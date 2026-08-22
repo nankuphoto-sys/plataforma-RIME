@@ -20,7 +20,7 @@ const CONTENT: Record<
     bullets: [
       "Agenda pública 24/7: tus pacientes reservan solos, sin llamadas ni WhatsApp manual.",
       "Ficha clínica según tu especialidad (psicología, nutrición, fisioterapia, estética).",
-      "Cobra con Stripe o Wompi y mira la confirmación en tiempo real, no días después.",
+      "Cobra con Wompi y mira la confirmación en tiempo real, no días después.",
       "Recordatorios automáticos por WhatsApp para bajar el ausentismo.",
     ],
     cta: { href: "/signup", label: "Regístrate gratis" },
