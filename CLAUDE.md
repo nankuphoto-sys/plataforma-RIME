@@ -50,6 +50,36 @@ Diferenciadores clave frente a AgendaPro (no los rompas al implementar features)
 - Nombres de archivos y componentes en inglés, textos de UI en español (mercado LatAm).
 - Cada módulo nuevo (agenda, CRM, pagos, reportes) debe llevar tests básicos
   (Vitest para lógica, Playwright para flujos críticos como "crear cita" y "cobrar").
+- **`consultorio-demo` (owner@demo.com) es SOLO el demo público que se le
+  muestra a prospectos — nunca uses ese tenant ni esa cuenta para verificar
+  fixes a mano en el navegador.** Para eso existe `staging-verificacion` (ver
+  sección "Higiene del tenant demo" más abajo). Esta regla existe porque ya
+  se rompió una vez: ver esa misma sección.
+
+## Higiene del tenant demo (`consultorio-demo`)
+
+**Qué pasó:** una sesión de verificación en vivo (6 ago 2026, ver más abajo
+en este archivo) usó `owner@demo.com` para probar un fix en el dashboard
+real, y quedó una sede "Sede QA Fix Verificacion" + un profesional inactivo
+visibles en el demo público que se comparte con prospectos — hasta que un
+panel de auditoría externo (críticas de marca/diseño/producto/competencia
+sobre la plataforma, 22 ago 2026) lo encontró y se limpió a mano
+(`prisma/audit-demo-tenant.ts` + `prisma/cleanup-demo-tenant.ts`, ambos en
+este repo, sirven de referencia si vuelve a pasar).
+
+**La regla, de acá en adelante:** `consultorio-demo` es de solo mostrar,
+nunca de tocar. Para cualquier verificación manual en el navegador
+(clickear el dashboard para confirmar que algo funciona), usar el tenant
+`staging-verificacion` (`prisma/seed-staging.ts` lo crea si no existe —
+login `staging@rime-interno.local` / `staging1234`, plan PRO sin límites de
+gating). Los scripts `prisma/qa-*.ts` ya seguían este principio (cada uno
+crea su propio tenant descartable con su `-cleanup.ts`) — la única brecha
+era la verificación manual en navegador, que no tenía un tenant dedicado
+propio hasta ahora.
+
+Antes de compartir el link de `/consultorio-demo` con cualquier prospecto,
+correr `npx tsx prisma/audit-demo-tenant.ts` (dry-run, solo lee) como
+chequeo rápido de que no se coló nada.
 
 ## Fases (ver también `../plan-tecnico-plataforma.md`)
 

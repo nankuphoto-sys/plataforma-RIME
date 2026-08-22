@@ -1,4 +1,4 @@
-import { ArrowRight, Building2, Lock, Zap } from "lucide-react";
+import { Building2, Lock, Zap } from "lucide-react";
 
 const VERTICAL_OPTIONS = [
   { value: "GENERAL", label: "Consultorio general" },
@@ -52,11 +52,14 @@ export function Hero() {
           confirmados al instante — sin costos escondidos.
         </p>
 
+        {/* Fase 0, tarea 0-7 del plan de ejecución: antes había un botón
+            "Prueba gratis" acá que solo hacía scroll hasta el formulario de
+            abajo (id="registro") — quedaban dos pedidos de "empezá" visibles
+            en la misma pantalla (este botón + el formulario embebido a
+            metros de distancia), ambigüedad que señaló el panel de
+            producto/UX. El formulario es la única acción de inicio del
+            hero; acá queda solo el link informativo. */}
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <a href="#registro" className="btn-hero-primary">
-            Prueba gratis
-            <ArrowRight className="h-4 w-4" />
-          </a>
           <a href="#precios" className="btn-hero-ghost">
             Ver precios
           </a>

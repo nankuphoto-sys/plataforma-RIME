@@ -1,30 +1,16 @@
 /**
- * IMPORTANTE: son citas de ejemplo para ilustrar el formato de la sección
- * (nombre + rol + estrellas + cita corta), no testimonios reales de clientes
- * — el producto todavía no tiene clientes en producción. Reemplazar por
- * reseñas reales antes de publicar; mostrar estas como si fueran genuinas
- * sería engañoso.
+ * Fase 0, tarea 0-6 del plan de ejecución: los 3 testimonios anteriores eran
+ * citas de ejemplo sin foto ni negocio verificable — ya habían llegado a
+ * producción a pesar del comentario original que advertía no hacerlo. Se
+ * sacan de acá (TESTIMONIALS vacío) hasta tener reseñas reales.
+ *
+ * Para reponer: agregar objetos acá con name/role/quote, IDEALMENTE sumando
+ * foto y nombre de negocio verificable (ver Fase 1, tarea 1-8 del plan) —
+ * un testimonio sin ninguna forma de verificar que la persona/negocio existe
+ * resta credibilidad más de lo que suma. El componente no renderiza nada si
+ * el array está vacío, así que no hace falta tocar la página que lo usa.
  */
-const TESTIMONIALS = [
-  {
-    name: "Camila R.",
-    role: "Psicóloga clínica, consulta privada",
-    quote:
-      "Dejé de perder pacientes por no contestar el WhatsApp a tiempo — ahora reservan solos y les llega el recordatorio automático.",
-  },
-  {
-    name: "Andrés M.",
-    role: "Director, clínica de fisioterapia (2 sedes)",
-    quote:
-      "Poder dar acceso a cada sede por separado, sin que un fisioterapeuta vea la agenda de la otra sucursal, era justo lo que necesitábamos.",
-  },
-  {
-    name: "Valentina S.",
-    role: "Nutricionista",
-    quote:
-      "El pago queda confirmado al momento, no días después. Eso solo ya vale la suscripción.",
-  },
-];
+const TESTIMONIALS: { name: string; role: string; quote: string }[] = [];
 
 function Stars() {
   return (
@@ -39,6 +25,8 @@ function Stars() {
 }
 
 export function Testimonials() {
+  if (TESTIMONIALS.length === 0) return null;
+
   return (
     <section className="bg-white py-16">
       <div className="mx-auto max-w-7xl px-6">

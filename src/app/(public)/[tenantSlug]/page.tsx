@@ -89,7 +89,19 @@ export default async function PublicBookingPage({
   return (
     <main className="min-h-screen bg-paper">
       <div className="mx-auto max-w-xl px-6 py-14 sm:py-20">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-pine">Reserva tu cita</p>
+        {/* Fase 0, tarea 0-4 del plan de ejecución: esta página no tenía
+            ningún elemento de marca — nada distinguía la reserva pública de
+            un formulario suelto (hallazgo central del panel de marca/diseño/
+            producto/competencia). El protagonista sigue siendo el negocio
+            (tenant.name abajo, sin cambios), esta marca es deliberadamente
+            chica y no clickeable: no queremos que un paciente a mitad de una
+            reserva se vaya de la página por tocar un link a la home. */}
+        <div className="flex items-center gap-1.5 text-ink/40">
+          <span className="h-1.5 w-1.5 rounded-full bg-pine" aria-hidden />
+          <span className="font-display text-xs font-semibold tracking-wide">RIME</span>
+        </div>
+
+        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-pine">Reserva tu cita</p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
           {tenant.name}
         </h1>
