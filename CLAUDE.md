@@ -3037,19 +3037,48 @@ Confirmado por código.
   real ni credenciales.
 - Botón de mostrar/ocultar contraseña en el login (trivial, UI).
 
-## WhatsApp Business: número real y 6 plantillas a revisión (16 ago 2026)
+## ✅ Cerrado: WhatsApp Business con número real, las 6 plantillas APPROVED (22 ago 2026)
 
-No investigado en profundidad en esta pasada (solo confirmado por título
-de commit, sin leer el diff) — el commit "Registrar número real de
-WhatsApp y enviar las 6 plantillas a revisión de Meta" (16 ago) y
-"Corregir guía de WhatsApp: Meta reclasificó 2 plantillas de Utility a
-Marketing" (mismo día) sugieren que el trámite de producción de WhatsApp
-(documentado como pendiente desde la sesión de Cowork de julio) avanzó de
-"número de prueba only" a "número real registrado, plantillas en
-revisión". Ver `guia-aprobacion-whatsapp-business-meta.md` en la raíz del
-repo, que probablemente se actualizó en el mismo commit. Si hace falta el
-estado exacto de aprobación de cada plantilla, confirmar en Meta Business
-Suite — no hay forma de verificarlo desde el código.
+**Corrección a la nota anterior de esta sección** (que decía "no investigado
+en profundidad, confirmar en Meta Business Suite si hace falta el estado
+exacto"): se confirmó en vivo contra la API real de Meta (Graph API,
+`GET /{waba-id}/message_templates` y `/phone_numbers`, con el
+`WHATSAPP_CLOUD_API_TOKEN` real) que **las 6 plantillas están `APPROVED`**
+(`recordatorio_cita`, `alerta_stock_bajo`, `cupo_lista_espera` como
+`UTILITY`; `seguimiento_recompra`, `invitacion_resena`,
+`alerta_paquete_vencimiento` como `MARKETING` — la reclasificación que ya
+documentaba `guia-aprobacion-whatsapp-business-meta.md`) y que el número
+real `+57 301 1666621` (WABA id `27699257069773851`, phone number id
+`1308441025680420`, cuenta "Rime") está `VERIFIED`.
+
+**El bug real, encontrado en esta sesión**: pese a que el número real ya
+estaba registrado y las plantillas aprobadas desde el 15-16 de agosto,
+`WHATSAPP_PHONE_NUMBER_ID` en `.env` local **y en Vercel producción** seguía
+apuntando al número de pruebas de Meta (`1233870256475019`,
+"Test Number") — nunca se había actualizado tras el trámite. Esto
+significa que, sin que ningún código estuviera roto ni ningún log lo
+mostrara, **ningún recordatorio de cita ni alerta por WhatsApp le llegaba
+de verdad a un cliente real** desde el 16 de agosto: la app seguía
+hablando con el número de prueba, que solo entrega a destinatarios
+agregados a mano como "tester". Corregido: `WHATSAPP_PHONE_NUMBER_ID`
+actualizado a `1308441025680420` en `.env` local y en Vercel producción
+(`vercel env rm` + `vercel env add`, redeploy). No hizo falta tocar el
+token — el mismo `WHATSAPP_CLOUD_API_TOKEN` ya tenía acceso a ambos WABA.
+
+**El opt-in de marketing que la guía marcaba como pendiente para las 3
+plantillas `MARKETING` ya estaba resuelto** por una fase posterior (ver
+"Gift cards, Marketing por email, Reseñas..." más arriba,
+`Client.whatsappMarketingOptIn`) — confirmado por código que
+`detect-inactive-clients`, `detect-expiring-packages` y el fallback de
+invitación a reseña (`canWhatsappReview` en `dashboard/[tenantSlug]/actions.ts`)
+ya filtran por ese campo antes de encolar/enviar cualquiera de las tres.
+
+**Sin verificar en esta sesión**: un envío real de punta a punta (crear una
+cita real a 24h+, dejar correr `send-reminders`, confirmar que el WhatsApp
+efectivamente llega al teléfono) — la corrección se verificó contra el
+estado real de la API de Meta (plantillas/número), no con un mensaje real
+entregado. Sigue siendo el último punto del checklist de
+`guia-aprobacion-whatsapp-business-meta.md`.
 
 ## Bug crítico de producción: 500 en login/registro con Google — encontrado y resuelto (21 ago 2026)
 
