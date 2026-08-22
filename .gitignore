@@ -11,3 +11,6 @@ tsconfig.tsbuildinfo
 
 .vercel
 .env*
+
+# Carpeta de diseño (mockups .dc.html, screenshots, video) — no la necesita la app
+design_handoff_rime_app/

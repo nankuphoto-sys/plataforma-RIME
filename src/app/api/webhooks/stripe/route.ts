@@ -5,6 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { ALLOWED_STATUS_TRANSITIONS } from "@/lib/appointmentStatus";
 import { getPlanFromStripePriceId } from "@/lib/subscriptionPlans";
 import { logError } from "@/lib/errorLog";
+import { notifyN8n } from "@/lib/n8n";
 
 // Desde la API de Stripe 2025-03-31, Invoice ya no trae `subscription` como
 // campo directo — vive en parent.subscription_details.subscription.
@@ -113,6 +114,22 @@ export async function POST(request: Request): Promise<NextResponse> {
           where: { stripeSubscriptionId: subscriptionId },
           data: { status: "PAST_DUE" },
         });
+
+        // Notificación a n8n (Slack/WhatsApp interno) — fire-and-forget,
+        // nunca debe retrasar ni romper la respuesta a Stripe.
+        const tenant = await prisma.tenant.findFirst({ where: { stripeSubscriptionId: subscriptionId } });
+        if (tenant) {
+          void notifyN8n({
+            event: "payment_failed",
+            data: {
+              provider: "stripe",
+              tenantId: tenant.id,
+              tenantName: tenant.name,
+              amount: invoice.amount_due / 100,
+              currency: invoice.currency,
+            },
+          });
+        }
       }
     } else if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;

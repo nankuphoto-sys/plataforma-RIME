@@ -3172,6 +3172,39 @@ usando el SDK `@vercel/blob` directo (`put`/`del`) — funciona, pero **esa
 prueba usó `access: "public"`, no el `access: "private"` que de verdad usa
 `backup-tenants`** — ver el cierre real más abajo.
 
+## Notificación a n8n en pagos fallidos (Stripe/Wompi)
+
+✅ hecho y con tests, pero **sin conectar todavía a un n8n real** — infraestructura
+lista, sin configuración de producción. `src/lib/n8n.ts` (`notifyN8n`) manda un
+POST fire-and-forget a `N8N_WEBHOOK_URL` cuando falla un cobro de suscripción del
+SaaS (`event: "payment_failed"`, con `provider`/`tenantId`/`tenantName`/`amount`/
+`currency`), pensado para disparar una alerta interna (Slack, WhatsApp del
+equipo) desde un workflow de n8n — no tiene nada que ver con las notificaciones a
+clientes finales (`NotificationQueue`/WhatsApp Business ya documentadas arriba).
+
+Enganchado en los dos lugares donde un cobro de suscripción se marca fallido:
+`src/app/api/webhooks/stripe/route.ts` (rama `invoice.payment_failed`, antes de
+mover el tenant a `PAST_DUE`) y `src/app/api/webhooks/wompi/route.ts`
+(`handleSubscriptionChargeUpdate`, rama DECLINED/ERROR, corre una sola vez sin
+importar si el tenant termina en `PAST_DUE` o `CANCELLED`). Nunca lanza y nunca
+bloquea la respuesta al webhook real: sin `N8N_WEBHOOK_URL` configurada es un
+no-op inmediato (ni siquiera intenta el fetch), y si n8n está caído o tarda más
+de 5s (abort vía `AbortController`) solo se loguea por consola — mismo criterio
+que el resto de integraciones fire-and-forget del proyecto (WhatsApp, Resend,
+push). No pasa por `NotificationQueue` ni por ningún cron: se dispara en el
+momento, dentro del propio webhook.
+
+`src/lib/n8n.test.ts` (4 tests, mockeando `global.fetch`): no hace ningún fetch
+sin URL configurada; arma el POST con `event`/`data`/`timestamp` correctos;
+nunca lanza si el fetch rechaza; nunca lanza si se cumple el timeout de 5s.
+Variable documentada en `.env.example`.
+
+**Pendiente real, no de código**: `N8N_WEBHOOK_URL` no existe ni en `.env` local
+ni en Vercel producción — no hay ningún workflow de n8n desplegado todavía. Hasta
+que exista esa URL, este código sigue siendo un no-op silencioso en todos los
+entornos. Fuera de esta fase: cualquier otro evento además de `payment_failed`
+(ej. nuevo signup, cuenta cancelada, backup fallido).
+
 ## ✅ Cerrado: backups movidos a un store de Blob dedicado y realmente privado (21 ago 2026, mismo día)
 
 Al verificar más a fondo (siguiendo con "asegurar los backups en Blob"

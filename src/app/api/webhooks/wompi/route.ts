@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyWompiWebhookChecksum } from "@/lib/wompi";
 import { applyWompiTransactionStatus, type WompiTransactionStatus } from "@/lib/wompiPayment";
 import { logError } from "@/lib/errorLog";
+import { notifyN8n } from "@/lib/n8n";
 
 interface WompiWebhookEvent {
   event: string;
@@ -86,6 +87,19 @@ async function handleSubscriptionChargeUpdate(reference: string, rawStatus: Womp
   }
 
   // DECLINED o ERROR.
+  // Notificación a n8n (Slack/WhatsApp interno) — fire-and-forget, corre una
+  // sola vez acá sin importar si termina en PAST_DUE o en CANCELLED abajo.
+  void notifyN8n({
+    event: "payment_failed",
+    data: {
+      provider: "wompi",
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      amount: charge.amountInCents / 100,
+      currency: charge.currency,
+    },
+  });
+
   if (tenant.wompiRetryCount >= MAX_RETRIES) {
     // Este envío corresponde al último reintento ya agotado.
     await prisma.tenant.update({
